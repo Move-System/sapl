@@ -2,187 +2,143 @@
 .container-home {
   position: relative;
   padding: 2em 1.5em 1.5em 1.5em;
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
-  a:hover {
-    color: #444;
-    -webkit-transition: 0.3s ease-in;
-    -moz-transition: 0.3s ease-in;
-    -o-transition: 0.3s ease-in
-  }
 
   #homeIndex {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
     text-align: center;
-  }
-
-  .homeBanner span {
-    color: white;
-    font-size: 32px;
-    font-weight: 600;
-    display: inline-block;
-    vertical-align: middle;
-    padding: 2px 45px 4px;
-    border: 2px solid;
-  }
-
-  .homeBanner::after {
-    display: inline-block;
-    vertical-align: middle;
-    height: 100%;
   }
 
   .homeBlock {
-    display: inline-block;
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 2rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 220px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid #e5e7eb;
     position: relative;
-    background-color: #F3F3F3;
-    width: 190px;
-    height: 260px;
-    margin: 3px;
-    text-align: center;
-    font-size: 0;
-    overflow: hidden;
+
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+      border-color: #364347;
+
+      .card-icon {
+        background: #364347;
+        color: #ffffff;
+        transform: scale(1.1);
+      }
+
+      .btn-action {
+        background: #364347;
+        color: #ffffff;
+      }
+    }
   }
 
-  .homeBlock > a {
-    display: block;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-  }
-
-  .homeBlock::after {
-    content: '';
-    display: inline-block;
-    vertical-align: middle;
-    height: 100%;
-    overflow: visible;
-    clear: none;
-    visibility: initial;
-  }
-
-  .homeContent {
-    position: relative;
-    padding: 10px;
-    text-align: justify;
-    font-size: 14px;
-    color: #FFF;
-    opacity: 0;
-    transition: opacity 0.5s ease;
-    display: inline-block;
-    vertical-align: middle;
-  }
-
-  .homeContent p {
-    display: block;
-    line-height: 13px;
-    font-size: 80%;
-    color: white;
-  }
-
-  .homeIcon {
-    position: relative;
-    display: inline-block;
-    width: 105px;
-    height: 105px;
+  .card-icon {
+    width: 70px;
+    height: 70px;
     border-radius: 50%;
-    background: #364347;
-    z-index: 1;
+    background: #f3f4f6;
+    color: #364347;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    transition: all 0.3s ease;
+    margin-bottom: 1rem;
+
+    i {
+      transition: transform 0.3s ease;
+    }
   }
 
-  .homeIcon::before {
-    content: '';
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: #364347;
-    top: 0;
-    left: 0;
-    transform: scale(0.95);
-    transition: transform 0.6s ease;
+  .card-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin: 0.5rem 0;
+    line-height: 1.3;
   }
 
-  .homeIcon img {
-    position: absolute;
-    margin: auto;
-    top: 0;
-    bottom: 0;
-    right: 0;
-    left: 0;
-    transition: opacity 0.4s 0.4s ease;
-  }
-
-  .homeFront {
-    position: absolute;
-    top: 46%;
-    width: 100%;
-    font-size: 0;
-    transform: translateY(-60%);
-
-  }
-
-  .homeFront h2 {
-    position: absolute;
-    margin-top: 18px;
-    font-size: 22px;
-    font-weight: 700;
-    color: #595959 !important;
-    width: 100%;
-    padding: 0 6%;
-    z-index: 0;
-  }
-
-  .homeTitle {
-    display: block;
-    height: 32px;
+  .card-description {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin: 0.5rem 0 1.5rem;
+    line-height: 1.5;
     text-align: center;
+  }
+
+  .card-actions {
+    display: flex;
+    gap: 0.5rem;
     width: 100%;
-    opacity: 0;
-    transition: opacity 0.4s ease;
+    margin-top: auto;
   }
 
-  .homeTitle::before {
-    content: '';
-    display: inline-block;
-    vertical-align: middle;
-    height: 100%;
+  .btn-action {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: #f3f4f6;
+    color: #364347;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+
+    i {
+      font-size: 0.875rem;
+    }
+
+    &:hover {
+      background: #364347;
+      color: #ffffff;
+      text-decoration: none;
+    }
   }
 
-  .homeTitle h2 {
-    display: inline-block;
-    vertical-align: middle;
-    max-width: 110px;
-    font-size: 14px;
-    color: white !important;
-    line-height: 1em;
+  @media (max-width: 768px) {
+    padding: 1rem;
+
+    #homeIndex {
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+
+    .homeBlock {
+      padding: 1.5rem 1rem;
+      min-height: 200px;
+    }
+
+    .card-icon {
+      width: 60px;
+      height: 60px;
+      font-size: 1.75rem;
+    }
+
+    .card-title {
+      font-size: 1.125rem;
+    }
   }
 
-  .homeTitle img {
-    display: inline-block;
-    vertical-align: middle;
-    height: 30px;
-    margin-right: 5px;
+  @media (max-width: 480px) {
+    #homeIndex {
+      grid-template-columns: 1fr;
+    }
   }
-
-  .homeBlock:hover .homeIcon::before {
-    transform: scale(3.6) translateY(7px);
-  }
-
-  .homeBlock:hover .homeContent{
-    opacity: 1;
-    transition-delay: 0.2s;
-  }
-
-  .homeBlock:hover .homeIcon img {
-    opacity: 0;
-    transition-duration: 0.2s;
-    transition-delay: 0s;
-  }
-
-  .homeBlock:hover .homeTitle {
-    opacity: 1;
-  }
-
 }

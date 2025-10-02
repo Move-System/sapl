@@ -1,0 +1,1050 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block head_title %}Fluxo de Proposições - {{nome_casa}}{% endblock %}
+
+{% block base_content %}
+<style>
+  .fluxo-proposicoes {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+  }
+
+  .fluxo-proposicoes h1 {
+    color: #2c3e50;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 10px;
+    margin-top: 30px;
+  }
+
+  .fluxo-proposicoes h2 {
+    color: #34495e;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid #ecf0f1;
+  }
+
+  .fluxo-proposicoes h3 {
+    color: #3498db;
+    margin-top: 25px;
+  }
+
+  .hero-section {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 60px 20px;
+    border-radius: 10px;
+    margin-bottom: 40px;
+    text-align: center;
+  }
+
+  .hero-section h1 {
+    border: none;
+    color: white;
+    font-size: 2.5em;
+    margin-bottom: 20px;
+  }
+
+  .hero-section p {
+    font-size: 1.2em;
+    opacity: 0.9;
+  }
+
+  .diagram-container {
+    background: #f8f9fa;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    padding: 30px;
+    margin: 30px 0;
+    overflow-x: auto;
+  }
+
+  .flow-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .flow-step {
+    background: white;
+    border: 2px solid #3498db;
+    border-radius: 10px;
+    padding: 20px 30px;
+    min-width: 300px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    position: relative;
+    text-align: center;
+  }
+
+  .flow-step.parliamentar {
+    border-color: #9b59b6;
+    background: linear-gradient(to bottom, #fff 0%, #f5f0ff 100%);
+  }
+
+  .flow-step.operator {
+    border-color: #e74c3c;
+    background: linear-gradient(to bottom, #fff 0%, #fff5f5 100%);
+  }
+
+  .flow-step.success {
+    border-color: #27ae60;
+    background: linear-gradient(to bottom, #fff 0%, #f0fff4 100%);
+  }
+
+  .flow-step h4 {
+    margin: 0 0 10px 0;
+    color: inherit;
+  }
+
+  .flow-arrow {
+    font-size: 2em;
+    color: #95a5a6;
+  }
+
+  .flow-decision {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .concept-card {
+    background: white;
+    border-left: 4px solid #3498db;
+    padding: 20px;
+    margin: 20px 0;
+    border-radius: 5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .concept-card.warning {
+    border-left-color: #f39c12;
+    background: #fffbf0;
+  }
+
+  .concept-card.success {
+    border-left-color: #27ae60;
+    background: #f0fff4;
+  }
+
+  .concept-card.info {
+    border-left-color: #3498db;
+    background: #ecf7fd;
+  }
+
+  .concept-card.danger {
+    border-left-color: #e74c3c;
+    background: #ffebee;
+  }
+
+  .step-by-step {
+    counter-reset: step-counter;
+    margin: 20px 0;
+  }
+
+  .step-item {
+    position: relative;
+    padding-left: 60px;
+    margin-bottom: 30px;
+  }
+
+  .step-item::before {
+    counter-increment: step-counter;
+    content: counter(step-counter);
+    position: absolute;
+    left: 0;
+    top: 0;
+    background: #3498db;
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.2em;
+  }
+
+  .step-item h4 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+  }
+
+  .badge-role {
+    display: inline-block;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-right: 10px;
+  }
+
+  .badge-parliamentar {
+    background: #9b59b6;
+    color: white;
+  }
+
+  .badge-operator {
+    background: #e74c3c;
+    color: white;
+  }
+
+  .badge-admin {
+    background: #34495e;
+    color: white;
+  }
+
+  .url-box {
+    background: #2c3e50;
+    color: #ecf0f1;
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-family: 'Courier New', monospace;
+    margin: 10px 0;
+    overflow-x: auto;
+  }
+
+  .url-box code {
+    color: #1abc9c;
+    background: none;
+  }
+
+  .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+
+  .comparison-table th,
+  .comparison-table td {
+    border: 1px solid #dee2e6;
+    padding: 15px;
+    text-align: left;
+  }
+
+  .comparison-table th {
+    background: #3498db;
+    color: white;
+    font-weight: 600;
+  }
+
+  .comparison-table tr:nth-child(even) {
+    background: #f8f9fa;
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 15px;
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+
+  .status-draft {
+    background: #95a5a6;
+    color: white;
+  }
+
+  .status-pending {
+    background: #f39c12;
+    color: white;
+  }
+
+  .status-returned {
+    background: #e74c3c;
+    color: white;
+  }
+
+  .status-incorporated {
+    background: #27ae60;
+    color: white;
+  }
+
+  .interactive-flow {
+    background: white;
+    border-radius: 10px;
+    padding: 30px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    margin: 30px 0;
+  }
+
+  .actor-section {
+    background: white;
+    border: 2px solid #dee2e6;
+    border-radius: 10px;
+    padding: 25px;
+    margin: 20px 0;
+  }
+
+  .actor-section h3 {
+    margin-top: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .actor-icon {
+    width: 50px;
+    height: 50px;
+    background: #3498db;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1.5em;
+  }
+
+  .tabs-container {
+    margin: 30px 0;
+  }
+
+  .nav-tabs {
+    border-bottom: 2px solid #dee2e6;
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+  }
+
+  .nav-tab {
+    padding: 12px 24px;
+    background: #f8f9fa;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    font-weight: 600;
+    color: #495057;
+    transition: all 0.3s;
+  }
+
+  .nav-tab:hover {
+    background: #e9ecef;
+  }
+
+  .nav-tab.active {
+    background: white;
+    color: #3498db;
+    border-bottom-color: #3498db;
+  }
+
+  .tab-content {
+    display: none;
+    padding: 30px 0;
+  }
+
+  .tab-content.active {
+    display: block;
+  }
+
+  .checklist {
+    list-style: none;
+    padding: 0;
+  }
+
+  .checklist li {
+    padding: 10px 0;
+    padding-left: 35px;
+    position: relative;
+  }
+
+  .checklist li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #27ae60;
+    font-weight: bold;
+    font-size: 1.2em;
+  }
+
+  @media (max-width: 768px) {
+    .hero-section h1 {
+      font-size: 1.8em;
+    }
+
+    .flow-step {
+      min-width: 250px;
+    }
+
+    .flow-decision {
+      flex-direction: column;
+    }
+
+    .step-item {
+      padding-left: 50px;
+    }
+  }
+</style>
+
+<div class="fluxo-proposicoes">
+  <!-- Hero Section -->
+  <div class="hero-section">
+    <h1><i class="fas fa-paper-plane"></i> Fluxo de Proposições no SAPL</h1>
+    <p>Entenda como parlamentares criam proposições e como elas se tornam matérias legislativas</p>
+  </div>
+
+  <!-- Índice -->
+  <div class="concept-card info">
+    <h3><i class="fas fa-list"></i> Navegação Rápida</h3>
+    <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px;">
+      <a href="#conceitos" class="btn btn-sm btn-outline-primary">Conceitos</a>
+      <a href="#atores" class="btn btn-sm btn-outline-primary">Atores</a>
+      <a href="#estados" class="btn btn-sm btn-outline-primary">Estados</a>
+      <a href="#fluxo-visual" class="btn btn-sm btn-outline-primary">Fluxo Visual</a>
+      <a href="#passo-a-passo" class="btn btn-sm btn-outline-primary">Passo a Passo</a>
+      <a href="#urls" class="btn btn-sm btn-outline-primary">URLs</a>
+    </div>
+  </div>
+
+  <!-- Conceitos Fundamentais -->
+  <h2 id="conceitos"><i class="fas fa-lightbulb"></i> Conceitos Fundamentais</h2>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="concept-card">
+        <h3><i class="fas fa-file-alt"></i> Proposição</h3>
+        <p><strong>É a proposta inicial</strong> criada pelo parlamentar que <strong>ainda não foi oficialmente incorporada</strong> ao processo legislativo.</p>
+        <ul>
+          <li>Criada pelo parlamentar/autor</li>
+          <li>Pode ser editada antes de enviar</li>
+          <li>Não tramita (não é oficial)</li>
+          <li>Não pode ser votada</li>
+          <li>Possui número sequencial próprio</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="concept-card success">
+        <h3><i class="fas fa-gavel"></i> Matéria Legislativa</h3>
+        <p><strong>É a proposição oficialmente recebida</strong> que pode tramitar e ser votada.</p>
+        <ul>
+          <li>Criada ao incorporar proposição</li>
+          <li>Possui número oficial (PL nº 1/2025)</li>
+          <li>Tramita entre unidades</li>
+          <li>Pode ser votada em sessão</li>
+          <li>Possui protocolo (se configurado)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Comparação -->
+  <h3>Diferença entre Proposição e Matéria Legislativa</h3>
+  <table class="comparison-table">
+    <thead>
+      <tr>
+        <th>Característica</th>
+        <th>Proposição</th>
+        <th>Matéria Legislativa</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Status</strong></td>
+        <td>Proposta preliminar</td>
+        <td>Oficialmente incorporada</td>
+      </tr>
+      <tr>
+        <td><strong>Tramitação</strong></td>
+        <td>❌ Não tramita</td>
+        <td>✅ Tramita entre unidades</td>
+      </tr>
+      <tr>
+        <td><strong>Votação</strong></td>
+        <td>❌ Não pode ser votada</td>
+        <td>✅ Pode ser votada</td>
+      </tr>
+      <tr>
+        <td><strong>Criador</strong></td>
+        <td>Autor (Parlamentar)</td>
+        <td>Operador de Protocolo</td>
+      </tr>
+      <tr>
+        <td><strong>Edição</strong></td>
+        <td>Editada pelo autor</td>
+        <td>Editada por operadores autorizados</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Atores -->
+  <h2 id="atores"><i class="fas fa-users"></i> Atores do Sistema</h2>
+
+  <div class="actor-section">
+    <h3>
+      <div class="actor-icon" style="background: #9b59b6;">
+        <i class="fas fa-user-tie"></i>
+      </div>
+      Parlamentar <span class="badge-role badge-parliamentar">PARLAMENTAR</span>
+    </h3>
+    <p>Membro eleito da casa legislativa que cria proposições.</p>
+    <ul>
+      <li>Possui cadastro completo (dados pessoais, foto, mandatos)</li>
+      <li>Ao ser cadastrado, um <strong>Autor</strong> é criado automaticamente</li>
+      <li>Precisa de um <strong>usuário do sistema</strong> vinculado para acessar</li>
+    </ul>
+  </div>
+
+  <div class="actor-section">
+    <h3>
+      <div class="actor-icon" style="background: #3498db;">
+        <i class="fas fa-user"></i>
+      </div>
+      Autor
+    </h3>
+    <p>Abstração que representa quem pode criar proposições.</p>
+    <ul>
+      <li>Pode ser: Parlamentar, Órgão, Comissão, Cidadão</li>
+      <li>Criado automaticamente ao cadastrar parlamentar</li>
+      <li>Vinculado a usuários através de <strong>OperadorAutor</strong></li>
+    </ul>
+  </div>
+
+  <div class="actor-section">
+    <h3>
+      <div class="actor-icon" style="background: #e74c3c;">
+        <i class="fas fa-user-shield"></i>
+      </div>
+      Operador de Protocolo <span class="badge-role badge-operator">OPERADOR</span>
+    </h3>
+    <p>Responsável por receber e processar proposições.</p>
+    <ul>
+      <li>Recebe proposições (via código ou lista)</li>
+      <li>Pode <strong>incorporar</strong> (transformar em matéria)</li>
+      <li>Pode <strong>devolver</strong> (com justificativa)</li>
+      <li>Gera protocolos</li>
+    </ul>
+  </div>
+
+  <!-- Estados -->
+  <h2 id="estados"><i class="fas fa-tasks"></i> Estados de uma Proposição</h2>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="concept-card">
+        <h4><span class="status-badge status-draft">RASCUNHO</span></h4>
+        <p><strong>Não Enviada</strong></p>
+        <ul>
+          <li>Criada mas não enviada</li>
+          <li>Pode ser editada</li>
+          <li>Pode ser excluída</li>
+          <li>Somente autor vê</li>
+        </ul>
+        <div class="url-box">URL: <code>/proposicao/</code></div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="concept-card warning">
+        <h4><span class="status-badge status-pending">PENDENTE</span></h4>
+        <p><strong>Enviada, aguardando recebimento</strong></p>
+        <ul>
+          <li>Enviada para protocolo</li>
+          <li>Código de recebimento gerado</li>
+          <li>Autor pode retornar (cancelar)</li>
+          <li>Operador pode receber ou devolver</li>
+        </ul>
+        <div class="url-box">URL: <code>/proposicao/pendente/</code></div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="concept-card danger">
+        <h4><span class="status-badge status-returned">DEVOLVIDA</span></h4>
+        <p><strong>Rejeitada pelo protocolo</strong></p>
+        <ul>
+          <li>Devolvida com justificativa</li>
+          <li>Autor pode ver motivo</li>
+          <li>Pode corrigir e reenviar</li>
+        </ul>
+        <div class="url-box">URL: <code>/proposicao/devolvida/</code></div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="concept-card success">
+        <h4><span class="status-badge status-incorporated">INCORPORADA</span></h4>
+        <p><strong>Transformada em matéria</strong></p>
+        <ul>
+          <li>Matéria legislativa criada</li>
+          <li>Autoria vinculada</li>
+          <li>Protocolo gerado (se configurado)</li>
+          <li>Pode tramitar e ser votada</li>
+        </ul>
+        <div class="url-box">URL: <code>/proposicao/recebida/</code></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fluxo Visual -->
+  <h2 id="fluxo-visual"><i class="fas fa-project-diagram"></i> Fluxo Visual Completo</h2>
+
+  <div class="diagram-container">
+    <div class="flow-diagram">
+
+      <div class="flow-step parliamentar">
+        <h4><i class="fas fa-user-tie"></i> PARLAMENTAR</h4>
+        <p>1. Cria Proposição</p>
+        <div class="url-box" style="background: #8e44ad; color: white; font-size: 0.85em;">
+          <code style="color: #ecf0f1;">/proposicao/create</code>
+        </div>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step">
+        <h4><i class="fas fa-file-alt"></i> PROPOSIÇÃO (Rascunho)</h4>
+        <p>Pode editar, excluir ou enviar</p>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step parliamentar">
+        <h4><i class="fas fa-paper-plane"></i> 2. Envia Proposição</h4>
+        <p>Gera código de recebimento</p>
+        <div class="url-box" style="background: #8e44ad; color: white; font-size: 0.85em;">
+          <code style="color: #ecf0f1;">?action=send</code>
+        </div>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step">
+        <h4><i class="fas fa-clock"></i> PROPOSIÇÃO (Pendente)</h4>
+        <p>Aguardando recebimento pelo protocolo</p>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step operator">
+        <h4><i class="fas fa-inbox"></i> 3. Operador Recebe</h4>
+        <p>Via código ou lista de pendentes</p>
+        <div class="url-box" style="background: #c0392b; color: white; font-size: 0.85em;">
+          <code style="color: #ecf0f1;">/proposicao/receber/</code>
+        </div>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step operator">
+        <h4><i class="fas fa-balance-scale"></i> 4. Operador Decide</h4>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-decision">
+        <div class="flow-step success">
+          <h4><i class="fas fa-check-circle"></i> INCORPORAR</h4>
+          <p>Cria Matéria Legislativa</p>
+          <p>Cria Autoria</p>
+          <p>Gera Protocolo</p>
+        </div>
+
+        <div class="flow-step" style="border-color: #e74c3c; background: #ffebee;">
+          <h4><i class="fas fa-times-circle"></i> DEVOLVER</h4>
+          <p>Justificativa obrigatória</p>
+          <p>Volta para autor</p>
+          <p>Pode corrigir e reenviar</p>
+        </div>
+      </div>
+
+      <div class="flow-arrow">↓ (Se Incorporada)</div>
+
+      <div class="flow-step success">
+        <h4><i class="fas fa-gavel"></i> MATÉRIA LEGISLATIVA</h4>
+        <p>PL nº X/2025 criada</p>
+        <div class="url-box" style="background: #27ae60; color: white; font-size: 0.85em;">
+          <code style="color: #ecf0f1;">/materia/{id}/</code>
+        </div>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step">
+        <h4><i class="fas fa-exchange-alt"></i> TRAMITAÇÃO</h4>
+        <p>Entre unidades e comissões</p>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step">
+        <h4><i class="fas fa-users"></i> SESSÃO PLENÁRIA</h4>
+        <p>Incluída na ordem do dia</p>
+      </div>
+
+      <div class="flow-arrow">↓</div>
+
+      <div class="flow-step success">
+        <h4><i class="fas fa-vote-yea"></i> VOTAÇÃO</h4>
+        <p>Aprovada / Rejeitada</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Passo a Passo -->
+  <h2 id="passo-a-passo"><i class="fas fa-list-ol"></i> Passo a Passo Detalhado</h2>
+
+  <!-- Tabs -->
+  <div class="tabs-container">
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="openTab(event, 'tab1')">
+        <i class="fas fa-user-plus"></i> Criar Parlamentar
+      </button>
+      <button class="nav-tab" onclick="openTab(event, 'tab2')">
+        <i class="fas fa-file-alt"></i> Criar Proposição
+      </button>
+      <button class="nav-tab" onclick="openTab(event, 'tab3')">
+        <i class="fas fa-inbox"></i> Receber Proposição
+      </button>
+      <button class="nav-tab" onclick="openTab(event, 'tab4')">
+        <i class="fas fa-check"></i> Incorporar
+      </button>
+    </div>
+
+    <!-- Tab 1: Criar Parlamentar -->
+    <div id="tab1" class="tab-content active">
+      <h3><span class="badge-role badge-admin">ADMINISTRADOR</span> Criar Parlamentar com Usuário</h3>
+
+      <div class="step-by-step">
+        <div class="step-item">
+          <h4>Criar o Parlamentar</h4>
+          <div class="url-box">URL: <code>/parlamentar/create</code></div>
+          <p><strong>Dados:</strong></p>
+          <ul>
+            <li>Nome Completo: "João da Silva"</li>
+            <li>Nome Parlamentar: "João Silva"</li>
+            <li>CPF, RG, Data de Nascimento</li>
+            <li>Foto, Biografia (opcional)</li>
+          </ul>
+          <div class="concept-card success">
+            <strong>Resultado:</strong> Parlamentar criado + Autor criado automaticamente
+          </div>
+        </div>
+
+        <div class="step-item">
+          <h4>Criar Usuário do Sistema</h4>
+          <div class="url-box">URL: <code>/sistema/usuario/create</code></div>
+          <p><strong>Dados:</strong></p>
+          <ul>
+            <li>Username: <code>joao.silva</code></li>
+            <li>Email: joao.silva@camara.gov.br</li>
+            <li>Senha: Senha@Forte123</li>
+            <li>Nome: "João da Silva"</li>
+          </ul>
+        </div>
+
+        <div class="step-item">
+          <h4>Vincular Usuário ao Autor</h4>
+          <div class="url-box">URL: <code>/sistema/usuario/{id}/edit</code></div>
+          <p>No campo <strong>"Autor"</strong>, selecione: "João da Silva"</p>
+          <div class="concept-card success">
+            <strong>Resultado:</strong><br>
+            ✓ Usuário adicionado ao grupo "Autor"<br>
+            ✓ OperadorAutor criado<br>
+            ✓ Agora pode criar proposições
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 2: Criar Proposição -->
+    <div id="tab2" class="tab-content">
+      <h3><span class="badge-role badge-parliamentar">PARLAMENTAR</span> Criar e Enviar Proposição</h3>
+
+      <div class="step-by-step">
+        <div class="step-item">
+          <h4>Login como Parlamentar</h4>
+          <p>Login: <code>joao.silva</code> / Senha: Senha@Forte123</p>
+        </div>
+
+        <div class="step-item">
+          <h4>Criar Nova Proposição</h4>
+          <div class="url-box">URL: <code>/proposicao/create</code></div>
+          <p><strong>Formulário:</strong></p>
+          <ul>
+            <li><strong>Tipo:</strong> Projeto de Lei</li>
+            <li><strong>Ementa:</strong> "Dispõe sobre horário de funcionamento do comércio"</li>
+            <li><strong>Texto Original:</strong> Upload PDF ou usar editor interno</li>
+          </ul>
+          <p>Clique em <strong>"Salvar"</strong></p>
+          <div class="concept-card info">
+            Status: <span class="status-badge status-draft">RASCUNHO</span><br>
+            Pode editar quantas vezes quiser
+          </div>
+        </div>
+
+        <div class="step-item">
+          <h4>Revisar e Enviar</h4>
+          <div class="url-box">URL: <code>/proposicao/{id}/</code></div>
+          <p>Revise todos os dados e clique em <strong>"Enviar Proposição"</strong></p>
+          <div class="concept-card warning">
+            <strong>O que acontece:</strong><br>
+            ✓ Código de recebimento gerado<br>
+            ✓ Recibo pode ser impresso<br>
+            ✓ Status muda para <span class="status-badge status-pending">PENDENTE</span>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <h4>Imprimir Recibo (Opcional)</h4>
+          <div class="url-box">URL: <code>/proposicao/recibo/{id}</code></div>
+          <p>Contém código hash para recebimento</p>
+          <p>Entregar ao protocolo</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: Receber Proposição -->
+    <div id="tab3" class="tab-content">
+      <h3><span class="badge-role badge-operator">OPERADOR</span> Receber Proposição</h3>
+
+      <div class="step-by-step">
+        <div class="step-item">
+          <h4>Login como Operador de Protocolo</h4>
+          <p>Usuário: <code>operador_protocoloadm</code> / Senha: interlegis</p>
+        </div>
+
+        <div class="step-item">
+          <h4>Ver Proposições Pendentes</h4>
+          <div class="url-box">URL: <code>/proposicao/pendente/</code></div>
+          <p>Lista todas proposições enviadas aguardando recebimento</p>
+          <p><strong>Informações mostradas:</strong></p>
+          <ul>
+            <li>Data de envio</li>
+            <li>Autor</li>
+            <li>Tipo</li>
+            <li>Ementa</li>
+            <li>Link para receber</li>
+          </ul>
+        </div>
+
+        <div class="step-item">
+          <h4>Receber Proposição</h4>
+          <p><strong>Opção A:</strong> Via código do recibo</p>
+          <div class="url-box">URL: <code>/proposicao/receber/</code></div>
+          <p>Insira o código e clique em "Receber"</p>
+
+          <p style="margin-top: 20px;"><strong>Opção B:</strong> Via lista de pendentes</p>
+          <p>Na lista, clique na proposição e depois em "Receber"</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: Incorporar -->
+    <div id="tab4" class="tab-content">
+      <h3><span class="badge-role badge-operator">OPERADOR</span> Incorporar ou Devolver</h3>
+
+      <div class="step-by-step">
+        <div class="step-item">
+          <h4>Tela de Confirmação</h4>
+          <div class="url-box">URL: <code>/proposicao/confirmar/P{hash}/{id}</code></div>
+          <p>Sistema apresenta duas opções:</p>
+        </div>
+
+        <div class="step-item">
+          <h4>OPÇÃO A: Incorporar</h4>
+          <p><strong>Preencher:</strong></p>
+          <ul>
+            <li><strong>Regime de Tramitação:</strong> Normal, Urgente, Prioridade</li>
+            <li><strong>Gerar Protocolo?</strong> Sim/Não</li>
+            <li><strong>Número de Páginas:</strong> (se gerar protocolo)</li>
+          </ul>
+          <p>Clique em <strong>"Incorporar"</strong></p>
+
+          <div class="concept-card success">
+            <strong>Sistema cria:</strong><br>
+            ✓ <strong>Matéria Legislativa:</strong> PL nº 1/2025<br>
+            ✓ <strong>Autoria:</strong> Vincula autor à matéria<br>
+            ✓ <strong>Protocolo:</strong> Protocolo nº 100/2025 (se configurado)<br>
+            ✓ Status: <span class="status-badge status-incorporated">INCORPORADA</span>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <h4>OPÇÃO B: Devolver</h4>
+          <p><strong>Preencher:</strong></p>
+          <ul>
+            <li><strong>Justificativa:</strong> (obrigatório)</li>
+          </ul>
+          <p>Exemplos:</p>
+          <ul>
+            <li>"Falta fundamentação legal"</li>
+            <li>"Documento em formato incorreto"</li>
+            <li>"Necessita correção de redação"</li>
+          </ul>
+          <p>Clique em <strong>"Devolver"</strong></p>
+
+          <div class="concept-card danger">
+            <strong>Resultado:</strong><br>
+            ✓ Proposição volta para autor<br>
+            ✓ Autor vê justificativa<br>
+            ✓ Pode corrigir e reenviar<br>
+            ✓ Status: <span class="status-badge status-returned">DEVOLVIDA</span>
+          </div>
+        </div>
+
+        <div class="step-item">
+          <h4>Acessar Matéria Criada</h4>
+          <div class="url-box">URL: <code>/materia/{id}/</code></div>
+          <p>Agora a matéria pode:</p>
+          <ul>
+            <li>Tramitar entre unidades</li>
+            <li>Ser incluída em sessões</li>
+            <li>Ser votada</li>
+            <li>Receber pareceres</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- URLs Importantes -->
+  <h2 id="urls"><i class="fas fa-link"></i> URLs Importantes</h2>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="concept-card">
+        <h4><i class="fas fa-user-tie"></i> Para Parlamentares</h4>
+        <table class="table table-sm">
+          <tbody>
+            <tr>
+              <td>Criar proposição</td>
+              <td><code>/proposicao/create</code></td>
+            </tr>
+            <tr>
+              <td>Minhas proposições</td>
+              <td><code>/proposicao/</code></td>
+            </tr>
+            <tr>
+              <td>Devolvidas</td>
+              <td><code>/proposicao/devolvida/</code></td>
+            </tr>
+            <tr>
+              <td>Recibo</td>
+              <td><code>/proposicao/recibo/{id}</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="concept-card">
+        <h4><i class="fas fa-user-shield"></i> Para Operadores</h4>
+        <table class="table table-sm">
+          <tbody>
+            <tr>
+              <td>Receber proposição</td>
+              <td><code>/proposicao/receber/</code></td>
+            </tr>
+            <tr>
+              <td>Pendentes</td>
+              <td><code>/proposicao/pendente/</code></td>
+            </tr>
+            <tr>
+              <td>Recebidas</td>
+              <td><code>/proposicao/recebida/</code></td>
+            </tr>
+            <tr>
+              <td>Matérias</td>
+              <td><code>/materia/</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checklist de Configuração -->
+  <h2><i class="fas fa-check-square"></i> Checklist de Configuração Inicial</h2>
+
+  <div class="concept-card info">
+    <p>Antes de usar o fluxo de proposições, configure:</p>
+    <ul class="checklist">
+      <li>Casa Legislativa em <code>/sistema/casa-legislativa/</code></li>
+      <li>Legislatura em <code>/sistema/parlamentar/legislatura/</code></li>
+      <li>Tipos de Proposição em <code>/sistema/materia/tipoproposicao/</code></li>
+      <li>Tipos de Matéria em <code>/sistema/materia/tipo/</code></li>
+      <li>Regimes de Tramitação em <code>/sistema/materia/regimetramitacao/</code></li>
+      <li>Parlamentares em <code>/parlamentar/create</code></li>
+      <li>Usuários em <code>/sistema/usuario/create</code></li>
+      <li>Vincular Usuários a Autores em <code>/sistema/usuario/{id}/edit</code></li>
+    </ul>
+  </div>
+
+  <!-- Resumo -->
+  <h2><i class="fas fa-clipboard-list"></i> Resumo Executivo</h2>
+
+  <div class="row">
+    <div class="col-md-4">
+      <div class="interactive-flow">
+        <h4 style="color: #9b59b6;"><i class="fas fa-user-tie"></i> Para Parlamentares</h4>
+        <ol>
+          <li>✍️ Crie sua proposição</li>
+          <li>📝 Revise quantas vezes quiser</li>
+          <li>📤 Envie quando pronta</li>
+          <li>🎫 Guarde o código</li>
+          <li>⏳ Aguarde processamento</li>
+          <li>🔄 Se devolvida, corrija</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="interactive-flow">
+        <h4 style="color: #e74c3c;"><i class="fas fa-user-shield"></i> Para Operadores</h4>
+        <ol>
+          <li>📥 Receba proposições</li>
+          <li>🔍 Analise se corretas</li>
+          <li>✅ Incorpore (cria matéria)</li>
+          <li>❌ OU Devolva (justifique)</li>
+          <li>⚙️ Configure regime/protocolo</li>
+        </ol>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="interactive-flow">
+        <h4 style="color: #27ae60;"><i class="fas fa-check-circle"></i> Após Incorporação</h4>
+        <ol>
+          <li>📋 Matéria pode tramitar</li>
+          <li>👥 Vai para comissões</li>
+          <li>📅 Incluída em sessões</li>
+          <li>🗳️ Votada no plenário</li>
+          <li>📜 Gera norma (se aprovada)</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+  <p class="text-center text-muted">
+    <small><i class="fas fa-calendar-alt"></i> Documento gerado em: {{ data_geracao }}</small>
+  </p>
+</div>
+
+<script>
+function openTab(evt, tabName) {
+  // Esconde todos os conteúdos
+  var tabContents = document.getElementsByClassName("tab-content");
+  for (var i = 0; i < tabContents.length; i++) {
+    tabContents[i].classList.remove("active");
+  }
+
+  // Remove classe active de todas as tabs
+  var tabLinks = document.getElementsByClassName("nav-tab");
+  for (var i = 0; i < tabLinks.length; i++) {
+    tabLinks[i].classList.remove("active");
+  }
+
+  // Mostra o conteúdo da tab clicada
+  document.getElementById(tabName).classList.add("active");
+  evt.currentTarget.classList.add("active");
+}
+</script>
+
+{% endblock base_content %}

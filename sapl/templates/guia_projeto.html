@@ -1,0 +1,780 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block head_title %}Guia do Projeto SAPL - {{nome_casa}}{% endblock %}
+
+{% block base_content %}
+<style>
+  .guia-projeto {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+  }
+
+  .guia-projeto h1 {
+    color: #2c3e50;
+    border-bottom: 3px solid #3498db;
+    padding-bottom: 10px;
+    margin-top: 30px;
+  }
+
+  .guia-projeto h2 {
+    color: #34495e;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 2px solid #ecf0f1;
+  }
+
+  .guia-projeto h3 {
+    color: #3498db;
+    margin-top: 25px;
+  }
+
+  .guia-projeto h4 {
+    color: #7f8c8d;
+    margin-top: 20px;
+    font-weight: 600;
+  }
+
+  .guia-projeto .alert {
+    border-left: 4px solid #3498db;
+    background-color: #ecf7fd;
+    padding: 15px;
+    margin: 20px 0;
+  }
+
+  .guia-projeto .badge {
+    font-size: 0.85em;
+    padding: 4px 8px;
+    margin-left: 8px;
+  }
+
+  .guia-projeto .card {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  }
+
+  .guia-projeto .card-header {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    padding: 12px 20px;
+    border-bottom: 2px solid #dee2e6;
+  }
+
+  .guia-projeto .card-body {
+    padding: 20px;
+  }
+
+  .guia-projeto code {
+    background-color: #f4f4f4;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    color: #e74c3c;
+  }
+
+  .guia-projeto pre {
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    padding: 15px;
+    border-radius: 5px;
+    overflow-x: auto;
+  }
+
+  .guia-projeto pre code {
+    color: #ecf0f1;
+    background: none;
+  }
+
+  .guia-projeto table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+  }
+
+  .guia-projeto table th,
+  .guia-projeto table td {
+    border: 1px solid #dee2e6;
+    padding: 12px;
+    text-align: left;
+  }
+
+  .guia-projeto table th {
+    background-color: #3498db;
+    color: white;
+    font-weight: 600;
+  }
+
+  .guia-projeto table tr:nth-child(even) {
+    background-color: #f8f9fa;
+  }
+
+  .guia-projeto .tech-stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 15px 0;
+  }
+
+  .guia-projeto .tech-badge {
+    background-color: #3498db;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 0.9em;
+    font-weight: 500;
+  }
+
+  .guia-projeto .fluxo-card {
+    background-color: #fff;
+    border-left: 4px solid #27ae60;
+    padding: 15px;
+    margin: 15px 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+
+  .guia-projeto .fluxo-card h4 {
+    color: #27ae60;
+    margin-top: 0;
+  }
+
+  .guia-projeto .user-type {
+    background-color: #fff;
+    border-left: 4px solid #9b59b6;
+    padding: 15px;
+    margin: 15px 0;
+  }
+
+  .guia-projeto .user-type h4 {
+    color: #9b59b6;
+    margin-top: 0;
+  }
+
+  .guia-projeto .permission-matrix {
+    overflow-x: auto;
+  }
+
+  .guia-projeto .toc {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+  }
+
+  .guia-projeto .toc h3 {
+    margin-top: 0;
+    color: #2c3e50;
+  }
+
+  .guia-projeto .toc ul {
+    list-style-type: none;
+    padding-left: 0;
+  }
+
+  .guia-projeto .toc ul li {
+    padding: 5px 0;
+  }
+
+  .guia-projeto .toc ul li a {
+    color: #3498db;
+    text-decoration: none;
+  }
+
+  .guia-projeto .toc ul li a:hover {
+    text-decoration: underline;
+  }
+
+  .guia-projeto .highlight-box {
+    background-color: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    margin: 20px 0;
+  }
+
+  .guia-projeto .success-box {
+    background-color: #d4edda;
+    border-left: 4px solid #28a745;
+    padding: 15px;
+    margin: 20px 0;
+  }
+
+  .guia-projeto .nav-tabs .nav-link {
+    color: #495057;
+  }
+
+  .guia-projeto .nav-tabs .nav-link.active {
+    color: #3498db;
+    font-weight: 600;
+  }
+</style>
+
+<div class="guia-projeto">
+  <h1><i class="fas fa-book"></i> Guia do Projeto SAPL</h1>
+
+  <div class="alert">
+    <strong><i class="fas fa-info-circle"></i> Sobre este Guia:</strong>
+    Este documento contém informações completas sobre a arquitetura, módulos, fluxos de trabalho e permissões do Sistema de Apoio ao Processo Legislativo (SAPL).
+  </div>
+
+  <!-- Índice -->
+  <div class="toc">
+    <h3><i class="fas fa-list"></i> Índice</h3>
+    <ul>
+      <li><a href="#visao-geral">1. Visão Geral</a></li>
+      <li><a href="#arquitetura">2. Arquitetura e Tecnologias</a></li>
+      <li><a href="#modulos">3. Módulos Principais</a></li>
+      <li><a href="#fluxos">4. Fluxos de Trabalho</a></li>
+      <li><a href="#configuracoes">5. Configurações Iniciais</a></li>
+      <li><a href="#usuarios">6. Tipos de Usuários e Permissões</a></li>
+      <li><a href="#api">7. API REST</a></li>
+      <li><a href="#recursos">8. Recursos Especiais</a></li>
+    </ul>
+  </div>
+
+  <!-- Visão Geral -->
+  <h2 id="visao-geral"><i class="fas fa-eye"></i> Visão Geral</h2>
+  <p>
+    O <strong>SAPL</strong> é um sistema web completo para gerenciamento de processos legislativos em casas legislativas municipais, estaduais e federais.
+    Desenvolvido pelo Interlegis (Senado Federal), o sistema abrange todo o ciclo de vida legislativo, desde o cadastro de parlamentares até a votação e publicação de normas jurídicas.
+  </p>
+  <p><strong>Versão Atual:</strong> <span class="badge badge-primary">3.1.164-RC5</span></p>
+
+  <!-- Arquitetura -->
+  <h2 id="arquitetura"><i class="fas fa-server"></i> Arquitetura e Tecnologias</h2>
+
+  <div class="card">
+    <div class="card-header"><i class="fas fa-layer-group"></i> Stack Tecnológica</div>
+    <div class="card-body">
+      <h4>Backend</h4>
+      <div class="tech-stack">
+        <span class="tech-badge">Django 2.2</span>
+        <span class="tech-badge">PostgreSQL 10.5</span>
+        <span class="tech-badge">Apache Solr 8.11</span>
+        <span class="tech-badge">Django REST Framework</span>
+        <span class="tech-badge">Gunicorn</span>
+      </div>
+
+      <h4>Frontend</h4>
+      <div class="tech-stack">
+        <span class="tech-badge">Vue.js 2.7.9</span>
+        <span class="tech-badge">Bootstrap 4.6.2</span>
+        <span class="tech-badge">Bootstrap-Vue</span>
+        <span class="tech-badge">TinyMCE 7.2</span>
+        <span class="tech-badge">Webpack 5</span>
+      </div>
+
+      <h4>Infraestrutura</h4>
+      <div class="tech-stack">
+        <span class="tech-badge">Docker</span>
+        <span class="tech-badge">Docker Compose</span>
+        <span class="tech-badge">Nginx</span>
+        <span class="tech-badge">Prometheus</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Módulos -->
+  <h2 id="modulos"><i class="fas fa-cubes"></i> Módulos Principais</h2>
+
+  <p>O SAPL está organizado em <strong>9 módulos principais</strong>:</p>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">1. Base</div>
+        <div class="card-body">
+          <ul>
+            <li>Configurações gerais do sistema</li>
+            <li>Gestão de usuários e permissões</li>
+            <li>Casa legislativa</li>
+            <li>Autores</li>
+            <li>Pesquisa textual</li>
+            <li>Auditoria</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">2. Parlamentares</div>
+        <div class="card-body">
+          <ul>
+            <li>Cadastro de parlamentares</li>
+            <li>Legislaturas e sessões legislativas</li>
+            <li>Partidos políticos e coligações</li>
+            <li>Mandatos e filiações</li>
+            <li>Mesa diretora</li>
+            <li>Frentes e blocos</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">3. Matéria Legislativa</div>
+        <div class="card-body">
+          <ul>
+            <li>Proposições</li>
+            <li>Matérias legislativas</li>
+            <li>Tramitação</li>
+            <li>Autoria e relatoria</li>
+            <li>Documentos acessórios</li>
+            <li>Acompanhamento</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">4. Sessão Plenária</div>
+        <div class="card-body">
+          <ul>
+            <li>Sessões ordinárias/extraordinárias</li>
+            <li>Composição da mesa</li>
+            <li>Presença de parlamentares</li>
+            <li>Expediente e ordem do dia</li>
+            <li>Votações</li>
+            <li>Atas e resumos</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">5. Norma Jurídica</div>
+        <div class="card-body">
+          <ul>
+            <li>Leis, decretos, resoluções</li>
+            <li>Vinculação entre normas</li>
+            <li>Autoria de normas</li>
+            <li>Anexos</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header">6. Comissões</div>
+        <div class="card-body">
+          <ul>
+            <li>Comissões permanentes/temporárias</li>
+            <li>Composição</li>
+            <li>Reuniões</li>
+            <li>Pautas</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fluxos de Trabalho -->
+  <h2 id="fluxos"><i class="fas fa-route"></i> Principais Fluxos de Trabalho</h2>
+
+  <div class="fluxo-card">
+    <h4><i class="fas fa-user-tie"></i> 1. Cadastro de Parlamentares</h4>
+    <p><strong>Objetivo:</strong> Registrar os parlamentares que compõem a casa legislativa</p>
+    <ol>
+      <li>Acesse: <code>/parlamentar/create</code></li>
+      <li>Preencha os dados pessoais (nome, CPF, data de nascimento, etc.)</li>
+      <li>Adicione filiação partidária: <code>/parlamentar/&lt;id&gt;/filiacao/create</code></li>
+      <li>Crie mandato: <code>/parlamentar/&lt;id&gt;/mandato/create</code></li>
+      <li>Adicione dependentes (opcional): <code>/parlamentar/&lt;id&gt;/dependente/create</code></li>
+    </ol>
+  </div>
+
+  <div class="fluxo-card">
+    <h4><i class="fas fa-file-alt"></i> 2. Criação de Matéria Legislativa</h4>
+    <p><strong>Objetivo:</strong> Protocolar e tramitar projetos de lei e outros documentos legislativos</p>
+    <ol>
+      <li>Acesse: <code>/materia/create</code></li>
+      <li>Preencha tipo, número, ano, data de apresentação e ementa</li>
+      <li>Adicione autoria: <code>/materia/&lt;id&gt;/autoria/create</code></li>
+      <li>Faça despacho inicial: <code>/materia/&lt;id&gt;/despachoinicial/create</code></li>
+      <li>Registre tramitação: <code>/materia/&lt;id&gt;/tramitacao/create</code></li>
+      <li>Anexe documentos: <code>/materia/&lt;id&gt;/documentoacessorio/create</code></li>
+    </ol>
+  </div>
+
+  <div class="fluxo-card">
+    <h4><i class="fas fa-gavel"></i> 3. Realização de Sessão Plenária</h4>
+    <p><strong>Objetivo:</strong> Registrar sessões ordinárias/extraordinárias e realizar votações</p>
+    <ol>
+      <li>Acesse: <code>/sessao/create</code></li>
+      <li>Preencha tipo, número, legislatura, data e hora</li>
+      <li>Configure a mesa: <code>/sessao/&lt;id&gt;/mesa</code></li>
+      <li>Registre presença: <code>/sessao/&lt;id&gt;/presenca</code></li>
+      <li>Adicione matérias ao expediente e ordem do dia</li>
+      <li>Realize votações</li>
+      <li>Gere resumo/ata: <code>/sessao/&lt;id&gt;/resumo</code></li>
+    </ol>
+  </div>
+
+  <div class="fluxo-card">
+    <h4><i class="fas fa-balance-scale"></i> 4. Publicação de Norma Jurídica</h4>
+    <p><strong>Objetivo:</strong> Registrar leis, decretos e resoluções aprovadas</p>
+    <ol>
+      <li>Acesse: <code>/norma/create</code></li>
+      <li>Preencha tipo, número, ano, data de publicação e ementa</li>
+      <li>Anexe texto integral (PDF ou DOC)</li>
+      <li>Adicione autoria: <code>/norma/&lt;id&gt;/autorianorma/create</code></li>
+      <li>Vincule normas relacionadas: <code>/norma/&lt;id&gt;/normarelacionada/create</code></li>
+    </ol>
+  </div>
+
+  <!-- Configurações Iniciais -->
+  <h2 id="configuracoes"><i class="fas fa-cog"></i> Configurações Iniciais Necessárias</h2>
+
+  <div class="highlight-box">
+    <p><strong><i class="fas fa-exclamation-triangle"></i> Importante:</strong> Antes de começar a usar o sistema, é necessário configurar:</p>
+  </div>
+
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Configuração</th>
+        <th>URL</th>
+        <th>Descrição</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Casa Legislativa</strong></td>
+        <td><code>/sistema/casa-legislativa/</code></td>
+        <td>Nome, endereço, CNPJ, logomarca</td>
+      </tr>
+      <tr>
+        <td><strong>Legislatura</strong></td>
+        <td><code>/sistema/parlamentar/legislatura/</code></td>
+        <td>Número, datas de início e fim, data de eleição</td>
+      </tr>
+      <tr>
+        <td><strong>Sessão Legislativa</strong></td>
+        <td><code>/sistema/parlamentar/sessao-legislativa/</code></td>
+        <td>Sessões legislativas para a legislatura</td>
+      </tr>
+      <tr>
+        <td><strong>Partidos</strong></td>
+        <td><code>/sistema/parlamentar/partido/</code></td>
+        <td>Partidos políticos</td>
+      </tr>
+      <tr>
+        <td><strong>Tipos de Matéria</strong></td>
+        <td><code>/sistema/materia/tipo/</code></td>
+        <td>Projeto de Lei, Emenda, Requerimento, etc.</td>
+      </tr>
+      <tr>
+        <td><strong>Tipos de Norma</strong></td>
+        <td><code>/sistema/norma/tipo/</code></td>
+        <td>Lei, Decreto, Resolução, etc.</td>
+      </tr>
+      <tr>
+        <td><strong>Tipos de Sessão</strong></td>
+        <td><code>/sistema/sessao/tipo/</code></td>
+        <td>Tipos de sessão plenária</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Tipos de Usuários -->
+  <h2 id="usuarios"><i class="fas fa-users"></i> Tipos de Usuários e Permissões</h2>
+
+  <p>O SAPL possui um sistema robusto de controle de acesso com <strong>11 grupos de usuários</strong> diferentes:</p>
+
+  <div class="user-type">
+    <h4>1. Operador Geral (Superusuário SAPL)</h4>
+    <p><strong>Acesso:</strong> Todos os módulos e funcionalidades</p>
+    <p><strong>Telas Principais:</strong></p>
+    <ul>
+      <li><code>/sistema/</code> - Painel administrativo completo</li>
+      <li><code>/sistema/casa-legislativa/</code> - Configuração da casa</li>
+      <li><code>/sistema/usuario/</code> - Gestão de usuários</li>
+      <li>Acesso total a todos os módulos</li>
+    </ul>
+  </div>
+
+  <div class="user-type">
+    <h4>2. Operador de Matéria</h4>
+    <p><strong>Acesso:</strong> Módulo de Matéria Legislativa</p>
+    <p><strong>Permissões:</strong> Criar, editar, excluir matérias, tramitação, autoria, documentos</p>
+    <p><strong>Telas Principais:</strong></p>
+    <ul>
+      <li><code>/materia/</code> - Listar matérias</li>
+      <li><code>/materia/create</code> - Criar matéria</li>
+      <li><code>/materia/&lt;id&gt;/tramitacao/</code> - Tramitação</li>
+    </ul>
+  </div>
+
+  <div class="user-type">
+    <h4>3. Operador de Sessão Plenária</h4>
+    <p><strong>Acesso:</strong> Módulo de Sessão Plenária</p>
+    <p><strong>Permissões:</strong> Criar sessões, registrar presença, gerenciar votações</p>
+    <p><strong>Telas Principais:</strong></p>
+    <ul>
+      <li><code>/sessao/</code> - Listar sessões</li>
+      <li><code>/sessao/create</code> - Criar sessão</li>
+      <li><code>/sessao/&lt;id&gt;/presenca</code> - Presença</li>
+    </ul>
+  </div>
+
+  <div class="user-type">
+    <h4>4. Operador de Norma Jurídica</h4>
+    <p><strong>Acesso:</strong> Módulo de Norma Jurídica + Compilação</p>
+    <p><strong>Permissões:</strong> Criar normas, vincular normas, textos articulados</p>
+  </div>
+
+  <div class="user-type">
+    <h4>5. Operador de Protocolo Administrativo</h4>
+    <p><strong>Acesso:</strong> Protocolo + Documentos Administrativos</p>
+    <p><strong>Permissões:</strong> Protocolar documentos, anular protocolos, visualizar matérias</p>
+  </div>
+
+  <div class="user-type">
+    <h4>10. Autor (Parlamentares e Proponentes)</h4>
+    <p><strong>Acesso:</strong> Apenas suas próprias proposições</p>
+    <p><strong>Restrição:</strong> Só pode ver/editar proposições que ele mesmo criou</p>
+  </div>
+
+  <!-- Usuários Padrão -->
+  <h3><i class="fas fa-user-shield"></i> Usuários Padrão do Sistema</h3>
+
+  <div class="success-box">
+    <p><strong>Senha padrão para todos os usuários:</strong> <code>interlegis</code></p>
+  </div>
+
+  <table class="table table-sm">
+    <thead>
+      <tr>
+        <th>Usuário</th>
+        <th>Grupo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>admin</code></td>
+        <td>Superusuário Django</td>
+      </tr>
+      <tr>
+        <td><code>operador_geral</code></td>
+        <td>Operador Geral</td>
+      </tr>
+      <tr>
+        <td><code>operador_materia</code></td>
+        <td>Operador de Matéria</td>
+      </tr>
+      <tr>
+        <td><code>operador_sessao</code></td>
+        <td>Operador de Sessão</td>
+      </tr>
+      <tr>
+        <td><code>operador_norma</code></td>
+        <td>Operador de Norma</td>
+      </tr>
+      <tr>
+        <td><code>operador_protocoloadm</code></td>
+        <td>Operador de Protocolo</td>
+      </tr>
+      <tr>
+        <td><code>operador_comissoes</code></td>
+        <td>Operador de Comissões</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Matriz de Permissões -->
+  <h3><i class="fas fa-table"></i> Matriz de Permissões por Módulo</h3>
+
+  <div class="permission-matrix">
+    <table class="table table-bordered table-sm">
+      <thead>
+        <tr>
+          <th>Módulo</th>
+          <th>Op. Geral</th>
+          <th>Op. Matéria</th>
+          <th>Op. Sessão</th>
+          <th>Op. Norma</th>
+          <th>Op. Protocolo</th>
+          <th>Autor</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Matéria Legislativa</strong></td>
+          <td class="text-center">✅</td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">👁️</td>
+          <td class="text-center">-</td>
+        </tr>
+        <tr>
+          <td><strong>Sessão Plenária</strong></td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+        </tr>
+        <tr>
+          <td><strong>Norma Jurídica</strong></td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+        </tr>
+        <tr>
+          <td><strong>Protocolo</strong></td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+        </tr>
+        <tr>
+          <td><strong>Proposições</strong></td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">👁️</td>
+          <td class="text-center">✅</td>
+        </tr>
+        <tr>
+          <td><strong>Configurações</strong></td>
+          <td class="text-center">✅</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+          <td class="text-center">-</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-muted"><small>✅ = Acesso completo | 👁️ = Apenas visualização | - = Sem acesso</small></p>
+  </div>
+
+  <!-- API REST -->
+  <h2 id="api"><i class="fas fa-code"></i> API REST</h2>
+
+  <p>O SAPL disponibiliza uma API REST completa para integração com outros sistemas.</p>
+
+  <div class="card">
+    <div class="card-header">Informações da API</div>
+    <div class="card-body">
+      <p><strong>Documentação:</strong> <a href="/api/docs/" target="_blank">/api/docs/</a></p>
+      <p><strong>Schema OpenAPI:</strong> <a href="/api/schema/" target="_blank">/api/schema/</a></p>
+      <p><strong>Autenticação:</strong> Token-based (requer <code>Authorization: Token &lt;token&gt;</code>)</p>
+
+      <h5>Principais Endpoints:</h5>
+      <ul>
+        <li><code>/api/materia/materialegislativa/</code> - Matérias legislativas</li>
+        <li><code>/api/parlamentares/parlamentar/</code> - Parlamentares</li>
+        <li><code>/api/sessao/sessaoplenaria/</code> - Sessões plenárias</li>
+        <li><code>/api/norma/normajuridica/</code> - Normas jurídicas</li>
+        <li><code>/api/comissoes/comissao/</code> - Comissões</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Recursos Especiais -->
+  <h2 id="recursos"><i class="fas fa-star"></i> Recursos Especiais</h2>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header"><i class="fas fa-search"></i> Busca Textual (Solr)</div>
+        <div class="card-body">
+          <ul>
+            <li>Indexação automática de documentos</li>
+            <li>Pesquisa full-text em matérias, normas e documentos</li>
+            <li>Configurável via <code>USE_SOLR=True</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header"><i class="fas fa-file-code"></i> Textos Articulados</div>
+        <div class="card-body">
+          <ul>
+            <li>Editor de leis estruturadas</li>
+            <li>Versionamento de textos</li>
+            <li>Comparação de versões (diff)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header"><i class="fas fa-desktop"></i> Painel Eletrônico</div>
+        <div class="card-body">
+          <ul>
+            <li>Exibição em tempo real de votações</li>
+            <li>Painel de presença</li>
+            <li>URL: <a href="/painel/" target="_blank">/painel/</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header"><i class="fas fa-bell"></i> Acompanhamento de Matérias</div>
+        <div class="card-body">
+          <ul>
+            <li>Cidadãos podem acompanhar matérias via email</li>
+            <li>Requer configuração de reCaptcha</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ordem de Cadastro -->
+  <h2><i class="fas fa-tasks"></i> Ordem Recomendada de Cadastro</h2>
+
+  <div class="highlight-box">
+    <p><strong>Para criar dados no sistema, siga esta ordem:</strong></p>
+    <ol>
+      <li>Configurações do sistema (casa legislativa, legislatura)</li>
+      <li>Partidos e tipos (matéria, norma, sessão)</li>
+      <li>Parlamentares</li>
+      <li>Matérias legislativas</li>
+      <li>Sessões plenárias</li>
+      <li>Normas jurídicas</li>
+    </ol>
+  </div>
+
+  <!-- Suporte -->
+  <h2><i class="fas fa-life-ring"></i> Suporte e Documentação</h2>
+
+  <div class="card">
+    <div class="card-body">
+      <ul>
+        <li><strong>Discord:</strong> <a href="https://discord.gg/fzXSbhZbcy" target="_blank">Sala "Somos Interlegis"</a></li>
+        <li><strong>Issues:</strong> <a href="https://github.com/interlegis/sapl/issues" target="_blank">GitHub Issue Tracker</a></li>
+        <li><strong>Wiki:</strong> <a href="https://colab.interlegis.leg.br/wiki/ProjetoSapl" target="_blank">Wiki do Projeto</a></li>
+        <li><strong>FAQ:</strong> <a href="https://github.com/interlegis/sapl/wiki/Perguntas-Frequentes" target="_blank">Perguntas Frequentes</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <hr>
+  <p class="text-muted text-center">
+    <small><i class="fas fa-calendar-alt"></i> Documento gerado em: {{ data_geracao }}</small>
+  </p>
+</div>
+{% endblock base_content %}

@@ -67,6 +67,24 @@ class IndexView(TemplateView):
         return TemplateView.get(self, request, *args, **kwargs)
 
 
+class GuiaProjetoView(TemplateView):
+    template_name = 'guia_projeto.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['data_geracao'] = timezone.now().strftime('%d/%m/%Y')
+        return context
+
+
+class FluxoProposicoesView(TemplateView):
+    template_name = 'fluxo_proposicoes.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['data_geracao'] = timezone.now().strftime('%d/%m/%Y')
+        return context
+
+
 @method_decorator(ratelimit(key=ratelimit_ip,
                             rate=RATE_LIMITER_RATE,
                             method=ratelimit.UNSAFE,

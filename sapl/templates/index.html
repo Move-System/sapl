@@ -6,187 +6,144 @@
 {% block base_content%}
   <div class="container-home">
     <div id="homeIndex">
+      <!-- Mesa Diretora -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_mesa_diretora.png' %}" alt="Mesa Diretora">
-          </div>
-          <h2>Mesa Diretora</h2>
+        <div class="card-icon">
+          <i class="fas fa-users-cog"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_mesa_diretora.png' %}">
-            <h2>Mesa Diretora</h2>
-          </div>
-          <p>
-            Órgão colegiado, composto de no mínimo três membros efetivos - Presidente e 1° e 2° Secretários - a
-            quem cabe a direção dos trabalhos legislativos. Os parlamentares integrantes da Mesa Diretora são
-            eleitos por seus pares na primeira reunião de instalação do período legislativo, para um mandato de
-            um
-            a dois anos.
-          </p>
+        <h3 class="card-title">Mesa Diretora</h3>
+        <p class="card-description">Órgão colegiado que dirige os trabalhos legislativos</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.parlamentares:mesa_diretora' %}" class="btn-action" title="Ver Mesa Diretora">
+            <i class="fas fa-eye"></i> Visualizar
+          </a>
         </div>
-        <a href="{% url 'sapl.parlamentares:mesa_diretora' %}"></a>
       </div>
 
+      <!-- Comissões -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_comissoes.png' %}" alt="Comissões">
-          </div>
-          <h2>Comissões</h2>
+        <div class="card-icon">
+          <i class="fas fa-users"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_comissoes.png' %}">
-            <h2>Comissões</h2>
-          </div>
-          <p>
-            Órgãos da Casa Legislativa, de natureza técnica especializada e que têm por objetivo prestar
-            melhores
-            esclarecimentos aos parlamentares para a tomada de decisões. Assim, as comissões elaboram estudos,
-            pareceres a respeito de determinados projetos de lei e investigação de irregularidades sobre fato
-            determinado.
-          </p>
+        <h3 class="card-title">Comissões</h3>
+        <p class="card-description">Órgãos técnicos especializados da Casa</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.comissoes:comissao_list' %}" class="btn-action" title="Ver Comissões">
+            <i class="fas fa-list"></i> Listar
+          </a>
         </div>
-        <a href="{% url 'sapl.comissoes:comissao_list' %}"></a>
       </div>
 
+      <!-- Parlamentares -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_parlamentares.png' %}" alt="Parlamentares">
-          </div>
-          <h2>Parlamentares</h2>
+        <div class="card-icon">
+          <i class="fas fa-user-tie"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_parlamentares.png' %}">
-            <h2>Parlamentares</h2>
-          </div>
-          <p>
-            O Poder Legislativo, exercido pelo sistema de representação, tem nos parlamentares a sua expressão
-            máxima. Devem transformar os anseios de seus representados em ações diretas, na forma de leis ou
-            buscando junto do Executivo obras e atos que beneficiem a sua comunidade. Possuem funções
-            legisladora,
-            administrativa, julgadora e de fiscalização sobre a conduta do Executivo.
-          </p>
+        <h3 class="card-title">Parlamentares</h3>
+        <p class="card-description">Representantes do Poder Legislativo</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.parlamentares:parlamentar_list' %}" class="btn-action" title="Ver Parlamentares">
+            <i class="fas fa-list"></i> Listar
+          </a>
         </div>
-        <a href="{% url 'sapl.parlamentares:parlamentar_list' %}"></a>
       </div>
 
+      <!-- Pautas -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_pautas.png' %}" alt="Pautas das Sessões">
-          </div>
-          <h2>Pautas das Sessões</h2>
+        <div class="card-icon">
+          <i class="fas fa-calendar-alt"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_pautas.png' %}">
-            <h2>Pautas das<br>Sessões</h2>
-          </div>
-          <p>
-            Utilizadas para se determinar quais matérias serão discutidas e votadas. A responsabilidade pela
-            elaboração das Pautas, que incluem Expediente e Ordem do Dia, é definida no Regimento Interno que,
-            em
-            geral, dá poderes ao Presidente da Casa Legislativa para a sua elaboração. Também, pode ficar a
-            cargo
-            de um colégio de líderes dos partidos políticos.
-          </p>
+        <h3 class="card-title">Pautas</h3>
+        <p class="card-description">Matérias a serem discutidas e votadas</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.sessao:pauta_sessao' %}" class="btn-action" title="Ver Pautas">
+            <i class="fas fa-calendar-check"></i> Consultar
+          </a>
         </div>
-        <a href="{% url 'sapl.sessao:pauta_sessao' %}"></a>
       </div>
 
+      <!-- Sessões Plenárias -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_plenarias.png' %}" alt="Sessão Plenária">
-          </div>
-          <h2>Sessão Plenária</h2>
+        <div class="card-icon">
+          <i class="fas fa-gavel"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_plenarias.png' %}">
-            <h2>Sessão Plenária</h2>
-          </div>
-          <p>
-            Foro apropriado para a tomada de decisões sobre os projetos de lei e outras matérias legislativas
-            ou
-            administrativas, aprovadas ou rejeitadas em votação pelos parlamentares. É dirigida pela Mesa
-            Diretora
-            de acordo com o Regimento Interno da Casa. As decisões votadas em Plenário são soberanas e
-            prevalecem
-            sobre interesses ou vontades individuais.
-          </p>
+        <h3 class="card-title">Sessões Plenárias</h3>
+        <p class="card-description">Reuniões para votação de matérias</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.sessao:pesquisar_sessao' %}" class="btn-action" title="Pesquisar Sessões">
+            <i class="fas fa-search"></i> Pesquisar
+          </a>
         </div>
-        <a href="{% url 'sapl.sessao:pesquisar_sessao' %}"></a>
       </div>
 
+      <!-- Matérias Legislativas -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_materia_legislativa.png' %}" alt="Matérias Legislativas">
-          </div>
-          <h2>Matérias Legislativas</h2>
+        <div class="card-icon">
+          <i class="fas fa-file-alt"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_materia_legislativa.png' %}">
-            <h2>Matérias<br>Legislativas</h2>
-          </div>
-          <p>
-            Têm início com o processo de criação de leis e a apresentação de projetos no Poder Legislativo. Na
-            apreciação de matérias, podem haver eventuais conflitos de interpretação ou de entendimento entre o
-            que
-            estabelece o Regimento Interno da Casa e a Lei Orgânica do Município. Nestes casos, prevalece a Lei
-            Orgânica.
-          </p>
+        <h3 class="card-title">Matérias Legislativas</h3>
+        <p class="card-description">Projetos de lei e proposições</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn-action" title="Pesquisar Matérias">
+            <i class="fas fa-search"></i> Pesquisar
+          </a>
         </div>
-        <a href="{% url 'sapl.materia:pesquisar_materia' %}"></a>
       </div>
 
+      <!-- Normas Jurídicas -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_normas_juridicas.png' %}" alt="Normas Jurídicas">
-          </div>
-          <h2>Normas Jurídicas</h2>
+        <div class="card-icon">
+          <i class="fas fa-balance-scale"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_normas_juridicas.png' %}">
-            <h2>Normas Jurídicas</h2>
-          </div>
-          <p>
-            Nos Municípios, referem-se às emendas à Lei Orgânica, às leis complementares, às leis ordinárias,
-            aos
-            decretos legislativos e às resoluções.
-          </p>
+        <h3 class="card-title">Normas Jurídicas</h3>
+        <p class="card-description">Leis, decretos e resoluções</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.norma:norma_pesquisa'%}" class="btn-action" title="Pesquisar Normas">
+            <i class="fas fa-search"></i> Pesquisar
+          </a>
         </div>
-        <a href="{% url 'sapl.norma:norma_pesquisa'%}"></a>
       </div>
 
+      <!-- Relatórios -->
       <div class="homeBlock">
-        <div class="homeFront">
-          <div class="homeIcon">
-            <img src="{% webpack_static 'img/icon_relatorios.png' %}" alt="Relatórios">
-          </div>
-          <h2>Relatórios</h2>
+        <div class="card-icon">
+          <i class="fas fa-chart-bar"></i>
         </div>
-        <div class="homeContent">
-          <div class="homeTitle">
-            <img src="{% webpack_static 'img/icon_relatorios.png' %}">
-            <h2>Relatórios</h2>
-          </div>
-          <p>
-            Contém informações estatísticas sobre a produção legislativa dos parlamentares e da Casa, dispostas
-            e
-            agrupadas de diferentes formas de acordo com parâmetros fornecidos.
-          </p>
+        <h3 class="card-title">Relatórios</h3>
+        <p class="card-description">Estatísticas e análises legislativas</p>
+        <div class="card-actions">
+          <a href="/sistema/relatorios/" class="btn-action" title="Ver Relatórios">
+            <i class="fas fa-file-chart"></i> Acessar
+          </a>
         </div>
-        <a href="/sistema/relatorios/"></a>
+      </div>
+
+      <!-- Guia do Projeto -->
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-book"></i>
+        </div>
+        <h3 class="card-title">Guia do Projeto</h3>
+        <p class="card-description">Documentação completa do sistema SAPL</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.base:guia_projeto' %}" class="btn-action" title="Ver Guia do Projeto">
+            <i class="fas fa-book-reader"></i> Consultar
+          </a>
+        </div>
+      </div>
+
+      <!-- Fluxo de Proposições -->
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-paper-plane"></i>
+        </div>
+        <h3 class="card-title">Fluxo de Proposições</h3>
+        <p class="card-description">Como parlamentares criam e enviam proposições</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.base:fluxo_proposicoes' %}" class="btn-action" title="Ver Fluxo de Proposições">
+            <i class="fas fa-route"></i> Visualizar
+          </a>
+        </div>
       </div>
     </div>
   </div>
