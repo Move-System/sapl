@@ -110,3 +110,4 @@ media/*
 !media/.gitkeep
 
 restauracoes/*
+docker/
