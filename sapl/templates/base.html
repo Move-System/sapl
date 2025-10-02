@@ -45,6 +45,7 @@
           {% block navigation %}
             <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
               <div class="container">
+              <a class="navbar-brand" href="/">legisinc</a>
               <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
               </button>
@@ -187,62 +188,12 @@
       {% block footer_container %}
       <footer id="footer" class="footer page__row hidden-print">
         <div class="container">
-
           <div class="row">
-            <div class="col-md-4">
-
-              <a class="footer__logo" href="#">
-                <a href="http://www.interlegis.leg.br/">
-                  <img src="{% webpack_static 'img/logo_interlegis.png' %}" alt="{% trans 'Logo do Interlegis' %} ">
-                </a>
-              </a>
+            <div class="col-md-12 text-center">
               <p>
-                <small>
-                  Desenvolvido pelo <a href="http://www.interlegis.leg.br/">Interlegis</a> em software livre e aberto.
-                </small>
-		<span>Release: 3.1.164-RC5</span>
+                <strong>legisinc</strong><br>
+                <small>AMZ Tecnologia Governamental</small>
               </p>
-
-            </div>
-            <div class="col-md-4">
-              <a class="footer__logo" href="#">
-                <img src="{% webpack_static 'img/logo_cc.png' %}" alt="{% trans 'Logo do Creative Commons BY SA' %}">
-              </a>
-              <p>
-                <small>
-                  Conteúdo e dados sob licença <a href="https://creativecommons.org">Creative Commons</a> 4.0<br><a href="https://creativecommons.org/licenses/by/4.0/">Atribuir Fonte - Compartilhar Igual</a>
-                </small>
-              </p>
-            </div>
-            <div class="col-md-4">
-              {% if nome %}
-              <address>
-                <small>
-                  <strong>
-                    <span class="org">{{ nome }}</span>
-                  </strong>
-                  <br>
-                  <span class="street-address">{{ endereco }}</span>
-                  {% if cep or telefone%}<br>{% endif %}
-                  {% if cep %}CEP: <span class="postal-code">{{ cep }}</span>{% endif %}
-                  {% if cep and telefone%}|{% endif %}
-                  {% if telefone %}Telefone: <span>{{ telefone }}</span>{% endif %}
-                  <br>
-                  <small><a href="{% url 'sapl.api:swagger_ui_schema_api' %}">{% trans 'OpenAPI' %}</a></small> |
-                  <a href="{{endereco_web}}" class="url">{% trans 'Site' %}</a> |
-                  <a href="mailto:{{email}}" class="email">{% trans 'Fale Conosco' %}</a>
-                </small>
-              </address>
-              {% else %}
-                 Casa Legislativa não configurada.
-                 <br>
-                {% if user.is_authenticated %}
-                  <a href="{% url 'sapl.base:casalegislativa_list' %}">Favor configurar clicando aqui</a>
-                {% endif %}
-              {% endif %}
-
-
-
             </div>
           </div>
         </div>
