@@ -35,6 +35,7 @@ import sapl.protocoloadm.urls
 import sapl.redireciona_urls.urls
 import sapl.relatorios.urls
 import sapl.sessao.urls
+import sapl.tce.urls
 
 from sapl.api.views_health import AppzVersionView, HealthzView, ReadyzView
 
@@ -55,6 +56,9 @@ urlpatterns += [
     url(r'', include(sapl.compilacao.urls)),
     url(r'', include(sapl.relatorios.urls)),
     url(r'', include(sapl.audiencia.urls)),
+
+    # TCE - Tribunal de Contas
+    url(r'^tce/', include((sapl.tce.urls, 'tce'), namespace='sapl.tce')),
 
     #    name='sapl_index'),
     # must come at the end

@@ -1,7 +1,5 @@
 {% load i18n common_tags %}
 
-- title: {% trans 'Início' %}
-  url: '/'
 {% if not sapl_as_sapn %}
 - title: {% trans 'Institucional' %}
   children:

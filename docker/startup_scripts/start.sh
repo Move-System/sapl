@@ -141,6 +141,10 @@ wait_for_pg() {
 
 migrate_db() {
   log "Running Django migrations..."
+  # Cria migrations do TCE se necessário
+  log "Creating TCE module migrations if needed..."
+  python3 manage.py makemigrations tce --noinput || true
+  # Aplica todas as migrations
   python3 manage.py migrate --noinput
 }
 

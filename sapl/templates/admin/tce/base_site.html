@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans 'Administração TCE' %} - {{ block.super }}{% endblock %}
+
+{% block base_content %}
+<div class="container-fluid mt-4">
+  <div class="row">
+    <div class="col-12">
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="/">{% trans 'Início' %}</a></li>
+          <li class="breadcrumb-item"><a href="{% url 'sapl.tce:admin_index' %}">{% trans 'TCE' %}</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{% trans 'Administração' %}</li>
+        </ol>
+      </nav>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-12">
+      {% block messages %}
+        {% if messages %}
+        <div class="messages">
+          {% for message in messages %}
+          <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      {% endblock messages %}
+
+      <div class="card">
+        <div class="card-header bg-primary text-white">
+          <h3 class="mb-0">
+            <i class="fas fa-cog"></i>
+            {% block branding %}{% trans 'Administração do Módulo TCE' %}{% endblock %}
+          </h3>
+        </div>
+        <div class="card-body">
+          {% block content %}{% endblock %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* Estilos para melhorar a aparência dos formulários do admin */
+.form-row {
+  margin-bottom: 15px;
+}
+
+.submit-row {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
+
+.submit-row input[type="submit"],
+.submit-row button {
+  margin-right: 10px;
+}
+
+.change-list {
+  margin-top: 20px;
+}
+
+.changelist-filter {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 5px;
+}
+
+.object-tools {
+  margin-bottom: 15px;
+}
+
+.object-tools a {
+  margin-right: 10px;
+}
+
+table {
+  width: 100%;
+}
+
+.button, input[type="submit"], input[type="button"], .submit-row input, button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+}
+
+.button:hover, input[type="submit"]:hover, input[type="button"]:hover {
+  background: #0056b3;
+  color: white;
+}
+
+.button.default, input[type="submit"].default {
+  background: #28a745;
+}
+
+.button.default:hover, input[type="submit"].default:hover {
+  background: #218838;
+}
+
+.deletelink {
+  background: #dc3545 !important;
+}
+
+.deletelink:hover {
+  background: #c82333 !important;
+}
+
+.addlink {
+  background: #28a745 !important;
+}
+
+.addlink:hover {
+  background: #218838 !important;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,1108 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block page_title %}{% trans 'Tribunal de Contas (TCE)' %}{% endblock %}
+
+{% block base_content %}
+<div class="container-fluid content" style="margin-top: 90px;">
+  <div class="row">
+    <div class="col-md-12">
+      <h2 class="page-title">
+        <i class="fas fa-file-invoice"></i> {% trans 'Tribunal de Contas (TCE)' %}
+      </h2>
+      <p class="lead">{% trans 'Sistema de gestão de processos e prestação de contas ao TCE' %}</p>
+      <hr>
+    </div>
+  </div>
+
+  <!-- Interface estilo Google Drive -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body" style="min-height: 400px;">
+
+          <!-- Área de Processos (Pastas Principais) -->
+          <div id="processos-area">
+            {% if total_processos == 0 %}
+              <!-- Estado vazio - Nenhum processo criado -->
+              <div class="text-center py-5">
+                <i class="fas fa-folder-open fa-5x text-muted mb-4"></i>
+                <h4 class="text-muted">{% trans 'Nenhum processo criado ainda' %}</h4>
+                <p class="text-muted">{% trans 'Crie seu primeiro processo para começar a organizar os documentos do TCE' %}</p>
+                <button class="btn btn-primary btn-lg mt-3" onclick="showCreateProcessoModal()">
+                  <i class="fas fa-plus"></i> {% trans 'Criar Primeiro Processo' %}
+                </button>
+              </div>
+            {% else %}
+              <!-- Lista de processos existentes -->
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">{% trans 'Meus Processos' %}</h5>
+                <button class="btn btn-primary" onclick="showCreateProcessoModal()">
+                  <i class="fas fa-plus"></i> {% trans 'Novo Processo' %}
+                </button>
+              </div>
+
+              <div class="row" id="processos-list">
+                <!-- Processos serão carregados via AJAX -->
+                <div class="col-12 text-center py-5">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="sr-only">{% trans 'Carregando...' %}</span>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Estatísticas Rápidas -->
+  <div class="row mt-4">
+    <div class="col-md-12">
+      <h4><i class="fas fa-chart-bar"></i> {% trans 'Estatísticas Rápidas' %}</h4>
+      <hr>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-md-3 col-sm-6 mb-3">
+      <div class="card bg-primary text-white">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="fas fa-folder"></i> {% trans 'Processos' %}
+          </h5>
+          <h2 class="mb-0">{{ total_processos|default:0 }}</h2>
+          <small>{% trans 'Total cadastrados' %}</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3 col-sm-6 mb-3">
+      <div class="card bg-danger text-white">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="fas fa-file-pdf"></i> {% trans 'Arquivos' %}
+          </h5>
+          <h2 class="mb-0">{{ total_arquivos|default:0 }}</h2>
+          <small>{% trans 'Total enviados' %}</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3 col-sm-6 mb-3">
+      <div class="card bg-success text-white">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="fas fa-check-circle"></i> {% trans 'Validados' %}
+          </h5>
+          <h2 class="mb-0">{{ total_validados|default:0 }}</h2>
+          <small>{% trans 'Prontos para envio' %}</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-3 col-sm-6 mb-3">
+      <div class="card bg-info text-white">
+        <div class="card-body">
+          <h5 class="card-title">
+            <i class="fas fa-signature"></i> {% trans 'Assinaturas' %}
+          </h5>
+          <h2 class="mb-0">{{ total_assinaturas|default:0 }}</h2>
+          <small>{% trans 'Total aplicadas' %}</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Links Rápidos -->
+  <div class="row mt-4">
+    <div class="col-md-12">
+      <h4><i class="fas fa-bolt"></i> {% trans 'Ações Rápidas' %}</h4>
+      <hr>
+    </div>
+  </div>
+
+  <div class="row mb-5">
+    <div class="col-md-3 col-sm-6 mb-2">
+      <a href="{% url 'admin:tce_tceprocesso_add' %}" class="btn btn-outline-primary btn-block">
+        <i class="fas fa-plus"></i> {% trans 'Novo Processo' %}
+      </a>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2">
+      <a href="{% url 'admin:tce_tcepasta_add' %}" class="btn btn-outline-info btn-block">
+        <i class="fas fa-folder-plus"></i> {% trans 'Nova Pasta' %}
+      </a>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2">
+      <a href="{% url 'admin:tce_tcearquivo_add' %}" class="btn btn-outline-danger btn-block">
+        <i class="fas fa-upload"></i> {% trans 'Upload de Arquivo' %}
+      </a>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-2">
+      <a href="{% url 'admin:tce_tcelog_changelist' %}" class="btn btn-outline-warning btn-block">
+        <i class="fas fa-history"></i> {% trans 'Ver Logs' %}
+      </a>
+    </div>
+  </div>
+</div>
+
+<style>
+.card-hover {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card-hover:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.card-icon-large {
+  padding: 20px;
+}
+
+.page-title {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.card {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.card-footer {
+  border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+/* Estilo Google Drive */
+.processo-card {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 15px;
+}
+
+.processo-card:hover {
+  background-color: #f8f9fa;
+  border-color: #007bff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.folder-icon {
+  font-size: 48px;
+  color: #FFA500;
+}
+
+.pasta-item {
+  cursor: pointer;
+  padding: 12px;
+  border-radius: 6px;
+  transition: background 0.2s;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 10px;
+}
+
+.pasta-item:hover {
+  background-color: #f5f5f5;
+}
+
+.subpasta-item {
+  padding: 10px;
+  border-left: 3px solid #007bff;
+  margin-left: 20px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.subpasta-item:hover {
+  background-color: #e3f2fd;
+}
+
+.file-list-item {
+  padding: 10px;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.file-list-item:hover {
+  background-color: #f8f9fa;
+}
+
+.breadcrumb-custom {
+  background: #f8f9fa;
+  padding: 10px 15px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.breadcrumb-custom a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.breadcrumb-custom a:hover {
+  text-decoration: underline;
+}
+</style>
+
+<!-- Modal: Criar Processo -->
+<div class="modal fade" id="createProcessoModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-folder-plus"></i> {% trans 'Criar Novo Processo' %}
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">
+          <span>&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="createProcessoForm">
+          {% csrf_token %}
+          <div class="form-group">
+            <label>{% trans 'Nome do Processo' %}</label>
+            <input type="text" class="form-control" name="titulo"
+                   placeholder="Ex: Tribunal 01/2025" required>
+            <small class="form-text text-muted">
+              {% trans 'Exemplo: Prestação de Contas - 1º Quadrimestre/2025' %}
+            </small>
+          </div>
+          <div class="form-group">
+            <label>{% trans 'Ano' %}</label>
+            <input type="number" class="form-control" name="ano"
+                   value="2025" min="2020" max="2099" required>
+          </div>
+          <div class="form-group">
+            <label>{% trans 'Período' %}</label>
+            <select class="form-control" name="periodo" required>
+              <option value="1º Quadrimestre">1º Quadrimestre</option>
+              <option value="2º Quadrimestre">2º Quadrimestre</option>
+              <option value="3º Quadrimestre">3º Quadrimestre</option>
+              <option value="Anual">Anual</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>{% trans 'Descrição' %}</label>
+            <textarea class="form-control" name="descricao" rows="3"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+          {% trans 'Cancelar' %}
+        </button>
+        <button type="button" class="btn btn-primary" onclick="createProcesso()">
+          <i class="fas fa-save"></i> {% trans 'Criar Processo' %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Upload de Arquivo com Abas -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-upload"></i> {% trans 'Adicionar Arquivo' %}
+          <span id="upload-pasta-nome" class="ml-2"></span>
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">
+          <span>&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Abas do processo -->
+        <ul class="nav nav-tabs" id="uploadTabs" role="tablist">
+          <li class="nav-item">
+            <a class="nav-link active" id="tab-arquivo" data-toggle="tab" href="#step-arquivo" role="tab">
+              <i class="fas fa-file"></i> {% trans '1. Arquivo' %}
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-tamanho" data-toggle="tab" href="#step-tamanho" role="tab">
+              <i class="fas fa-weight"></i> {% trans '2. Tamanho (≤5MB)' %}
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-ocr" data-toggle="tab" href="#step-ocr" role="tab">
+              <i class="fas fa-search"></i> {% trans '3. OCR' %}
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-assinatura" data-toggle="tab" href="#step-assinatura" role="tab">
+              <i class="fas fa-signature"></i> {% trans '4. Assinatura' %}
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-p7s" data-toggle="tab" href="#step-p7s" role="tab">
+              <i class="fas fa-file-signature"></i> {% trans '5. Exportação (.p7s)' %}
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="tab-envio" data-toggle="tab" href="#step-envio" role="tab">
+              <i class="fas fa-paper-plane"></i> {% trans '6. Envio' %}
+            </a>
+          </li>
+        </ul>
+
+        <div class="tab-content p-4" id="uploadTabContent">
+          <!-- Aba 1: Arquivo -->
+          <div class="tab-pane fade show active" id="step-arquivo" role="tabpanel">
+            <h5>{% trans 'Upload de Arquivo' %}</h5>
+            <p class="text-muted">{% trans 'Selecione o arquivo PDF para fazer upload' %}</p>
+            <div class="custom-file">
+              <input type="file" class="custom-file-input" id="fileInput" accept=".pdf">
+              <label class="custom-file-label" for="fileInput">{% trans 'Escolher arquivo...' %}</label>
+            </div>
+            <div id="file-preview" class="mt-3" style="display:none;">
+              <div class="alert alert-info">
+                <i class="fas fa-file-pdf"></i> <span id="file-name"></span>
+                (<span id="file-size"></span>)
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 2: Tamanho -->
+          <div class="tab-pane fade" id="step-tamanho" role="tabpanel">
+            <h5>{% trans 'Verificação de Tamanho' %}</h5>
+            <p class="text-muted">{% trans 'O arquivo deve ter no máximo 5MB' %}</p>
+            <div id="size-check" class="alert alert-warning">
+              <i class="fas fa-info-circle"></i> {% trans 'Aguardando upload de arquivo...' %}
+            </div>
+            <button class="btn btn-primary" id="btn-reduzir" style="display:none;">
+              <i class="fas fa-compress-alt"></i> {% trans 'Reduzir Tamanho' %}
+            </button>
+          </div>
+
+          <!-- Aba 3: OCR -->
+          <div class="tab-pane fade" id="step-ocr" role="tabpanel">
+            <h5>{% trans 'OCR - Tornar Pesquisável' %}</h5>
+            <p class="text-muted">{% trans 'Aplicar OCR para tornar o PDF pesquisável' %}</p>
+
+            <button class="btn btn-primary btn-lg" id="btn-aplicar-ocr" onclick="aplicarOCR()">
+              <i class="fas fa-magic"></i> {% trans 'Aplicar OCR' %}
+            </button>
+
+            <div id="ocr-progress" class="mt-4" style="display:none;">
+              <div class="card">
+                <div class="card-body">
+                  <h6 class="mb-3">
+                    <i class="fas fa-cog fa-spin text-primary"></i>
+                    {% trans 'Processando OCR...' %}
+                  </h6>
+
+                  <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated"
+                         role="progressbar"
+                         style="width: 0%"
+                         id="ocr-progress-bar">
+                      <span id="ocr-progress-text">0%</span>
+                    </div>
+                  </div>
+
+                  <div id="ocr-status-text" class="text-muted">
+                    <small>
+                      <i class="fas fa-info-circle"></i>
+                      {% trans 'Iniciando processo de OCR...' %}
+                    </small>
+                  </div>
+
+                  <!-- Animação de processamento -->
+                  <div class="text-center mt-3">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="sr-only">{% trans 'Processando...' %}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="ocr-result" class="mt-3" style="display:none;"></div>
+          </div>
+
+          <!-- Aba 4: Assinatura -->
+          <div class="tab-pane fade" id="step-assinatura" role="tabpanel">
+            <h5>{% trans 'Assinatura Digital ICP-Brasil' %}</h5>
+            <p class="text-muted">{% trans 'Assinar digitalmente com certificado ICP-Brasil' %}</p>
+
+            <div class="form-group">
+              <label>{% trans 'Tipo de Certificado' %}</label>
+              <select class="form-control" id="certificado-tipo" onchange="toggleCertificadoFields()">
+                <option value="a1">A1 (.pfx)</option>
+                <option value="a3">A3 (Token/SmartCard)</option>
+              </select>
+            </div>
+
+            <!-- Campos para A1 (.pfx) -->
+            <div id="campos-a1">
+              <div class="form-group">
+                <label>{% trans 'Arquivo do Certificado (.pfx)' %}</label>
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="pfxInput" accept=".pfx,.p12">
+                  <label class="custom-file-label" for="pfxInput">{% trans 'Escolher arquivo .pfx...' %}</label>
+                </div>
+                <small class="form-text text-muted">
+                  {% trans 'Selecione o arquivo .pfx ou .p12 do seu certificado digital' %}
+                </small>
+              </div>
+
+              <div class="form-group">
+                <label>{% trans 'Senha do Certificado' %}</label>
+                <input type="password" class="form-control" id="pfx-password" placeholder="Digite a senha do certificado">
+                <small class="form-text text-muted">
+                  {% trans 'A senha protege a chave privada do certificado' %}
+                </small>
+              </div>
+
+              <div id="pfx-preview" class="alert alert-info" style="display:none;">
+                <i class="fas fa-certificate"></i>
+                <strong>{% trans 'Certificado:' %}</strong> <span id="pfx-name"></span>
+                <br>
+                <small id="pfx-info"></small>
+              </div>
+            </div>
+
+            <!-- Campos para A3 (Token/SmartCard) -->
+            <div id="campos-a3" style="display:none;">
+              <div class="alert alert-info">
+                <i class="fas fa-usb"></i> {% trans 'Conecte seu token ou smartcard ao computador' %}
+              </div>
+
+              <div class="form-group">
+                <label>{% trans 'PIN do Token/SmartCard' %}</label>
+                <input type="password" class="form-control" id="token-pin" placeholder="Digite o PIN">
+              </div>
+
+              <div class="form-group">
+                <label>{% trans 'Certificado Disponível' %}</label>
+                <select class="form-control" id="token-certificado">
+                  <option value="">{% trans 'Detectando certificados...' %}</option>
+                </select>
+              </div>
+            </div>
+
+            <hr>
+
+            <button class="btn btn-success btn-lg" id="btn-assinar" onclick="assinarDocumento()">
+              <i class="fas fa-file-signature"></i> {% trans 'Assinar Documento' %}
+            </button>
+
+            <div id="assinatura-progress" class="mt-3" style="display:none;">
+              <div class="progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                     style="width: 0%" id="assinatura-progress-bar"></div>
+              </div>
+              <small class="text-muted" id="assinatura-status"></small>
+            </div>
+
+            <div id="assinatura-result" class="mt-3" style="display:none;"></div>
+          </div>
+
+          <!-- Aba 5: Exportação .p7s -->
+          <div class="tab-pane fade" id="step-p7s" role="tabpanel">
+            <h5>{% trans 'Exportação (.p7s)' %}</h5>
+            <p class="text-muted">{% trans 'Gerar arquivo de assinatura destacada (.p7s)' %}</p>
+            <button class="btn btn-info btn-lg">
+              <i class="fas fa-file-export"></i> {% trans 'Gerar Arquivo .p7s' %}
+            </button>
+          </div>
+
+          <!-- Aba 6: Envio -->
+          <div class="tab-pane fade" id="step-envio" role="tabpanel">
+            <h5>{% trans 'Revisão Final' %}</h5>
+            <p class="text-muted">{% trans 'Revise as informações antes de salvar o arquivo' %}</p>
+
+            <div class="card">
+              <div class="card-body">
+                <h6 class="card-title"><i class="fas fa-check-circle text-success"></i> {% trans 'Documento Processado' %}</h6>
+
+                <div class="row mt-3">
+                  <div class="col-md-6">
+                    <p><strong><i class="fas fa-file-pdf text-danger"></i> {% trans 'Arquivo:' %}</strong><br>
+                    <span id="final-filename" class="text-muted">-</span></p>
+                  </div>
+                  <div class="col-md-6">
+                    <p><strong><i class="fas fa-folder text-warning"></i> {% trans 'Pasta Destino:' %}</strong><br>
+                    <span id="final-pasta" class="text-muted">-</span></p>
+                  </div>
+                </div>
+
+                <hr>
+
+                <h6 class="mb-3">{% trans 'Etapas Concluídas:' %}</h6>
+                <ul class="list-unstyled">
+                  <li class="mb-2">
+                    <i class="fas fa-check-circle text-success"></i> {% trans 'Arquivo carregado' %}
+                  </li>
+                  <li class="mb-2">
+                    <i class="fas fa-check-circle text-success"></i> {% trans 'Tamanho verificado (≤ 5MB)' %}
+                  </li>
+                  <li class="mb-2">
+                    <i class="fas fa-check-circle text-success"></i> {% trans 'OCR aplicado' %}
+                  </li>
+                  <li class="mb-2">
+                    <i class="fas fa-check-circle text-success"></i> {% trans 'Documento assinado digitalmente' %}
+                  </li>
+                  <li class="mb-2">
+                    <i class="fas fa-check-circle text-success"></i> {% trans 'Arquivo .p7s gerado' %}
+                  </li>
+                </ul>
+
+                <div class="alert alert-info mt-3">
+                  <i class="fas fa-info-circle"></i>
+                  {% trans 'Clique em "Finalizar" para salvar o arquivo na pasta selecionada.' %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+          {% trans 'Fechar' %}
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-next-tab" onclick="handleNextOrFinish()">
+          <span id="btn-next-text">{% trans 'Próximo' %}</span>
+          <i class="fas fa-arrow-right" id="btn-next-icon"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Estado da aplicação
+let currentProcessoId = null;
+let currentPastaId = null;
+
+// Mostrar modal de criar processo
+function showCreateProcessoModal() {
+  const modal = document.getElementById('createProcessoModal');
+  if (typeof bootstrap !== 'undefined') {
+    // Bootstrap 5
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+  } else if (typeof $ !== 'undefined') {
+    // Bootstrap 4 com jQuery
+    $('#createProcessoModal').modal('show');
+  } else {
+    // Fallback
+    modal.classList.add('show');
+    modal.style.display = 'block';
+  }
+}
+
+// Criar processo
+function createProcesso() {
+  const form = document.getElementById('createProcessoForm');
+  const formData = new FormData(form);
+
+  fetch('/tce/api/processos/create/', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Fechar modal
+      const modal = document.getElementById('createProcessoModal');
+      if (typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getInstance(modal).hide();
+      } else if (typeof $ !== 'undefined') {
+        $('#createProcessoModal').modal('hide');
+      } else {
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+      }
+
+      form.reset();
+      loadProcessos();
+    } else {
+      alert('Erro ao criar processo: ' + data.error);
+    }
+  })
+  .catch(error => {
+    console.error('Erro:', error);
+    alert('Erro ao criar processo');
+  });
+}
+
+// Carregar lista de processos
+function loadProcessos() {
+  fetch('/tce/api/processos/')
+    .then(response => response.json())
+    .then(data => {
+      const container = document.getElementById('processos-list');
+      if (data.processos.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center"><p class="text-muted">Nenhum processo encontrado</p></div>';
+        return;
+      }
+
+      let html = '';
+      data.processos.forEach(processo => {
+        html += `
+          <div class="col-md-3 col-sm-6 mb-3">
+            <div class="processo-card" onclick="openProcesso('${processo.id}')">
+              <div class="text-center">
+                <i class="fas fa-folder folder-icon"></i>
+                <h6 class="mt-2">${processo.titulo}</h6>
+                <small class="text-muted">${processo.ano} - ${processo.periodo}</small>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+    });
+}
+
+// Abrir processo e mostrar pastas
+function openProcesso(processoId) {
+  currentProcessoId = processoId;
+  // Implementar navegação para dentro do processo
+  window.location.href = `/tce/processo/${processoId}/`;
+}
+
+// Mostrar modal de upload
+function showUploadModal(pastaId, pastaNome) {
+  currentPastaId = pastaId;
+  document.getElementById('upload-pasta-nome').textContent = pastaNome;
+
+  const modal = document.getElementById('uploadFileModal');
+  if (typeof bootstrap !== 'undefined') {
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+  } else if (typeof $ !== 'undefined') {
+    $('#uploadFileModal').modal('show');
+  } else {
+    modal.classList.add('show');
+    modal.style.display = 'block';
+  }
+}
+
+// Navegação entre abas e detecção de última aba
+function handleNextOrFinish() {
+  const activeTab = document.querySelector('#uploadTabs .nav-link.active');
+  const nextTab = activeTab.parentElement.nextElementSibling;
+
+  // Se não há próxima aba, está na última (Envio) - finalizar
+  if (!nextTab) {
+    finalizarUpload();
+  } else {
+    // Avançar para próxima aba
+    nextTab.querySelector('.nav-link').click();
+  }
+}
+
+// Atualizar texto do botão quando mudar de aba
+document.querySelectorAll('#uploadTabs .nav-link').forEach(tab => {
+  tab.addEventListener('shown.bs.tab', function(e) {
+    updateNextButton();
+  });
+
+  tab.addEventListener('click', function(e) {
+    setTimeout(updateNextButton, 100);
+  });
+});
+
+function updateNextButton() {
+  const activeTab = document.querySelector('#uploadTabs .nav-link.active');
+  const nextTab = activeTab.parentElement.nextElementSibling;
+  const btnText = document.getElementById('btn-next-text');
+  const btnIcon = document.getElementById('btn-next-icon');
+
+  if (!nextTab) {
+    // Última aba - mudar para Finalizar
+    btnText.textContent = 'Finalizar';
+    btnIcon.className = 'fas fa-check';
+
+    // Atualizar informações na aba de revisão
+    updateFinalReview();
+  } else {
+    // Não é a última aba - manter Próximo
+    btnText.textContent = 'Próximo';
+    btnIcon.className = 'fas fa-arrow-right';
+  }
+}
+
+function updateFinalReview() {
+  // Atualizar nome do arquivo
+  const fileName = document.getElementById('file-name')?.textContent || 'Nenhum arquivo';
+  const finalFilename = document.getElementById('final-filename');
+  if (finalFilename) {
+    finalFilename.textContent = fileName;
+  }
+
+  // Atualizar nome da pasta
+  const pastaName = document.getElementById('upload-pasta-nome')?.textContent || 'Nenhuma pasta';
+  const finalPasta = document.getElementById('final-pasta');
+  if (finalPasta) {
+    finalPasta.textContent = pastaName;
+  }
+}
+
+function finalizarUpload() {
+  const btnNext = document.getElementById('btn-next-tab');
+  const btnText = document.getElementById('btn-next-text');
+  const btnIcon = document.getElementById('btn-next-icon');
+
+  // Desabilitar botão e mostrar carregando
+  btnNext.disabled = true;
+  btnText.textContent = 'Salvando...';
+  btnIcon.className = 'fas fa-spinner fa-spin';
+
+  // Coletar dados do formulário
+  const fileInput = document.getElementById('fileInput');
+  const file = fileInput?.files[0];
+
+  if (!file) {
+    alert('Por favor, selecione um arquivo antes de finalizar.');
+    btnNext.disabled = false;
+    btnText.textContent = 'Finalizar';
+    btnIcon.className = 'fas fa-check';
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('arquivo', file);
+  formData.append('pasta_id', currentPastaId || '');
+  formData.append('processo_id', currentProcessoId || '');
+
+  // Enviar para o backend
+  fetch('/tce/api/upload-arquivo/', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Sucesso - mostrar mensagem e fechar modal
+      alert('Arquivo salvo com sucesso na pasta selecionada!');
+
+      // Fechar modal
+      const modal = document.getElementById('uploadFileModal');
+      if (typeof bootstrap !== 'undefined') {
+        bootstrap.Modal.getInstance(modal).hide();
+      } else if (typeof $ !== 'undefined') {
+        $('#uploadFileModal').modal('hide');
+      } else {
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+      }
+
+      // Resetar formulário
+      document.getElementById('fileInput').value = '';
+      document.getElementById('file-preview').style.display = 'none';
+
+      // Recarregar lista de arquivos se necessário
+      // location.reload();
+
+    } else {
+      alert('Erro ao salvar arquivo: ' + (data.error || 'Erro desconhecido'));
+      btnNext.disabled = false;
+      btnText.textContent = 'Finalizar';
+      btnIcon.className = 'fas fa-check';
+    }
+  })
+  .catch(error => {
+    console.error('Erro:', error);
+    alert('Erro ao salvar arquivo: ' + error.message);
+    btnNext.disabled = false;
+    btnText.textContent = 'Finalizar';
+    btnIcon.className = 'fas fa-check';
+  });
+}
+
+// Preview do arquivo selecionado
+document.getElementById('fileInput')?.addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (file) {
+    document.getElementById('file-name').textContent = file.name;
+    document.getElementById('file-size').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+    document.getElementById('file-preview').style.display = 'block';
+
+    // Verificar tamanho
+    if (file.size > 5 * 1024 * 1024) {
+      document.getElementById('size-check').className = 'alert alert-danger';
+      document.getElementById('size-check').innerHTML = '<i class="fas fa-exclamation-triangle"></i> Arquivo maior que 5MB!';
+      document.getElementById('btn-reduzir').style.display = 'block';
+    } else {
+      document.getElementById('size-check').className = 'alert alert-success';
+      document.getElementById('size-check').innerHTML = '<i class="fas fa-check-circle"></i> Tamanho OK (≤ 5MB)';
+      document.getElementById('btn-reduzir').style.display = 'none';
+    }
+  }
+});
+
+// Aplicar OCR
+function aplicarOCR() {
+  const btnAplicar = document.getElementById('btn-aplicar-ocr');
+  const progressDiv = document.getElementById('ocr-progress');
+  const progressBar = document.getElementById('ocr-progress-bar');
+  const progressText = document.getElementById('ocr-progress-text');
+  const statusText = document.getElementById('ocr-status-text');
+  const resultDiv = document.getElementById('ocr-result');
+
+  // Desabilitar botão e mostrar progresso
+  btnAplicar.disabled = true;
+  progressDiv.style.display = 'block';
+  resultDiv.style.display = 'none';
+
+  // Simular progresso
+  let progress = 0;
+  const etapas = [
+    { percent: 0, text: 'Iniciando processo de OCR...' },
+    { percent: 20, text: 'Analisando estrutura do PDF...' },
+    { percent: 40, text: 'Detectando texto nas imagens...' },
+    { percent: 60, text: 'Aplicando reconhecimento óptico...' },
+    { percent: 80, text: 'Processando páginas...' },
+    { percent: 90, text: 'Gerando PDF pesquisável...' },
+    { percent: 100, text: 'Finalizando...' }
+  ];
+
+  let etapaAtual = 0;
+
+  const interval = setInterval(() => {
+    if (etapaAtual < etapas.length) {
+      const etapa = etapas[etapaAtual];
+      progress = etapa.percent;
+
+      progressBar.style.width = progress + '%';
+      progressText.textContent = progress + '%';
+      statusText.innerHTML = `<small><i class="fas fa-info-circle"></i> ${etapa.text}</small>`;
+
+      etapaAtual++;
+    }
+
+    if (progress >= 100) {
+      clearInterval(interval);
+
+      // Simular chamada API (substituir por chamada real)
+      setTimeout(() => {
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+        btnAplicar.disabled = false;
+
+        // Resultado de sucesso (simulated)
+        resultDiv.className = 'alert alert-success mt-3';
+        resultDiv.innerHTML = `
+          <i class="fas fa-check-circle"></i> <strong>OCR aplicado com sucesso!</strong>
+          <br><small>O documento agora está pesquisável e pode ser enviado ao TCE.</small>
+          <br><br>
+          <div class="d-flex justify-content-between">
+            <span><i class="fas fa-file-pdf text-danger"></i> <strong>Páginas processadas:</strong> 15</span>
+            <span><i class="fas fa-clock text-primary"></i> <strong>Tempo:</strong> 23s</span>
+          </div>
+        `;
+
+        // Aqui você pode adicionar a chamada real à API
+        /*
+        fetch('/tce/api/aplicar-ocr/', {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          // Processar resposta
+        });
+        */
+      }, 500);
+    }
+  }, 800); // Atualiza a cada 800ms
+}
+
+// Toggle entre campos A1 e A3
+function toggleCertificadoFields() {
+  const tipo = document.getElementById('certificado-tipo').value;
+  document.getElementById('campos-a1').style.display = tipo === 'a1' ? 'block' : 'none';
+  document.getElementById('campos-a3').style.display = tipo === 'a3' ? 'block' : 'none';
+}
+
+// Preview do certificado .pfx
+document.getElementById('pfxInput')?.addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (file) {
+    document.getElementById('pfx-name').textContent = file.name;
+    document.getElementById('pfx-info').textContent = `Tamanho: ${(file.size / 1024).toFixed(2)} KB`;
+    document.getElementById('pfx-preview').style.display = 'block';
+
+    // Atualizar label
+    this.nextElementSibling.textContent = file.name;
+  }
+});
+
+// Função de assinatura
+function assinarDocumento() {
+  const tipo = document.getElementById('certificado-tipo').value;
+
+  // Validações
+  if (tipo === 'a1') {
+    const pfxFile = document.getElementById('pfxInput').files[0];
+    const password = document.getElementById('pfx-password').value;
+
+    if (!pfxFile) {
+      alert('Por favor, selecione o arquivo .pfx do certificado');
+      return;
+    }
+
+    if (!password) {
+      alert('Por favor, digite a senha do certificado');
+      return;
+    }
+
+    // Processar assinatura A1
+    assinarComA1(pfxFile, password);
+
+  } else {
+    const pin = document.getElementById('token-pin').value;
+
+    if (!pin) {
+      alert('Por favor, digite o PIN do token/smartcard');
+      return;
+    }
+
+    // Processar assinatura A3
+    assinarComA3(pin);
+  }
+}
+
+// Assinar com certificado A1
+function assinarComA1(pfxFile, password) {
+  const progressDiv = document.getElementById('assinatura-progress');
+  const progressBar = document.getElementById('assinatura-progress-bar');
+  const statusText = document.getElementById('assinatura-status');
+  const resultDiv = document.getElementById('assinatura-result');
+
+  // Mostrar progresso
+  progressDiv.style.display = 'block';
+  progressBar.style.width = '0%';
+  statusText.textContent = 'Carregando certificado...';
+  resultDiv.style.display = 'none';
+
+  // Simular progresso
+  let progress = 0;
+  const interval = setInterval(() => {
+    progress += 10;
+    progressBar.style.width = progress + '%';
+
+    if (progress === 30) {
+      statusText.textContent = 'Validando certificado...';
+    } else if (progress === 60) {
+      statusText.textContent = 'Assinando documento...';
+    } else if (progress === 90) {
+      statusText.textContent = 'Finalizando...';
+    }
+
+    if (progress >= 100) {
+      clearInterval(interval);
+
+      // Criar FormData para envio
+      const formData = new FormData();
+      formData.append('pfx_file', pfxFile);
+      formData.append('password', password);
+      formData.append('arquivo_id', currentArquivoId || '');
+
+      // Enviar para o backend
+      fetch('/tce/api/assinar/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+
+        if (data.success) {
+          resultDiv.className = 'alert alert-success mt-3';
+          resultDiv.innerHTML = `
+            <i class="fas fa-check-circle"></i> <strong>Documento assinado com sucesso!</strong>
+            <br><small>Assinado por: ${data.certificado_nome || 'N/A'}</small>
+            <br><small>Válido até: ${data.validade || 'N/A'}</small>
+          `;
+        } else {
+          resultDiv.className = 'alert alert-danger mt-3';
+          resultDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i> <strong>Erro ao assinar documento</strong>
+            <br><small>${data.error || 'Erro desconhecido'}</small>
+          `;
+        }
+      })
+      .catch(error => {
+        progressDiv.style.display = 'none';
+        resultDiv.style.display = 'block';
+        resultDiv.className = 'alert alert-danger mt-3';
+        resultDiv.innerHTML = `
+          <i class="fas fa-exclamation-triangle"></i> <strong>Erro ao assinar documento</strong>
+          <br><small>${error.message}</small>
+        `;
+      });
+    }
+  }, 300);
+}
+
+// Assinar com certificado A3
+function assinarComA3(pin) {
+  const progressDiv = document.getElementById('assinatura-progress');
+  const resultDiv = document.getElementById('assinatura-result');
+
+  progressDiv.style.display = 'block';
+  resultDiv.style.display = 'none';
+
+  // Implementar lógica de assinatura com token/smartcard
+  // Isso geralmente requer uma biblioteca JavaScript específica ou Web Crypto API
+
+  setTimeout(() => {
+    progressDiv.style.display = 'none';
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'alert alert-info mt-3';
+    resultDiv.innerHTML = `
+      <i class="fas fa-info-circle"></i> <strong>Assinatura com Token/SmartCard</strong>
+      <br><small>Funcionalidade em desenvolvimento. Requer biblioteca específica para acesso ao dispositivo.</small>
+    `;
+  }, 2000);
+}
+
+// Atualizar labels dos inputs file (JavaScript puro)
+document.addEventListener('DOMContentLoaded', function() {
+  // Atualizar labels dos custom-file-input
+  document.querySelectorAll('.custom-file-input').forEach(function(input) {
+    input.addEventListener('change', function() {
+      const fileName = this.value.split('\\').pop();
+      const label = this.nextElementSibling;
+      if (label && label.classList.contains('custom-file-label')) {
+        label.classList.add('selected');
+        label.textContent = fileName;
+      }
+    });
+  });
+
+  // Carregar processos se houver algum
+  {% if total_processos > 0 %}
+  loadProcessos();
+  {% endif %}
+});
+</script>
+{% endblock %}
