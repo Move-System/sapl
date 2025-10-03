@@ -631,10 +631,13 @@ function excluirArquivo(arquivoId) {
   })
   .then(response => {
     console.log('=== Response status:', response.status);
+    console.log('=== Response headers:', response.headers);
+    console.log('=== X-Debug-View header:', response.headers.get('X-Debug-View'));
     return response.json();
   })
   .then(data => {
     console.log('=== Data recebida:', data);
+    console.log('=== debug_source:', data.debug_source);
     if (data.success) {
       alert('Arquivo excluído com sucesso!');
       console.log('=== Chamando carregarArquivosSubpasta');

@@ -255,15 +255,37 @@ def api_upload_arquivo(request):
 @require_http_methods(["DELETE", "POST"])
 def api_delete_arquivo(request, arquivo_id):
     """API: Excluir arquivo"""
-    print(f"=== DEBUG: Iniciando api_delete_arquivo para ID: {arquivo_id} ===")
+    import sys
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # Write to file for debugging
+    with open('/tmp/delete_debug.log', 'a') as f:
+        f.write(f"\n{'='*80}\n")
+        f.write(f"DELETE ARQUIVO CALLED\n")
+        f.write(f"ID: {arquivo_id}\n")
+        f.write(f"Method: {request.method}\n")
+        f.write(f"User: {request.user}\n")
+        f.write(f"{'='*80}\n")
+        f.flush()
+
+    print(f"\n{'='*80}", file=sys.stderr, flush=True)
+    print(f"=== FUNÇÃO api_delete_arquivo EXECUTADA ===", file=sys.stderr, flush=True)
+    print(f"=== ID: {arquivo_id} ===", file=sys.stderr, flush=True)
+    print(f"=== Method: {request.method} ===", file=sys.stderr, flush=True)
+    print(f"{'='*80}\n", file=sys.stderr, flush=True)
+
+    logger.error(f"DELETE ARQUIVO CALLED: {arquivo_id}")
 
     try:
         # Buscar arquivo
         try:
             arquivo = TceArquivo.objects.get(id=arquivo_id)
-            print(f"=== DEBUG: Arquivo encontrado: {arquivo.nome_original} ===")
+            sys.stderr.write(f"=== DEBUG: Arquivo encontrado: {arquivo.nome_original} ===\n")
+            sys.stderr.flush()
         except TceArquivo.DoesNotExist:
-            print(f"=== DEBUG: Arquivo {arquivo_id} não encontrado ===")
+            sys.stderr.write(f"=== DEBUG: Arquivo {arquivo_id} não encontrado ===\n")
+            sys.stderr.flush()
             return JsonResponse({
                 'success': False,
                 'error': 'Arquivo não encontrado'
@@ -271,7 +293,8 @@ def api_delete_arquivo(request, arquivo_id):
 
         nome_arquivo = arquivo.nome_original
         subpasta_nome = arquivo.subpasta
-        print(f"=== DEBUG: Preparando exclusão - Nome: {nome_arquivo}, Subpasta: {subpasta_nome} ===")
+        sys.stderr.write(f"=== DEBUG: Preparando exclusão - Nome: {nome_arquivo}, Subpasta: {subpasta_nome} ===\n")
+        sys.stderr.flush()
 
         # Criar log antes de excluir
         try:
@@ -284,36 +307,60 @@ def api_delete_arquivo(request, arquivo_id):
                 usuario=request.user,
                 sucesso=True
             )
-            print(f"=== DEBUG: Log criado ===")
+            sys.stderr.write(f"=== DEBUG: Log criado ===\n")
+            sys.stderr.flush()
         except Exception as log_error:
-            print(f"=== DEBUG: Erro ao criar log: {log_error} ===")
+            sys.stderr.write(f"=== DEBUG: Erro ao criar log: {log_error} ===\n")
+            sys.stderr.flush()
 
         # Excluir arquivos físicos
         try:
             if arquivo.arquivo:
                 arquivo.arquivo.delete(save=False)
-                print(f"=== DEBUG: Arquivo físico excluído ===")
+                sys.stderr.write(f"=== DEBUG: Arquivo físico excluído ===\n")
+                sys.stderr.flush()
         except Exception as file_error:
-            print(f"=== DEBUG: Erro ao excluir arquivo físico: {file_error} ===")
+            sys.stderr.write(f"=== DEBUG: Erro ao excluir arquivo físico: {file_error} ===\n")
+            sys.stderr.flush()
 
         # Excluir registro do banco
-        print(f"=== DEBUG: Chamando arquivo.delete() ===")
+        with open('/tmp/delete_debug.log', 'a') as f:
+            f.write(f"ANTES DE DELETE: arquivo.id = {arquivo.id}\n")
+            f.flush()
+
+        sys.stderr.write(f"=== DEBUG: Chamando arquivo.delete() ===\n")
+        sys.stderr.flush()
         arquivo.delete()
-        print(f"=== DEBUG: arquivo.delete() executado ===")
+        sys.stderr.write(f"=== DEBUG: arquivo.delete() executado ===\n")
+        sys.stderr.flush()
 
         # Verificar se foi realmente excluído
         existe = TceArquivo.objects.filter(id=arquivo_id).exists()
-        print(f"=== DEBUG: Arquivo ainda existe no banco? {existe} ===")
 
-        return JsonResponse({
+        with open('/tmp/delete_debug.log', 'a') as f:
+            f.write(f"DEPOIS DE DELETE: existe = {existe}\n")
+            f.flush()
+
+        sys.stderr.write(f"=== DEBUG: Arquivo ainda existe no banco? {existe} ===\n")
+        sys.stderr.flush()
+
+        response = JsonResponse({
             'success': True,
-            'message': 'Arquivo excluído com sucesso!'
+            'message': 'Arquivo excluído com sucesso!',
+            'debug_source': 'api_delete_arquivo_function'
         })
+        response['X-Debug-View'] = 'api_delete_arquivo'
+        return response
     except Exception as e:
-        print(f"=== DEBUG: ERRO GERAL: {str(e)} ===")
+        sys.stderr.write(f"=== DEBUG: ERRO GERAL: {str(e)} ===\n")
+        sys.stderr.flush()
         import traceback
-        print(traceback.format_exc())
-        return JsonResponse({
+        sys.stderr.write(traceback.format_exc() + "\n")
+        sys.stderr.flush()
+        response = JsonResponse({
             'success': False,
-            'error': str(e)
+            'error': str(e),
+            'debug_source': 'api_delete_arquivo_function_ERROR'
         }, status=500)
+        response['X-Debug-View'] = 'api_delete_arquivo_ERROR'
+        return response
