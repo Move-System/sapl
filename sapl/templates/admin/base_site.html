@@ -1,0 +1,73 @@
+{% extends "admin/base.html" %}
+{% load i18n static menus %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+  {{ block.super }}
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
+  <style>
+    /* Remove o header padrão do Django Admin */
+    #header {
+      display: none !important;
+    }
+
+    /* Ajustes para o container principal */
+    #container {
+      margin-top: 0;
+      padding-top: 0;
+    }
+
+    .breadcrumbs {
+      background: #f8f9fa;
+      padding: 10px 20px;
+      border-bottom: 1px solid #dee2e6;
+      margin-top: 0;
+    }
+
+    /* Ajusta o body para não ter padding no topo */
+    body {
+      padding-top: 0 !important;
+    }
+  </style>
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></h1>
+{% endblock %}
+
+{% block nav-global %}
+  <!-- Navbar do SAPL -->
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+      <a class="navbar-brand" href="/">legisinc</a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        {% navbar 'navbar.yaml' %}
+
+        <ul class="nav navbar-nav justify-content-end" id="autenticacao">
+          {% if user.is_authenticated %}
+            <li class="nav-item dropdown">
+              <a href="#" class="nav-link dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                <img height="30" width="30" src="/static/sapl/frontend/img/authenticated.png">
+                <span class="caret"></span>
+              </a>
+              <ul class="dropdown-menu">
+                <li class="dropdown-item"><a>{{user.username}}</a></li>
+                {% if 'parlamentares.can_vote' in user.get_all_permissions %}
+                  <li class="dropdown-item"><a href="" onclick="window.open('/voto-individual/','Voto Individual','width=1000, height=800, scrollbars=yes')";>
+                    Votar Matéria
+                  </a></li>
+                {% endif %}
+                <li class="dropdown-item"><a href="/sistema/alterar-senha/">Alterar senha</a></li>
+                <li class="dropdown-item"><a href="/logout/">Sair</a></li>
+              </ul>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+{% endblock %}
