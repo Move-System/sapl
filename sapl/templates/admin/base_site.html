@@ -7,15 +7,15 @@
   {{ block.super }}
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous">
   <style>
-    /* Remove o header padrão do Django Admin */
-    #header {
+    /* Remove completamente o navbar antigo do django_admin_bootstrapped */
+    .navbar.navbar-default.navbar-fixed-top {
       display: none !important;
     }
 
     /* Ajustes para o container principal */
-    #container {
-      margin-top: 0;
-      padding-top: 0;
+    body > .container {
+      margin-top: 0 !important;
+      padding-top: 0 !important;
     }
 
     .breadcrumbs {
@@ -29,45 +29,184 @@
     body {
       padding-top: 0 !important;
     }
+
+    /* Estilos completos do navbar do SAPL */
+    #sapl-admin-navbar {
+      position: relative;
+      z-index: 1050;
+      width: 100%;
+      margin-bottom: 20px;
+      background-color: #343a40;
+    }
+
+    #sapl-admin-navbar .navbar {
+      background-color: #343a40;
+      border: 0;
+      border-radius: 0;
+      margin-bottom: 0;
+      min-height: 50px;
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 1rem;
+    }
+
+    #sapl-admin-navbar .container-fluid {
+      padding-right: 15px;
+      padding-left: 15px;
+      margin-right: auto;
+      margin-left: auto;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #sapl-admin-navbar .navbar-brand {
+      color: #fff !important;
+      font-size: 1.25rem;
+      padding: 10px 15px;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    #sapl-admin-navbar .navbar-brand:hover {
+      color: #fff !important;
+    }
+
+    #sapl-admin-navbar .navbar-collapse {
+      display: flex !important;
+      align-items: center;
+      justify-content: space-between;
+      flex-grow: 1;
+    }
+
+    #sapl-admin-navbar .navbar-nav {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      align-items: center;
+    }
+
+    #sapl-admin-navbar .nav-item {
+      position: relative;
+    }
+
+    #sapl-admin-navbar .nav-link {
+      color: rgba(255,255,255,.75) !important;
+      padding: 10px 15px;
+      display: block;
+      text-decoration: none;
+    }
+
+    #sapl-admin-navbar .nav-link:hover {
+      color: rgba(255,255,255,1) !important;
+      background-color: rgba(255,255,255,.1);
+    }
+
+    #sapl-admin-navbar .dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      z-index: 1000;
+      display: none;
+      min-width: 160px;
+      padding: 5px 0;
+      margin: 2px 0 0;
+      background-color: #fff;
+      border: 1px solid rgba(0,0,0,.15);
+      border-radius: 4px;
+      box-shadow: 0 6px 12px rgba(0,0,0,.175);
+      background-clip: padding-box;
+    }
+
+    #sapl-admin-navbar .dropdown:hover > .dropdown-menu {
+      display: block;
+    }
+
+    #sapl-admin-navbar .dropdown-menu-right {
+      right: 0;
+      left: auto;
+    }
+
+    #sapl-admin-navbar .dropdown-item {
+      display: block;
+      width: 100%;
+      padding: 8px 20px;
+      clear: both;
+      font-weight: normal;
+      line-height: 1.42857143;
+      color: #333;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    #sapl-admin-navbar .dropdown-item:hover {
+      background-color: #f5f5f5;
+      color: #262626;
+    }
+
+    #sapl-admin-navbar .dropdown-item.disabled {
+      color: #777;
+      cursor: not-allowed;
+    }
+
+    #sapl-admin-navbar .dropdown-divider {
+      height: 1px;
+      margin: 9px 0;
+      overflow: hidden;
+      background-color: #e5e5e5;
+    }
+
+    #sapl-admin-navbar .navbar-nav.ml-auto {
+      margin-left: auto;
+    }
+
+    #sapl-admin-navbar img {
+      border-radius: 50%;
+    }
   </style>
 {% endblock %}
 
-{% block branding %}
-<h1 id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_('Django administration') }}</a></h1>
-{% endblock %}
+{% block branding %}{% endblock %}
 
-{% block nav-global %}
-  <!-- Navbar do SAPL -->
-  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
+{% block usertools %}{% endblock %}
+
+{% block nav-global %}{% endblock %}
+
+{% block breadcrumbs %}
+<!-- Navbar do SAPL -->
+<div id="sapl-admin-navbar">
+  <nav class="navbar">
+    <div class="container-fluid">
       <a class="navbar-brand" href="/">legisinc</a>
-      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-        <span class="navbar-toggler-icon"></span>
-      </button>
-      <div class="collapse navbar-collapse" id="navbarNav">
+      <div class="navbar-collapse" id="navbarNav">
         {% navbar 'navbar.yaml' %}
 
-        <ul class="nav navbar-nav justify-content-end" id="autenticacao">
+        <ul class="navbar-nav ml-auto">
           {% if user.is_authenticated %}
             <li class="nav-item dropdown">
-              <a href="#" class="nav-link dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+              <a class="nav-link" href="#">
                 <img height="30" width="30" src="/static/sapl/frontend/img/authenticated.png">
-                <span class="caret"></span>
               </a>
-              <ul class="dropdown-menu">
-                <li class="dropdown-item"><a>{{user.username}}</a></li>
+              <div class="dropdown-menu dropdown-menu-right">
+                <a class="dropdown-item disabled">{{user.username}}</a>
+                <div class="dropdown-divider"></div>
                 {% if 'parlamentares.can_vote' in user.get_all_permissions %}
-                  <li class="dropdown-item"><a href="" onclick="window.open('/voto-individual/','Voto Individual','width=1000, height=800, scrollbars=yes')";>
+                  <a class="dropdown-item" href="#" onclick="window.open('/voto-individual/','Voto Individual','width=1000, height=800, scrollbars=yes'); return false;">
                     Votar Matéria
-                  </a></li>
+                  </a>
                 {% endif %}
-                <li class="dropdown-item"><a href="/sistema/alterar-senha/">Alterar senha</a></li>
-                <li class="dropdown-item"><a href="/logout/">Sair</a></li>
-              </ul>
+                <a class="dropdown-item" href="/sistema/alterar-senha/">Alterar senha</a>
+                <a class="dropdown-item" href="/logout/">Sair</a>
+              </div>
             </li>
           {% endif %}
         </ul>
       </div>
     </div>
   </nav>
+</div>
+
+{{ block.super }}
 {% endblock %}
