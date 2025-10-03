@@ -8,7 +8,12 @@ from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-from django.contrib.postgres.fields import JSONField
+try:
+    # Django 3.1+
+    from django.db.models import JSONField
+except ImportError:
+    # Django < 3.1
+    from django.contrib.postgres.fields import JSONField
 
 
 def get_current_year():
@@ -105,6 +110,12 @@ class TcePasta(models.Model):
     categoria = models.CharField(_('Categoria'), max_length=20, choices=CATEGORIA_CHOICES)
     descricao = models.TextField(_('Descrição'), blank=True)
     ordem = models.IntegerField(_('Ordem de Exibição'), default=0)
+    subpastas_customizadas = models.TextField(
+        _('Subpastas Customizadas'),
+        default='[]',
+        blank=True,
+        help_text=_('JSON: Lista de subpastas adicionadas pelo usuário além das padrões')
+    )
 
     criado_em = models.DateTimeField(_('Criado em'), auto_now_add=True)
 
@@ -129,6 +140,19 @@ class TcePasta(models.Model):
             assinado=True,
             p7s_gerado=True
         ).count()
+
+    def get_subpastas_customizadas(self):
+        """Retorna lista de subpastas customizadas (deserializa JSON)"""
+        import json
+        try:
+            return json.loads(self.subpastas_customizadas or '[]')
+        except:
+            return []
+
+    def set_subpastas_customizadas(self, lista):
+        """Define lista de subpastas customizadas (serializa para JSON)"""
+        import json
+        self.subpastas_customizadas = json.dumps(lista)
 
     @property
     def icone(self):

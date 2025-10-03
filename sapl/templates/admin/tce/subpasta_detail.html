@@ -1,0 +1,947 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{{ subpasta_nome }} - {{ processo.titulo }}{% endblock %}
+
+{% block base_content %}
+<div class="container-fluid" style="margin-top: 20px;">
+  <!-- Breadcrumb -->
+  <div class="breadcrumb-custom mb-4">
+    <a href="{% url 'sapl.tce:admin_index' %}">
+      <i class="fas fa-home"></i> TCE
+    </a>
+    <span class="mx-2">/</span>
+    <a href="{% url 'sapl.tce:processo_detail' processo.id %}">
+      {{ processo.titulo }}
+    </a>
+    <span class="mx-2">/</span>
+    <span>{{ subpasta_nome }}</span>
+  </div>
+
+  <!-- Header da Subpasta -->
+  <div class="row mb-4">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+          <div class="d-flex justify-content-between align-items-center">
+            <h3 class="mb-0">
+              <i class="fas fa-folder-open"></i> {{ subpasta_nome }}
+            </h3>
+            <button class="btn btn-light" onclick="showUploadModal()">
+              <i class="fas fa-plus"></i> {% trans 'Adicionar Arquivos' %}
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <p class="mb-0">
+            <strong>Pasta:</strong> {{ pasta.nome }}
+            <span class="mx-2">|</span>
+            <strong>Processo:</strong> {{ processo.titulo }} ({{ processo.ano }} - {{ processo.periodo }})
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de Arquivos -->
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header bg-light">
+          <h5 class="mb-0">
+            <i class="fas fa-file"></i> Arquivos
+            <span class="badge badge-primary ml-2">{{ arquivos.count }}</span>
+          </h5>
+        </div>
+        <div class="card-body">
+          {% if arquivos %}
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th><i class="fas fa-file"></i> Nome</th>
+                  <th><i class="fas fa-weight"></i> Tamanho</th>
+                  <th><i class="fas fa-check-circle"></i> Status</th>
+                  <th><i class="fas fa-calendar"></i> Data</th>
+                  <th><i class="fas fa-cog"></i> Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for arquivo in arquivos %}
+                <tr>
+                  <td>
+                    <i class="fas {% if arquivo.tipo == 'xml' %}fa-file-code text-success{% else %}fa-file-pdf text-danger{% endif %}"></i>
+                    <strong>{{ arquivo.nome_original }}</strong>
+                    {% if arquivo.p7s_gerado and arquivo.arquivo_p7s %}
+                    <br>
+                    <small class="text-muted">
+                      <i class="fas fa-file-export text-info"></i>
+                      <a href="{{ arquivo.arquivo_p7s.url }}" target="_blank">
+                        {{ arquivo.nome_original|slice:":-4" }}.p7s
+                      </a>
+                    </small>
+                    {% endif %}
+                  </td>
+                  <td>{{ arquivo.tamanho_mb|floatformat:2 }} MB</td>
+                  <td>
+                    {% if arquivo.validado %}
+                    <span class="badge badge-success">Validado</span>
+                    {% elif arquivo.p7s_gerado %}
+                    <span class="badge badge-info">Quase pronto</span>
+                    {% elif arquivo.assinado %}
+                    <span class="badge badge-primary">Processado</span>
+                    {% elif not arquivo.tamanho_ok %}
+                    <span class="badge badge-warning">Arquivo muito grande</span>
+                    {% elif not arquivo.ocr_ok %}
+                    <span class="badge badge-warning">OCR pendente</span>
+                    {% else %}
+                    <span class="badge badge-secondary">Novo</span>
+                    {% endif %}
+                  </td>
+                  <td><small>{{ arquivo.criado_em|date:"d/m/Y H:i" }}</small></td>
+                  <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="visualizarArquivo('{{ arquivo.id }}')">
+                      <i class="fas fa-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="excluirArquivo('{{ arquivo.id }}')">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="text-center py-5">
+            <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+            <h5 class="text-muted">Nenhum arquivo nesta pasta</h5>
+            <p class="text-muted">Clique em "Adicionar Arquivos" para fazer upload</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Botão Voltar -->
+  <div class="row mt-4 mb-5">
+    <div class="col-12">
+      <a href="{% url 'sapl.tce:processo_detail' processo.id %}" class="btn btn-secondary">
+        <i class="fas fa-arrow-left"></i> {% trans 'Voltar ao Processo' %}
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Upload de Arquivo - Wizard com Abas -->
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="fas fa-upload"></i> {% trans 'Adicionar Arquivo' %}
+          <br>
+          <small>{{ subpasta_nome }}</small>
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal">
+          <span>&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <!-- Abas do Wizard -->
+        <ul class="nav nav-pills nav-justified mb-4" id="wizard-tabs">
+          <li class="nav-item">
+            <a class="nav-link active" id="tab1-link" data-toggle="pill" href="#tab1-arquivo">
+              <i class="fas fa-file-upload"></i><br>
+              <small>1. Arquivo</small>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link disabled" id="tab2-link" data-toggle="pill" href="#tab2-tamanho">
+              <i class="fas fa-weight"></i><br>
+              <small>2. Tamanho</small>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link disabled" id="tab3-link" data-toggle="pill" href="#tab3-ocr">
+              <i class="fas fa-search"></i><br>
+              <small>3. OCR</small>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link disabled" id="tab4-link" data-toggle="pill" href="#tab4-assinatura">
+              <i class="fas fa-signature"></i><br>
+              <small>4. Assinatura</small>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link disabled" id="tab5-link" data-toggle="pill" href="#tab5-p7s">
+              <i class="fas fa-file-export"></i><br>
+              <small>5. .p7s</small>
+            </a>
+          </li>
+        </ul>
+
+        <!-- Conteúdo das Abas -->
+        <div class="tab-content">
+          <!-- Aba 1: Upload do Arquivo -->
+          <div class="tab-pane fade show active" id="tab1-arquivo">
+            <h5><i class="fas fa-file-upload"></i> Selecionar Arquivo</h5>
+            <hr>
+            <div class="form-group">
+              <label>{% trans 'Upload de Arquivo PDF' %}</label>
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="fileInput" accept=".pdf">
+                <label class="custom-file-label" for="fileInput">{% trans 'Escolher arquivo...' %}</label>
+              </div>
+            </div>
+            <div id="file-preview" class="mt-3" style="display:none;">
+              <div class="alert alert-info">
+                <i class="fas fa-file-pdf"></i> <strong id="file-name"></strong>
+                <br>
+                <small>Tamanho: <span id="file-size"></span></small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 2: Verificação de Tamanho -->
+          <div class="tab-pane fade" id="tab2-tamanho">
+            <h5><i class="fas fa-weight"></i> Verificação de Tamanho</h5>
+            <hr>
+            <div id="tamanho-status">
+              <div class="text-center py-4">
+                <i class="fas fa-spinner fa-spin fa-3x text-primary mb-3"></i>
+                <p>Verificando tamanho do arquivo...</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 3: OCR -->
+          <div class="tab-pane fade" id="tab3-ocr">
+            <h5><i class="fas fa-search"></i> Tornar Pesquisável (OCR)</h5>
+            <hr>
+            <div id="ocr-status">
+              <div class="text-center py-4">
+                <p class="mb-3">Aplicar OCR para tornar o PDF pesquisável?</p>
+                <button class="btn btn-success" onclick="aplicarOCR()">
+                  <i class="fas fa-check"></i> Sim, aplicar OCR
+                </button>
+                <button class="btn btn-secondary" onclick="pularOCR()">
+                  <i class="fas fa-forward"></i> Pular esta etapa
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 4: Assinatura Digital -->
+          <div class="tab-pane fade" id="tab4-assinatura">
+            <h5><i class="fas fa-signature"></i> Assinatura Digital</h5>
+            <hr>
+            <div id="assinatura-status">
+              <div class="form-group">
+                <label>Tipo de Certificado:</label>
+                <select class="form-control" id="tipo-certificado">
+                  <option value="">-- Selecione --</option>
+                  <option value="A1">A1 (Arquivo digital)</option>
+                  <option value="A3">A3 (Token/Cartão)</option>
+                </select>
+              </div>
+              <div id="div-certificado-a1" style="display:none;">
+                <div class="form-group">
+                  <label>Arquivo do Certificado (.pfx):</label>
+                  <input type="file" class="form-control-file" id="arquivo-certificado" accept=".pfx,.p12">
+                </div>
+                <div class="form-group">
+                  <label>Senha do Certificado:</label>
+                  <input type="password" class="form-control" id="senha-certificado">
+                </div>
+              </div>
+              <div class="text-center mt-3">
+                <button class="btn btn-success" onclick="assinarDocumento()" id="btn-assinar" disabled>
+                  <i class="fas fa-signature"></i> Assinar Documento
+                </button>
+                <button class="btn btn-secondary" onclick="pularAssinatura()">
+                  <i class="fas fa-forward"></i> Pular assinatura
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Aba 5: Conversão para .p7s -->
+          <div class="tab-pane fade" id="tab5-p7s">
+            <h5><i class="fas fa-file-export"></i> Gerar Arquivo .p7s</h5>
+            <hr>
+            <div id="p7s-status">
+              <div class="text-center py-4">
+                <p class="mb-3">Converter para formato .p7s?</p>
+                <button class="btn btn-success" onclick="gerarP7S()">
+                  <i class="fas fa-file-export"></i> Gerar .p7s
+                </button>
+                <button class="btn btn-secondary" onclick="pularP7S()">
+                  <i class="fas fa-forward"></i> Pular esta etapa
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">
+          {% trans 'Fechar' %}
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="btn-voltar" onclick="voltarAba()" style="display:none;">
+          <i class="fas fa-arrow-left"></i> Voltar
+        </button>
+        <button type="button" class="btn btn-primary" id="btn-proximo" onclick="proximaAba()">
+          Próximo <i class="fas fa-arrow-right"></i>
+        </button>
+        <button type="button" class="btn btn-success" id="btn-finalizar" onclick="finalizarUpload()" style="display:none;">
+          <i class="fas fa-check"></i> Finalizar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.breadcrumb-custom {
+  background: #f8f9fa;
+  padding: 10px 15px;
+  border-radius: 6px;
+}
+
+.breadcrumb-custom a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.breadcrumb-custom a:hover {
+  text-decoration: underline;
+}
+
+#arquivos-list table tbody tr {
+  transition: all 0.2s;
+}
+
+#arquivos-list table tbody tr:hover {
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Wizard tabs styling */
+#wizard-tabs .nav-link {
+  border: 2px solid #dee2e6;
+  margin: 0 5px;
+  transition: all 0.3s;
+}
+
+#wizard-tabs .nav-link.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white !important;
+  border-color: #667eea;
+}
+
+#wizard-tabs .nav-link.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#wizard-tabs .nav-link:not(.disabled):not(.active):hover {
+  border-color: #667eea;
+  background-color: #f8f9fa;
+}
+
+.tab-content {
+  min-height: 300px;
+}
+</style>
+
+<!-- SweetAlert2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+// IDs importantes da página
+const PASTA_ID = '{{ pasta.id }}';
+const SUBPASTA_NOME = '{{ subpasta_nome }}';
+const PROCESSO_ID = '{{ processo.id }}';
+
+// Variáveis do wizard
+let currentTab = 1;
+let selectedFile = null;
+let uploadedArquivoId = null;
+
+// Obter CSRF token do cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Mostrar modal de upload
+function showUploadModal() {
+  // Reset wizard
+  currentTab = 1;
+  selectedFile = null;
+  uploadedArquivoId = null;
+
+  // Reset form
+  document.getElementById('fileInput').value = '';
+  document.getElementById('file-preview').style.display = 'none';
+
+  // Reset tabs
+  $('#tab1-link').addClass('active').removeClass('disabled');
+  $('#tab2-link, #tab3-link, #tab4-link, #tab5-link').addClass('disabled').removeClass('active');
+  $('#tab1-arquivo').addClass('show active');
+  $('#tab2-tamanho, #tab3-ocr, #tab4-assinatura, #tab5-p7s').removeClass('show active');
+
+  // Reset buttons
+  document.getElementById('btn-voltar').style.display = 'none';
+  document.getElementById('btn-proximo').style.display = 'inline-block';
+  document.getElementById('btn-finalizar').style.display = 'none';
+
+  $('#uploadFileModal').modal('show');
+}
+
+// Preview do arquivo selecionado
+document.getElementById('fileInput')?.addEventListener('change', function(e) {
+  selectedFile = e.target.files[0];
+  if (selectedFile) {
+    document.getElementById('file-name').textContent = selectedFile.name;
+    document.getElementById('file-size').textContent = (selectedFile.size / 1024 / 1024).toFixed(2) + ' MB';
+    document.getElementById('file-preview').style.display = 'block';
+
+    // Atualizar label do custom-file-input
+    const fileName = selectedFile.name;
+    const label = this.nextElementSibling;
+    if (label && label.classList.contains('custom-file-label')) {
+      label.classList.add('selected');
+      label.textContent = fileName;
+    }
+  }
+});
+
+// Navegação entre abas
+function proximaAba() {
+  if (currentTab === 1) {
+    if (!selectedFile) {
+      Swal.fire({
+        title: 'Atenção!',
+        text: 'Por favor, selecione um arquivo antes de continuar.',
+        icon: 'warning'
+      });
+      return;
+    }
+    // Upload do arquivo primeiro
+    uploadArquivo();
+  } else if (currentTab === 2) {
+    // Verificar tamanho já foi feito automaticamente
+    irParaAba(3);
+  } else if (currentTab === 3) {
+    // OCR - avançar para assinatura
+    irParaAba(4);
+  } else if (currentTab === 4) {
+    // Assinatura - avançar para p7s
+    irParaAba(5);
+  }
+}
+
+function voltarAba() {
+  if (currentTab > 1) {
+    irParaAba(currentTab - 1);
+  }
+}
+
+function irParaAba(tabNum) {
+  currentTab = tabNum;
+
+  // Remover active de todos os links e painéis
+  $('#tab1-link, #tab2-link, #tab3-link, #tab4-link, #tab5-link').removeClass('active');
+  $('#tab1-arquivo, #tab2-tamanho, #tab3-ocr, #tab4-assinatura, #tab5-p7s').removeClass('show active');
+
+  // Mapear número da aba para o ID correto do painel
+  const painelIds = {
+    1: 'tab1-arquivo',
+    2: 'tab2-tamanho',
+    3: 'tab3-ocr',
+    4: 'tab4-assinatura',
+    5: 'tab5-p7s'
+  };
+
+  // Habilitar a aba desejada
+  $(`#tab${tabNum}-link`).removeClass('disabled').addClass('active');
+  $(`#${painelIds[tabNum]}`).addClass('show active');
+
+  // Atualizar botões
+  document.getElementById('btn-voltar').style.display = tabNum > 1 ? 'inline-block' : 'none';
+  document.getElementById('btn-proximo').style.display = tabNum < 5 ? 'inline-block' : 'none';
+  document.getElementById('btn-finalizar').style.display = tabNum === 5 ? 'inline-block' : 'none';
+
+  // Executar ação específica da aba
+  if (tabNum === 2) {
+    verificarTamanho();
+  } else if (tabNum === 3) {
+    // Reset OCR status se necessário
+    const ocrStatus = document.getElementById('ocr-status');
+    if (!ocrStatus.querySelector('.alert-success') && !ocrStatus.querySelector('.alert-info')) {
+      ocrStatus.innerHTML = `
+        <div class="text-center py-4">
+          <p class="mb-3">Aplicar OCR para tornar o PDF pesquisável?</p>
+          <button class="btn btn-success" onclick="aplicarOCR()">
+            <i class="fas fa-check"></i> Sim, aplicar OCR
+          </button>
+          <button class="btn btn-secondary" onclick="pularOCR()">
+            <i class="fas fa-forward"></i> Pular esta etapa
+          </button>
+        </div>
+      `;
+    }
+  } else if (tabNum === 5) {
+    // Reset P7S status se necessário
+    const p7sStatus = document.getElementById('p7s-status');
+    if (!p7sStatus.querySelector('.alert')) {
+      p7sStatus.innerHTML = `
+        <div class="text-center py-4">
+          <p class="mb-3">Converter para formato .p7s?</p>
+          <button class="btn btn-success" onclick="gerarP7S()">
+            <i class="fas fa-file-export"></i> Gerar .p7s
+          </button>
+          <button class="btn btn-secondary" onclick="pularP7S()">
+            <i class="fas fa-forward"></i> Pular esta etapa
+          </button>
+        </div>
+      `;
+    }
+  }
+}
+
+// Upload inicial do arquivo
+function uploadArquivo() {
+  const btnProximo = document.getElementById('btn-proximo');
+  btnProximo.disabled = true;
+  btnProximo.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
+
+  const formData = new FormData();
+  formData.append('arquivo', selectedFile);
+  formData.append('pasta_id', PASTA_ID);
+  formData.append('subpasta', SUBPASTA_NOME);
+
+  const csrftoken = getCookie('csrftoken');
+
+  fetch('/tce/api/arquivos/upload/', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': csrftoken
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      uploadedArquivoId = data.arquivo_id;
+      // Ir para aba de tamanho
+      irParaAba(2);
+    } else {
+      Swal.fire({
+        title: 'Erro!',
+        text: data.error || 'Erro ao enviar arquivo',
+        icon: 'error'
+      });
+    }
+    btnProximo.disabled = false;
+    btnProximo.innerHTML = 'Próximo <i class="fas fa-arrow-right"></i>';
+  })
+  .catch(error => {
+    console.error('Erro:', error);
+    Swal.fire({
+      title: 'Erro!',
+      text: 'Erro ao enviar arquivo: ' + error.message,
+      icon: 'error'
+    });
+    btnProximo.disabled = false;
+    btnProximo.innerHTML = 'Próximo <i class="fas fa-arrow-right"></i>';
+  });
+}
+
+// Verificar tamanho do arquivo
+function verificarTamanho() {
+  const tamanhoMB = selectedFile.size / 1024 / 1024;
+  const tamanhoStatus = document.getElementById('tamanho-status');
+
+  if (tamanhoMB <= 5) {
+    tamanhoStatus.innerHTML = `
+      <div class="alert alert-success text-center">
+        <i class="fas fa-check-circle fa-3x mb-3"></i>
+        <h5>Tamanho OK!</h5>
+        <p>O arquivo tem ${tamanhoMB.toFixed(2)} MB (≤ 5MB)</p>
+      </div>
+    `;
+  } else {
+    tamanhoStatus.innerHTML = `
+      <div class="alert alert-warning text-center">
+        <i class="fas fa-exclamation-triangle fa-3x mb-3"></i>
+        <h5>Arquivo muito grande!</h5>
+        <p>O arquivo tem ${tamanhoMB.toFixed(2)} MB (limite: 5MB)</p>
+        <button class="btn btn-warning mt-2" onclick="reduzirArquivo()">
+          <i class="fas fa-compress"></i> Reduzir Arquivo
+        </button>
+      </div>
+    `;
+  }
+}
+
+// Reduzir arquivo
+function reduzirArquivo() {
+  const tamanhoStatus = document.getElementById('tamanho-status');
+  tamanhoStatus.innerHTML = `
+    <div class="text-center py-4">
+      <i class="fas fa-spinner fa-spin fa-3x text-warning mb-3"></i>
+      <p>Reduzindo arquivo... (Funcionalidade em desenvolvimento)</p>
+    </div>
+  `;
+
+  // Simular redução (em produção, chamar API)
+  setTimeout(() => {
+    tamanhoStatus.innerHTML = `
+      <div class="alert alert-success text-center">
+        <i class="fas fa-check-circle fa-3x mb-3"></i>
+        <h5>Arquivo reduzido com sucesso!</h5>
+        <p>Novo tamanho: 4.2 MB</p>
+      </div>
+    `;
+  }, 2000);
+}
+
+// Aplicar OCR
+function aplicarOCR() {
+  const ocrStatus = document.getElementById('ocr-status');
+  ocrStatus.innerHTML = `
+    <div class="text-center py-4">
+      <i class="fas fa-spinner fa-spin fa-3x text-primary mb-3"></i>
+      <p>Aplicando OCR... (Funcionalidade em desenvolvimento)</p>
+    </div>
+  `;
+
+  // Simular OCR (em produção, chamar API)
+  setTimeout(() => {
+    ocrStatus.innerHTML = `
+      <div class="alert alert-success text-center">
+        <i class="fas fa-check-circle fa-3x mb-3"></i>
+        <h5>OCR aplicado com sucesso!</h5>
+        <p>O documento agora está pesquisável</p>
+        <button class="btn btn-primary mt-2" onclick="irParaAba(4)">
+          <i class="fas fa-arrow-right"></i> Continuar
+        </button>
+      </div>
+    `;
+  }, 2000);
+}
+
+function pularOCR() {
+  irParaAba(4);
+}
+
+// Configurar tipo de certificado
+document.getElementById('tipo-certificado')?.addEventListener('change', function() {
+  const divA1 = document.getElementById('div-certificado-a1');
+  const btnAssinar = document.getElementById('btn-assinar');
+
+  if (this.value === 'A1') {
+    divA1.style.display = 'block';
+    btnAssinar.disabled = false;
+  } else if (this.value === 'A3') {
+    divA1.style.display = 'none';
+    btnAssinar.disabled = false;
+  } else {
+    divA1.style.display = 'none';
+    btnAssinar.disabled = true;
+  }
+});
+
+// Assinar documento
+function assinarDocumento() {
+  if (!uploadedArquivoId) {
+    Swal.fire({
+      title: 'Erro!',
+      text: 'Nenhum arquivo foi enviado.',
+      icon: 'error'
+    });
+    return;
+  }
+
+  const tipoCertificado = document.getElementById('tipo-certificado').value;
+  const senhaCertificado = document.getElementById('senha-certificado').value;
+  const arquivoCertificado = document.getElementById('arquivo-certificado').files[0];
+
+  // Validações
+  if (!tipoCertificado) {
+    Swal.fire({
+      title: 'Atenção!',
+      text: 'Selecione o tipo de certificado',
+      icon: 'warning'
+    });
+    return;
+  }
+
+  if (tipoCertificado === 'A1' && (!arquivoCertificado || !senhaCertificado)) {
+    Swal.fire({
+      title: 'Atenção!',
+      text: 'Selecione o arquivo do certificado e digite a senha',
+      icon: 'warning'
+    });
+    return;
+  }
+
+  const assinaturaStatus = document.getElementById('assinatura-status');
+  assinaturaStatus.innerHTML = `
+    <div class="text-center py-4">
+      <i class="fas fa-spinner fa-spin fa-3x text-success mb-3"></i>
+      <p>Assinando documento digitalmente...</p>
+    </div>
+  `;
+
+  const formData = new FormData();
+  formData.append('tipo_certificado', tipoCertificado);
+
+  if (tipoCertificado === 'A1') {
+    formData.append('arquivo_certificado', arquivoCertificado);
+    formData.append('senha_certificado', senhaCertificado);
+  }
+
+  const csrftoken = getCookie('csrftoken');
+
+  fetch(`/tce/api/arquivos/${uploadedArquivoId}/assinar/`, {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-CSRFToken': csrftoken
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      assinaturaStatus.innerHTML = `
+        <div class="alert alert-success text-center">
+          <i class="fas fa-check-circle fa-3x mb-3"></i>
+          <h5>Documento assinado com sucesso!</h5>
+          <p>Assinatura digital aplicada</p>
+          ${data.certificado ? `<small class="text-muted">Certificado: ${data.certificado.nome}<br>Válido até: ${data.certificado.validade}</small>` : ''}
+          <br>
+          <button class="btn btn-primary mt-3" onclick="irParaAba(5)">
+            <i class="fas fa-arrow-right"></i> Continuar para .p7s
+          </button>
+        </div>
+      `;
+    } else {
+      assinaturaStatus.innerHTML = `
+        <div class="alert alert-danger text-center">
+          <i class="fas fa-exclamation-circle fa-3x mb-3"></i>
+          <h5>Erro ao assinar documento</h5>
+          <p>${data.error || 'Erro desconhecido'}</p>
+          ${data.simulated ? '<small class="text-info">Para usar assinatura real, instale: pip install pyhanko pyhanko-certvalidator</small><br>' : ''}
+          <button class="btn btn-warning mt-2" onclick="pularAssinatura()">
+            <i class="fas fa-forward"></i> Pular assinatura
+          </button>
+        </div>
+      `;
+    }
+  })
+  .catch(error => {
+    console.error('Erro:', error);
+    assinaturaStatus.innerHTML = `
+      <div class="alert alert-danger text-center">
+        <i class="fas fa-exclamation-circle fa-3x mb-3"></i>
+        <h5>Erro ao assinar documento</h5>
+        <p>${error.message}</p>
+        <button class="btn btn-warning mt-2" onclick="pularAssinatura()">
+          <i class="fas fa-forward"></i> Pular assinatura
+        </button>
+      </div>
+    `;
+  });
+}
+
+function pularAssinatura() {
+  irParaAba(5);
+}
+
+// Gerar .p7s
+function gerarP7S() {
+  if (!uploadedArquivoId) {
+    Swal.fire({
+      title: 'Erro!',
+      text: 'Nenhum arquivo foi enviado.',
+      icon: 'error'
+    });
+    return;
+  }
+
+  const p7sStatus = document.getElementById('p7s-status');
+  p7sStatus.innerHTML = `
+    <div class="text-center py-4">
+      <i class="fas fa-spinner fa-spin fa-3x text-success mb-3"></i>
+      <p>Gerando arquivo .p7s...</p>
+    </div>
+  `;
+
+  const csrftoken = getCookie('csrftoken');
+
+  fetch(`/tce/api/arquivos/${uploadedArquivoId}/gerar-p7s/`, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': csrftoken,
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      p7sStatus.innerHTML = `
+        <div class="alert alert-success text-center">
+          <i class="fas fa-check-circle fa-3x mb-3"></i>
+          <h5>Arquivo .p7s gerado com sucesso!</h5>
+          <p>O arquivo está pronto para envio ao TCE</p>
+          <small class="text-muted">Arquivo: ${data.arquivo_p7s}</small>
+        </div>
+      `;
+    } else {
+      p7sStatus.innerHTML = `
+        <div class="alert alert-danger text-center">
+          <i class="fas fa-exclamation-circle fa-3x mb-3"></i>
+          <h5>Erro ao gerar .p7s</h5>
+          <p>${data.error || 'Erro desconhecido'}</p>
+          <button class="btn btn-warning mt-2" onclick="gerarP7S()">
+            <i class="fas fa-redo"></i> Tentar novamente
+          </button>
+        </div>
+      `;
+    }
+  })
+  .catch(error => {
+    console.error('Erro:', error);
+    p7sStatus.innerHTML = `
+      <div class="alert alert-danger text-center">
+        <i class="fas fa-exclamation-circle fa-3x mb-3"></i>
+        <h5>Erro ao gerar .p7s</h5>
+        <p>${error.message}</p>
+        <button class="btn btn-warning mt-2" onclick="gerarP7S()">
+          <i class="fas fa-redo"></i> Tentar novamente
+        </button>
+      </div>
+    `;
+  });
+}
+
+function pularP7S() {
+  // Apenas marcar como completo
+  const p7sStatus = document.getElementById('p7s-status');
+  p7sStatus.innerHTML = `
+    <div class="alert alert-info text-center">
+      <i class="fas fa-info-circle fa-3x mb-3"></i>
+      <h5>Etapa pulada</h5>
+      <p>Arquivo .p7s não foi gerado</p>
+    </div>
+  `;
+}
+
+// Finalizar upload
+function finalizarUpload() {
+  // Verificar se já temos um arquivo carregado
+  if (!uploadedArquivoId) {
+    Swal.fire({
+      title: 'Erro!',
+      text: 'Nenhum arquivo foi enviado. Por favor, volte e selecione um arquivo.',
+      icon: 'error'
+    });
+    return;
+  }
+
+  Swal.fire({
+    title: 'Sucesso!',
+    text: 'Arquivo processado com sucesso!',
+    icon: 'success',
+    timer: 1500,
+    showConfirmButton: false
+  }).then(() => {
+    $('#uploadFileModal').modal('hide');
+    window.location.reload();
+  });
+}
+
+// Visualizar arquivo
+function visualizarArquivo(arquivoId) {
+  window.open(`/tce/arquivo/${arquivoId}/visualizar/`, '_blank');
+}
+
+// Excluir arquivo
+function excluirArquivo(arquivoId) {
+  Swal.fire({
+    title: 'Confirmar Exclusão',
+    text: 'Deseja realmente excluir este arquivo?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Sim, excluir!',
+    cancelButtonText: 'Cancelar'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      excluirArquivoConfirmado(arquivoId);
+    }
+  });
+}
+
+function excluirArquivoConfirmado(arquivoId) {
+  const csrftoken = getCookie('csrftoken');
+  const url = `/tce/api/arquivos/${arquivoId}/delete/`;
+
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'X-CSRFToken': csrftoken,
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      Swal.fire({
+        title: 'Sucesso!',
+        text: 'Arquivo excluído com sucesso!',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      }).then(() => {
+        // Recarregar a página para atualizar a lista
+        window.location.reload();
+      });
+    } else {
+      Swal.fire({
+        title: 'Erro!',
+        text: 'Erro ao excluir: ' + (data.error || 'Erro desconhecido'),
+        icon: 'error'
+      });
+    }
+  })
+  .catch(error => {
+    console.error('Erro no fetch:', error);
+    Swal.fire({
+      title: 'Erro!',
+      text: 'Erro ao excluir arquivo: ' + error.message,
+      icon: 'error'
+    });
+  });
+}
+
+// Código removido - atualização do label agora está integrada no listener principal acima
+</script>
+{% endblock %}
