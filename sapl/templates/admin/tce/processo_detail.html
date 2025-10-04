@@ -26,6 +26,9 @@
             </h3>
             <div>
               <span class="badge badge-light mr-2">{{ processo.ano }} - {{ processo.periodo }}</span>
+              <button class="btn btn-sm btn-light mr-2" onclick="compartilharPagina()">
+                <i class="fas fa-share-alt"></i> Compartilhar
+              </button>
               <button class="btn btn-sm btn-light" onclick="showNovaSubpastaModal()">
                 <i class="fas fa-plus"></i> Nova Subpasta
               </button>
@@ -351,6 +354,34 @@ function adicionarSubpastaExistente(pastaId, nomeSubpasta, csrftoken, btnSalvar)
     });
     btnSalvar.disabled = false;
     btnSalvar.innerHTML = '<i class="fas fa-save"></i> Salvar';
+  });
+}
+
+// Função para compartilhar a página
+function compartilharPagina() {
+  const url = window.location.href;
+
+  // Copiar para área de transferência
+  navigator.clipboard.writeText(url).then(() => {
+    Swal.fire({
+      title: 'Link Copiado!',
+      html: `O link foi copiado para a área de transferência:<br><br><code style="background-color: #f8f9fa; padding: 8px; border-radius: 4px; font-size: 12px; word-break: break-all;">${url}</code><br><br>Compartilhe com outras pessoas para que elas possam acessar esta página e baixar os arquivos.`,
+      icon: 'success',
+      confirmButtonText: 'OK'
+    });
+  }).catch(err => {
+    // Fallback se clipboard API não funcionar
+    Swal.fire({
+      title: 'Compartilhar Página',
+      html: `Copie o link abaixo para compartilhar:<br><br><input type="text" class="form-control" value="${url}" id="linkCompartilhar" readonly>`,
+      icon: 'info',
+      confirmButtonText: 'Fechar',
+      didOpen: () => {
+        const input = document.getElementById('linkCompartilhar');
+        input.select();
+        input.setSelectionRange(0, 99999);
+      }
+    });
   });
 }
 </script>
