@@ -108,14 +108,17 @@ if settings.DEBUG:
 
 # Make the rate limiter return 429 (Too Many Requests) instead of 403 (Forbidden Access)
 def custom_permission_denied_view(request, exception=None):
-    from django.http import HttpResponse, HttpResponseForbidden
+    from django.http import HttpResponse
+    from django.shortcuts import render
     from ratelimit.exceptions import Ratelimited
 
     if isinstance(exception, Ratelimited):
         resp = HttpResponse('Too many requests', status=429)
         resp['Retry-After'] = '60'
         return resp
-    return HttpResponseForbidden('Forbidden')
+
+    # Renderiza o template 403.html customizado
+    return render(request, '403.html', status=403)
 
 
 handler403 = custom_permission_denied_view

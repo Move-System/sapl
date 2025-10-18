@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block head_title %}Acesso Negado - {{nome_casa}}{% endblock %}
+
+{% block base_content %}
+<style>
+  .error-container {
+    text-align: center;
+    padding: 60px 20px;
+    min-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .error-icon {
+    font-size: 120px;
+    color: #e74c3c;
+    margin-bottom: 30px;
+    animation: shake 0.5s;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+  }
+
+  .error-code {
+    font-size: 72px;
+    font-weight: bold;
+    color: #34495e;
+    margin: 0;
+    line-height: 1;
+  }
+
+  .error-title {
+    font-size: 32px;
+    color: #2c3e50;
+    margin: 20px 0;
+    font-weight: 600;
+  }
+
+  .error-message {
+    font-size: 18px;
+    color: #7f8c8d;
+    max-width: 600px;
+    margin: 20px auto;
+    line-height: 1.6;
+  }
+
+  .error-details {
+    background: #ecf0f1;
+    border-left: 4px solid #e74c3c;
+    padding: 20px;
+    margin: 30px auto;
+    max-width: 700px;
+    border-radius: 5px;
+    text-align: left;
+  }
+
+  .error-details h4 {
+    color: #e74c3c;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 20px;
+  }
+
+  .error-details ul {
+    margin: 15px 0;
+    padding-left: 25px;
+  }
+
+  .error-details li {
+    margin: 8px 0;
+    color: #2c3e50;
+  }
+
+  .error-actions {
+    margin-top: 40px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn-error {
+    padding: 12px 30px;
+    font-size: 16px;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-back {
+    background: #3498db;
+    color: white;
+    border: 2px solid #3498db;
+  }
+
+  .btn-back:hover {
+    background: #2980b9;
+    border-color: #2980b9;
+    color: white;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+
+  .btn-home {
+    background: white;
+    color: #3498db;
+    border: 2px solid #3498db;
+  }
+
+  .btn-home:hover {
+    background: #3498db;
+    color: white;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+
+  .btn-help {
+    background: white;
+    color: #95a5a6;
+    border: 2px solid #95a5a6;
+  }
+
+  .btn-help:hover {
+    background: #95a5a6;
+    color: white;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+
+  .info-box {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 5px;
+    padding: 15px;
+    margin: 20px auto;
+    max-width: 700px;
+  }
+
+  .info-box i {
+    color: #ffc107;
+    margin-right: 10px;
+  }
+
+  @media (max-width: 768px) {
+    .error-code {
+      font-size: 48px;
+    }
+
+    .error-title {
+      font-size: 24px;
+    }
+
+    .error-icon {
+      font-size: 80px;
+    }
+
+    .error-actions {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .btn-error {
+      width: 100%;
+      max-width: 300px;
+      justify-content: center;
+    }
+  }
+</style>
+
+<div class="error-container">
+  <div class="error-icon">
+    <i class="fas fa-ban"></i>
+  </div>
+
+  <h1 class="error-code">403</h1>
+  <h2 class="error-title">
+    <i class="fas fa-lock"></i> Acesso Negado
+  </h2>
+
+  <p class="error-message">
+    Desculpe, você não tem permissão para acessar esta página ou recurso.
+  </p>
+
+  <div class="error-details">
+    <h4><i class="fas fa-info-circle"></i> Por que estou vendo esta mensagem?</h4>
+    <p>Esta página requer permissões específicas que seu usuário não possui. Isso pode acontecer por diversos motivos:</p>
+    <ul>
+      <li><strong>Você não está logado</strong> - Faça login com suas credenciais</li>
+      <li><strong>Seu perfil não tem permissão</strong> - Entre em contato com o administrador do sistema</li>
+      <li><strong>A funcionalidade é restrita</strong> - Apenas alguns tipos de usuário podem acessar</li>
+      <li><strong>Sessão expirou</strong> - Tente fazer login novamente</li>
+    </ul>
+  </div>
+
+  {% if user.is_authenticated %}
+  <div class="info-box">
+    <i class="fas fa-user"></i>
+    <strong>Usuário:</strong> {{ user.username }}
+    {% if user.groups.all %}
+    | <strong>Grupos:</strong>
+    {% for group in user.groups.all %}
+      {{ group.name }}{% if not forloop.last %}, {% endif %}
+    {% endfor %}
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="info-box">
+    <i class="fas fa-exclamation-triangle"></i>
+    <strong>Dica:</strong> Você não está logado. Faça login para acessar recursos restritos.
+  </div>
+  {% endif %}
+
+  <div class="error-actions">
+    <a href="javascript:history.back()" class="btn-error btn-back">
+      <i class="fas fa-arrow-left"></i> Voltar
+    </a>
+    <a href="/" class="btn-error btn-home">
+      <i class="fas fa-home"></i> Página Inicial
+    </a>
+    {% if not user.is_authenticated %}
+    <a href="/login/" class="btn-error btn-help">
+      <i class="fas fa-sign-in-alt"></i> Fazer Login
+    </a>
+    {% endif %}
+  </div>
+
+  <p style="margin-top: 40px; color: #95a5a6; font-size: 14px;">
+    Se você acredita que deveria ter acesso a esta página, entre em contato com o administrador do sistema.
+  </p>
+</div>
+
+{% endblock base_content %}

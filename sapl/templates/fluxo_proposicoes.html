@@ -205,11 +205,37 @@
     font-family: 'Courier New', monospace;
     margin: 10px 0;
     overflow-x: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
   }
 
   .url-box code {
     color: #1abc9c;
     background: none;
+  }
+
+  .url-link {
+    background: #3498db;
+    color: white;
+    padding: 5px 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 0.85em;
+    white-space: nowrap;
+    transition: background 0.3s;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .url-link:hover {
+    background: #2980b9;
+    color: white;
+    text-decoration: none;
+  }
+
+  .url-link i {
+    margin-right: 5px;
   }
 
   .comparison-table {
@@ -533,7 +559,12 @@
           <li>Pode ser excluída</li>
           <li>Somente autor vê</li>
         </ul>
-        <div class="url-box">URL: <code>/proposicao/</code></div>
+        <div class="url-box">
+          <span>URL: <code>/proposicao/</code></span>
+          <a href="/proposicao/" class="url-link" title="Ir para Minhas Proposições" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-external-link-alt"></i> Acessar
+          </a>
+        </div>
       </div>
     </div>
 
@@ -547,7 +578,12 @@
           <li>Autor pode retornar (cancelar)</li>
           <li>Operador pode receber ou devolver</li>
         </ul>
-        <div class="url-box">URL: <code>/proposicao/pendente/</code></div>
+        <div class="url-box">
+          <span>URL: <code>/proposicao/pendente/</code></span>
+          <a href="/proposicao/pendente/" class="url-link" title="Ir para Proposições Pendentes" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-external-link-alt"></i> Acessar
+          </a>
+        </div>
       </div>
     </div>
 
@@ -560,7 +596,12 @@
           <li>Autor pode ver motivo</li>
           <li>Pode corrigir e reenviar</li>
         </ul>
-        <div class="url-box">URL: <code>/proposicao/devolvida/</code></div>
+        <div class="url-box">
+          <span>URL: <code>/proposicao/devolvida/</code></span>
+          <a href="/proposicao/devolvida/" class="url-link" title="Ir para Proposições Devolvidas" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-external-link-alt"></i> Acessar
+          </a>
+        </div>
       </div>
     </div>
 
@@ -574,7 +615,12 @@
           <li>Protocolo gerado (se configurado)</li>
           <li>Pode tramitar e ser votada</li>
         </ul>
-        <div class="url-box">URL: <code>/proposicao/recebida/</code></div>
+        <div class="url-box">
+          <span>URL: <code>/proposicao/recebida/</code></span>
+          <a href="/proposicao/recebida/" class="url-link" title="Ir para Proposições Recebidas" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-external-link-alt"></i> Acessar
+          </a>
+        </div>
       </div>
     </div>
   </div>
@@ -589,7 +635,10 @@
         <h4><i class="fas fa-user-tie"></i> PARLAMENTAR</h4>
         <p>1. Cria Proposição</p>
         <div class="url-box" style="background: #8e44ad; color: white; font-size: 0.85em;">
-          <code style="color: #ecf0f1;">/proposicao/create</code>
+          <span><code style="color: #ecf0f1;">/proposicao/create</code></span>
+          <a href="/proposicao/create" class="url-link" style="background: #9b59b6;" title="Ir para Criar Proposição" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-external-link-alt"></i> Acessar
+          </a>
         </div>
       </div>
 
@@ -623,7 +672,10 @@
         <h4><i class="fas fa-inbox"></i> 3. Operador Recebe</h4>
         <p>Via código ou lista de pendentes</p>
         <div class="url-box" style="background: #c0392b; color: white; font-size: 0.85em;">
-          <code style="color: #ecf0f1;">/proposicao/receber/</code>
+          <span><code style="color: #ecf0f1;">/proposicao/receber/</code></span>
+          <a href="/proposicao/receber/" class="url-link" style="background: #e74c3c;" title="Ir para Receber Proposição" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-external-link-alt"></i> Acessar
+          </a>
         </div>
       </div>
 
@@ -657,7 +709,10 @@
         <h4><i class="fas fa-gavel"></i> MATÉRIA LEGISLATIVA</h4>
         <p>PL nº X/2025 criada</p>
         <div class="url-box" style="background: #27ae60; color: white; font-size: 0.85em;">
-          <code style="color: #ecf0f1;">/materia/{id}/</code>
+          <span><code style="color: #ecf0f1;">/materia/{id}/</code></span>
+          <a href="/materia/" class="url-link" style="background: #2ecc71;" title="Ir para Matérias Legislativas" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-external-link-alt"></i> Ver Lista
+          </a>
         </div>
       </div>
 
@@ -712,7 +767,12 @@
       <div class="step-by-step">
         <div class="step-item">
           <h4>Criar o Parlamentar</h4>
-          <div class="url-box">URL: <code>/parlamentar/create</code></div>
+          <div class="url-box">
+            <span>URL: <code>/parlamentar/create</code></span>
+            <a href="/parlamentar/create" class="url-link" title="Ir para Criar Parlamentar" target="_blank" rel="noopener noreferrer">
+              <i class="fas fa-external-link-alt"></i> Acessar
+            </a>
+          </div>
           <p><strong>Dados:</strong></p>
           <ul>
             <li>Nome Completo: "João da Silva"</li>
@@ -727,7 +787,12 @@
 
         <div class="step-item">
           <h4>Criar Usuário do Sistema</h4>
-          <div class="url-box">URL: <code>/sistema/usuario/create</code></div>
+          <div class="url-box">
+            <span>URL: <code>/sistema/usuario/create</code></span>
+            <a href="/sistema/usuario/create" class="url-link" title="Ir para Criar Usuário" target="_blank" rel="noopener noreferrer">
+              <i class="fas fa-external-link-alt"></i> Acessar
+            </a>
+          </div>
           <p><strong>Dados:</strong></p>
           <ul>
             <li>Username: <code>joao.silva</code></li>
@@ -739,7 +804,12 @@
 
         <div class="step-item">
           <h4>Vincular Usuário ao Autor</h4>
-          <div class="url-box">URL: <code>/sistema/usuario/{id}/edit</code></div>
+          <div class="url-box">
+            <span>URL: <code>/sistema/usuario/{id}/edit</code></span>
+            <a href="/sistema/usuario/" class="url-link" title="Ir para Lista de Usuários" target="_blank" rel="noopener noreferrer">
+              <i class="fas fa-external-link-alt"></i> Ver Lista
+            </a>
+          </div>
           <p>No campo <strong>"Autor"</strong>, selecione: "João da Silva"</p>
           <div class="concept-card success">
             <strong>Resultado:</strong><br>
@@ -763,7 +833,12 @@
 
         <div class="step-item">
           <h4>Criar Nova Proposição</h4>
-          <div class="url-box">URL: <code>/proposicao/create</code></div>
+          <div class="url-box">
+            <span>URL: <code>/proposicao/create</code></span>
+            <a href="/proposicao/create" class="url-link" title="Ir para Criar Proposição" target="_blank" rel="noopener noreferrer">
+              <i class="fas fa-external-link-alt"></i> Acessar
+            </a>
+          </div>
           <p><strong>Formulário:</strong></p>
           <ul>
             <li><strong>Tipo:</strong> Projeto de Lei</li>
@@ -810,7 +885,12 @@
 
         <div class="step-item">
           <h4>Ver Proposições Pendentes</h4>
-          <div class="url-box">URL: <code>/proposicao/pendente/</code></div>
+          <div class="url-box">
+            <span>URL: <code>/proposicao/pendente/</code></span>
+            <a href="/proposicao/pendente/" class="url-link" title="Ir para Proposições Pendentes" target="_blank" rel="noopener noreferrer">
+              <i class="fas fa-external-link-alt"></i> Acessar
+            </a>
+          </div>
           <p>Lista todas proposições enviadas aguardando recebimento</p>
           <p><strong>Informações mostradas:</strong></p>
           <ul>
@@ -825,7 +905,12 @@
         <div class="step-item">
           <h4>Receber Proposição</h4>
           <p><strong>Opção A:</strong> Via código do recibo</p>
-          <div class="url-box">URL: <code>/proposicao/receber/</code></div>
+          <div class="url-box">
+            <span>URL: <code>/proposicao/receber/</code></span>
+            <a href="/proposicao/receber/" class="url-link" title="Ir para Receber Proposição" target="_blank" rel="noopener noreferrer">
+              <i class="fas fa-external-link-alt"></i> Acessar
+            </a>
+          </div>
           <p>Insira o código e clique em "Receber"</p>
 
           <p style="margin-top: 20px;"><strong>Opção B:</strong> Via lista de pendentes</p>
@@ -914,18 +999,22 @@
             <tr>
               <td>Criar proposição</td>
               <td><code>/proposicao/create</code></td>
+              <td><a href="/proposicao/create" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></td>
             </tr>
             <tr>
               <td>Minhas proposições</td>
               <td><code>/proposicao/</code></td>
+              <td><a href="/proposicao/" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></td>
             </tr>
             <tr>
               <td>Devolvidas</td>
               <td><code>/proposicao/devolvida/</code></td>
+              <td><a href="/proposicao/devolvida/" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></td>
             </tr>
             <tr>
               <td>Recibo</td>
               <td><code>/proposicao/recibo/{id}</code></td>
+              <td><span class="text-muted" style="font-size: 0.85em;">Dinâmica</span></td>
             </tr>
           </tbody>
         </table>
@@ -940,18 +1029,22 @@
             <tr>
               <td>Receber proposição</td>
               <td><code>/proposicao/receber/</code></td>
+              <td><a href="/proposicao/receber/" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></td>
             </tr>
             <tr>
               <td>Pendentes</td>
               <td><code>/proposicao/pendente/</code></td>
+              <td><a href="/proposicao/pendente/" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></td>
             </tr>
             <tr>
               <td>Recebidas</td>
               <td><code>/proposicao/recebida/</code></td>
+              <td><a href="/proposicao/recebida/" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></td>
             </tr>
             <tr>
               <td>Matérias</td>
               <td><code>/materia/</code></td>
+              <td><a href="/materia/" class="btn btn-sm btn-primary" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></td>
             </tr>
           </tbody>
         </table>
@@ -965,14 +1058,14 @@
   <div class="concept-card info">
     <p>Antes de usar o fluxo de proposições, configure:</p>
     <ul class="checklist">
-      <li>Casa Legislativa em <code>/sistema/casa-legislativa/</code></li>
-      <li>Legislatura em <code>/sistema/parlamentar/legislatura/</code></li>
-      <li>Tipos de Proposição em <code>/sistema/materia/tipoproposicao/</code></li>
-      <li>Tipos de Matéria em <code>/sistema/materia/tipo/</code></li>
-      <li>Regimes de Tramitação em <code>/sistema/materia/regimetramitacao/</code></li>
-      <li>Parlamentares em <code>/parlamentar/create</code></li>
-      <li>Usuários em <code>/sistema/usuario/create</code></li>
-      <li>Vincular Usuários a Autores em <code>/sistema/usuario/{id}/edit</code></li>
+      <li>Casa Legislativa em <code>/sistema/casa-legislativa/</code> <a href="/sistema/casa-legislativa/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
+      <li>Legislatura em <code>/sistema/parlamentar/legislatura/</code> <a href="/sistema/parlamentar/legislatura/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
+      <li>Tipos de Proposição em <code>/sistema/materia/tipoproposicao/</code> <a href="/sistema/materia/tipoproposicao/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
+      <li>Tipos de Matéria em <code>/sistema/materia/tipo/</code> <a href="/sistema/materia/tipo/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
+      <li>Regimes de Tramitação em <code>/sistema/materia/regimetramitacao/</code> <a href="/sistema/materia/regimetramitacao/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
+      <li>Parlamentares em <code>/parlamentar/create</code> <a href="/parlamentar/create" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
+      <li>Usuários em <code>/sistema/usuario/create</code> <a href="/sistema/usuario/create" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
+      <li>Vincular Usuários a Autores em <code>/sistema/usuario/{id}/edit</code> <a href="/sistema/usuario/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" title="Ver lista de usuários" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
     </ul>
   </div>
 
