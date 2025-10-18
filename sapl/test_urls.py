@@ -107,7 +107,7 @@ def test_crudaux_formato_inicio_urls_associadas(url_item):
 @pytest.mark.parametrize('url_item', _lista_urls)
 def test_crudaux_list_do_crud_esta_na_pagina_sistema(url_item, admin_client):
     # Verifica a url é de um CrudAux e, se for, testa se está
-    # na página Tabelas Auxiliares
+    # na página Parâmetros
     key, url, var, app_name = url_item
     url = '/' + (url % {v: 1 for v in var})
 
@@ -134,7 +134,7 @@ def test_crudaux_list_do_crud_esta_na_pagina_sistema(url_item, admin_client):
                 if 'ListView' in string_view_class:
                     response = admin_client.get('/sistema', {}, follow=True)
                     assert url in str(response.content), """
-                        A url (%s) não consta nas Tabelas Auxiliares,
+                        A url (%s) não consta nos Parâmetros,
                         porem é uma implementação de ListView de CrudAux.
                         Se encontra em %s.urls
                     """ % (url, app_name)

@@ -275,7 +275,7 @@ class AppConfig(models.Model):
         verbose_name_plural = _('Configurações da Aplicação')
         permissions = (
             ('menu_sistemas', _('Renderizar Menu Sistemas')),
-            ('view_tabelas_auxiliares', _('Visualizar Tabelas Auxiliares')),
+            ('view_tabelas_auxiliares', _('Visualizar Parâmetros')),
         )
         ordering = ('-id',)
 

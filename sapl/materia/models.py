@@ -61,8 +61,8 @@ class TipoProposicao(models.Model):
         PerfilEstruturalTextoArticulado,
         blank=True, verbose_name=_('Perfis Estruturais de Textos Articulados'),
         help_text=_("""
-                    Mesmo que em Configurações da Aplicação nas
-                    Tabelas Auxiliares esteja definido que Proposições possam
+                    Mesmo que em Configurações da Aplicação nos
+                    Parâmetros esteja definido que Proposições possam
                     utilizar Textos Articulados, ao gerar uma proposição,
                     a solução de Textos Articulados será disponibilizada se
                     o Tipo escolhido para a Proposição estiver associado a ao

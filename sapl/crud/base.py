@@ -1059,11 +1059,11 @@ class Crud:
 
 class CrudAux(Crud):
     """
-        Checa permissão para ver qualquer dado de tabela auxiliar
+        Checa permissão para ver qualquer dado de parâmetro
         a permissão base.view_tabelas_auxiliares está definada class Meta
         do model sapl.base.models.AppConfig que, naturalmente é um arquivo
-        de configuração geral e só pode ser acessado através das Tabelas
-        Auxiliares... Com isso o script de geração de perfis acaba que por
+        de configuração geral e só pode ser acessado através dos Parâmetros...
+        Com isso o script de geração de perfis acaba que por
         criar essa permissão apenas para o perfil Operador Geral.
     """
     permission_required = ('base.view_tabelas_auxiliares',)

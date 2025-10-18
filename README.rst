@@ -29,7 +29,7 @@ atual do sistema (2.5), visite a página do `projeto na Interlegis wiki <https:/
 
 **IMPORTANTE:** A partir da versão 3.1.162 do SAPL, as funcionalidades de recuperar senha,
 acompanhamento de matéria, e acompanhamento de documento exigirão o uso do `Google reCaptcha <https://www.google.com/recaptcha/>`_. Cada casa legislativa será responsável pela geração
-das chaves do reCaptcha e configuração no SAPL em Sistema -> Tabelas Auxiliares -> Configurações da Aplicação.
+das chaves do reCaptcha e configuração no SAPL em Sistema -> Parâmetros -> Configurações da Aplicação.
 Sem essa configuração não serão habilitados os recursos citados anteriormente.
 Veja mais detalhes sobre o processo de geração de chaves e configuração neste link https://www.youtube.com/watch?v=6ZCCyBjSJ-c
 e no caderno de exercícios do SAPL 3.1 disponível na `Wiki do projeto <https://colab.interlegis.leg.br/wiki/ProjetoSapl3.1>`_

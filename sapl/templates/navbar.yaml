@@ -86,7 +86,7 @@
 - title: {% trans 'Sistema' %}
   check_permission: base.menu_sistemas
   children:
-    - title: {% trans 'Tabelas Auxiliares' %}
+    - title: {% trans 'Parâmetros' %}
       url: '/sistema'
       check_permission: base.view_tabelas_auxiliares
     - title: {% trans 'Administração de Usuários' %}
