@@ -417,6 +417,9 @@
     <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px;">
       <a href="#conceitos" class="btn btn-sm btn-outline-primary">Conceitos</a>
       <a href="#atores" class="btn btn-sm btn-outline-primary">Atores</a>
+      <a href="#permissoes" class="btn btn-sm btn-outline-warning" style="color: white; font-weight: bold;">
+        <i class="fas fa-key"></i> Permissões Necessárias
+      </a>
       <a href="#estados" class="btn btn-sm btn-outline-primary">Estados</a>
       <a href="#fluxo-visual" class="btn btn-sm btn-outline-primary">Fluxo Visual</a>
       <a href="#passo-a-passo" class="btn btn-sm btn-outline-primary">Passo a Passo</a>
@@ -543,6 +546,111 @@
       <li>Pode <strong>devolver</strong> (com justificativa)</li>
       <li>Gera protocolos</li>
     </ul>
+  </div>
+
+  <!-- Permissões Necessárias -->
+  <h2 id="permissoes"><i class="fas fa-key"></i> Permissões Necessárias para Criar Proposições</h2>
+
+  <div class="concept-card danger">
+    <h3><i class="fas fa-exclamation-triangle"></i> IMPORTANTE: Requisitos para Acesso</h3>
+    <p>Para que um usuário possa acessar <code>/proposicao/create</code> e criar proposições, ele precisa atender <strong>DOIS requisitos obrigatórios</strong>:</p>
+  </div>
+
+  <div class="row">
+    <div class="col-md-6">
+      <div class="concept-card warning">
+        <h4><i class="fas fa-users"></i> 1. Grupo "Autor"</h4>
+        <p>O usuário precisa estar no grupo <strong>"Autor"</strong> do sistema.</p>
+        <p><strong>Como adicionar:</strong></p>
+        <div class="step-by-step" style="margin-top: 15px;">
+          <div class="step-item">
+            <h4>Ir para Usuários</h4>
+            <div class="url-box">
+              <span>URL: <code>/sistema/usuario/</code></span>
+              <a href="/sistema/usuario/" class="url-link" title="Ir para Lista de Usuários" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-external-link-alt"></i> Acessar
+              </a>
+            </div>
+          </div>
+          <div class="step-item">
+            <h4>Editar o usuário desejado</h4>
+            <p>Clique no nome do usuário (ex: helena)</p>
+          </div>
+          <div class="step-item">
+            <h4>Adicionar ao grupo</h4>
+            <p>Na seção "Grupos", marque <strong>"Autor"</strong></p>
+            <p>Clique em "Salvar"</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="concept-card warning">
+        <h4><i class="fas fa-link"></i> 2. Vínculo com Autor</h4>
+        <p>O usuário precisa estar vinculado como <strong>operador de um Autor</strong>.</p>
+        <p><strong>Como vincular:</strong></p>
+        <div class="step-by-step" style="margin-top: 15px;">
+          <div class="step-item">
+            <h4>Ir para Editar Usuário</h4>
+            <div class="url-box">
+              <span>URL: <code>/sistema/usuario/{id}/edit</code></span>
+              <a href="/sistema/usuario/" class="url-link" title="Ir para Lista de Usuários" target="_blank" rel="noopener noreferrer">
+                <i class="fas fa-external-link-alt"></i> Ver Lista
+              </a>
+            </div>
+          </div>
+          <div class="step-item">
+            <h4>Selecionar o Autor</h4>
+            <p>No campo <strong>"Autor"</strong>, selecione o autor correspondente (ex: "Helena Silva")</p>
+            <p>Se não existir autor, crie um parlamentar primeiro</p>
+          </div>
+          <div class="step-item">
+            <h4>Salvar</h4>
+            <p>Isso cria automaticamente o vínculo OperadorAutor</p>
+            <div class="concept-card success">
+              <strong>✓ Pronto!</strong> Agora o usuário pode criar proposições.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="concept-card info">
+    <h4><i class="fas fa-info-circle"></i> Exemplo de Erro Comum</h4>
+    <p>Se o usuário <strong>helena</strong> possui os grupos:</p>
+    <ul>
+      <li>Operador Geral</li>
+      <li>Operador de Matéria</li>
+      <li>Operador de Norma Jurídica</li>
+      <li>Votante</li>
+    </ul>
+    <p><strong>Ela NÃO conseguirá criar proposições</strong> porque:</p>
+    <ul>
+      <li>❌ Não está no grupo "Autor"</li>
+      <li>❌ Não está vinculada a nenhum Autor</li>
+    </ul>
+    <p><strong>Solução:</strong> Adicionar ao grupo "Autor" E vincular a um Autor existente.</p>
+  </div>
+
+  <div class="concept-card success">
+    <h4><i class="fas fa-lightbulb"></i> Atalho Rápido</h4>
+    <p>Para vincular rapidamente um usuário e permitir criação de proposições:</p>
+    <ol>
+      <li>Acesse <a href="/sistema/usuario/" target="_blank" rel="noopener noreferrer"><strong>/sistema/usuario/</strong></a></li>
+      <li>Clique no usuário desejado</li>
+      <li>Clique em "Editar"</li>
+      <li>Marque o grupo <strong>"Autor"</strong></li>
+      <li>No campo <strong>"Autor"</strong>, selecione o autor correspondente</li>
+      <li>Salve</li>
+    </ol>
+    <div class="url-box">
+      <span>Ir diretamente para: <code>/sistema/usuario/</code></span>
+      <a href="/sistema/usuario/" class="url-link" title="Ir para Configurar Usuários" target="_blank" rel="noopener noreferrer">
+        <i class="fas fa-cog"></i> Configurar Agora
+      </a>
+    </div>
   </div>
 
   <!-- Estados -->
@@ -825,6 +933,28 @@
     <div id="tab2" class="tab-content">
       <h3><span class="badge-role badge-parliamentar">PARLAMENTAR</span> Criar e Enviar Proposição</h3>
 
+      <div class="concept-card danger">
+        <h4><i class="fas fa-exclamation-triangle"></i> ATENÇÃO: Verifique os Requisitos Primeiro!</h4>
+        <p>Antes de tentar criar uma proposição, certifique-se de que o usuário possui:</p>
+        <ul>
+          <li>✓ Grupo <strong>"Autor"</strong> atribuído</li>
+          <li>✓ Vínculo com um <strong>Autor</strong> (parlamentar, comissão, etc.)</li>
+        </ul>
+        <p><strong>Se faltar algum requisito, você receberá:</strong></p>
+        <div style="background: #ffebee; padding: 15px; border-radius: 5px; margin: 10px 0;">
+          <strong style="color: #c62828;">❌ Acesso Negado</strong><br>
+          Desculpe, você não tem permissão para acessar esta página ou recurso.
+        </div>
+        <p>
+          <a href="#permissoes" class="btn btn-warning" style="color: white;">
+            <i class="fas fa-key"></i> Ver Seção de Permissões
+          </a>
+          <a href="/sistema/usuario/" class="btn btn-primary" target="_blank" rel="noopener noreferrer">
+            <i class="fas fa-cog"></i> Configurar Usuário Agora
+          </a>
+        </p>
+      </div>
+
       <div class="step-by-step">
         <div class="step-item">
           <h4>Login como Parlamentar</h4>
@@ -1065,8 +1195,42 @@
       <li>Regimes de Tramitação em <code>/sistema/materia/regimetramitacao/</code> <a href="/sistema/materia/regimetramitacao/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
       <li>Parlamentares em <code>/parlamentar/create</code> <a href="/parlamentar/create" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
       <li>Usuários em <code>/sistema/usuario/create</code> <a href="/sistema/usuario/create" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
-      <li>Vincular Usuários a Autores em <code>/sistema/usuario/{id}/edit</code> <a href="/sistema/usuario/" class="btn btn-sm btn-outline-primary" style="margin-left: 10px;" title="Ver lista de usuários" target="_blank" rel="noopener noreferrer"><i class="fas fa-arrow-right"></i></a></li>
     </ul>
+  </div>
+
+  <div class="concept-card warning">
+    <h4><i class="fas fa-exclamation-triangle"></i> CONFIGURAÇÃO CRÍTICA: Permissões para Criar Proposições</h4>
+    <p><strong>Para cada usuário que precisa criar proposições, você DEVE:</strong></p>
+    <ol style="margin-top: 15px;">
+      <li>
+        <strong>Adicionar ao grupo "Autor"</strong>
+        <ul>
+          <li>Acesse <a href="/sistema/usuario/" target="_blank" rel="noopener noreferrer"><code>/sistema/usuario/</code></a></li>
+          <li>Edite o usuário</li>
+          <li>Marque o grupo <strong>"Autor"</strong></li>
+        </ul>
+      </li>
+      <li style="margin-top: 10px;">
+        <strong>Vincular a um Autor</strong>
+        <ul>
+          <li>Na mesma tela de edição do usuário</li>
+          <li>No campo <strong>"Autor"</strong>, selecione o autor correspondente (parlamentar, comissão, etc.)</li>
+          <li>Salve</li>
+        </ul>
+      </li>
+    </ol>
+    <div class="url-box" style="margin-top: 15px;">
+      <span><strong>Configurar agora:</strong> <code>/sistema/usuario/</code></span>
+      <a href="/sistema/usuario/" class="url-link" title="Ir para Configurar Usuários e Permissões" target="_blank" rel="noopener noreferrer">
+        <i class="fas fa-cog"></i> Configurar Permissões
+      </a>
+    </div>
+    <p style="margin-top: 15px;"><strong>Sem essas duas configurações, o usuário receberá "Acesso Negado" ao tentar acessar <code>/proposicao/create</code>.</strong></p>
+    <p>
+      <a href="#permissoes" class="btn btn-warning" style="color: white;">
+        <i class="fas fa-key"></i> Ver Detalhes das Permissões
+      </a>
+    </p>
   </div>
 
   <!-- Resumo -->

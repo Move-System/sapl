@@ -1,0 +1,349 @@
+{% extends "crud/form.html" %}
+{% load i18n %}
+
+{% block extra_css %}
+<style>
+  .legend-with-help {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .help-icon {
+    cursor: pointer;
+    color: #007bff;
+    font-size: 18px;
+    transition: all 0.3s;
+  }
+
+  .help-icon:hover {
+    color: #0056b3;
+    transform: scale(1.1);
+  }
+
+  .exemplo-item {
+    padding: 15px;
+    margin: 10px 0;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: white;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .exemplo-item:hover {
+    background: #f8f9fa;
+    border-color: #007bff;
+    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.2);
+    transform: translateY(-2px);
+  }
+
+  .exemplo-item:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 2px 6px rgba(0, 123, 255, 0.3);
+  }
+
+  .exemplo-item.clicked {
+    animation: pulseClick 0.6s ease;
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-color: #007bff;
+  }
+
+  @keyframes pulseClick {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
+    }
+    50% {
+      transform: scale(1.02);
+      box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+    }
+  }
+
+  .exemplo-sigla {
+    font-weight: bold;
+    color: #007bff;
+    font-size: 18px;
+    margin-bottom: 5px;
+    display: inline-block;
+    padding: 4px 12px;
+    background: #e3f2fd;
+    border-radius: 20px;
+    transition: all 0.3s;
+  }
+
+  .exemplo-item:hover .exemplo-sigla {
+    background: #007bff;
+    color: white;
+    transform: scale(1.05);
+  }
+
+  .exemplo-descricao {
+    color: #495057;
+    font-size: 14px;
+  }
+
+  .modal-header-custom {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 5px 5px 0 0;
+  }
+
+  .exemplos-container {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .categoria-titulo {
+    font-weight: bold;
+    color: #495057;
+    margin-top: 15px;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid #007bff;
+  }
+
+  @keyframes ripple-effect {
+    0% {
+      width: 0;
+      height: 0;
+      opacity: 1;
+    }
+    100% {
+      width: 200px;
+      height: 200px;
+      opacity: 0;
+    }
+  }
+
+  .exemplo-item .ripple {
+    pointer-events: none;
+  }
+
+  /* Adicionar cursor mais visual */
+  .exemplo-item::before {
+    content: '👆';
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 20px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .exemplo-item:hover::before {
+    opacity: 0.5;
+  }
+
+  .exemplo-item.clicked::before {
+    content: '✓';
+    opacity: 1;
+    color: #28a745;
+    font-size: 24px;
+    animation: checkmark 0.5s ease;
+  }
+
+  @keyframes checkmark {
+    0% {
+      transform: translateY(-50%) scale(0);
+    }
+    50% {
+      transform: translateY(-50%) scale(1.3);
+    }
+    100% {
+      transform: translateY(-50%) scale(1);
+    }
+  }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script type="text/javascript">
+$(document).ready(function(){
+  // Adicionar ícone de ajuda ao lado do legend
+  const legend = $('legend:contains("Tipo Matéria Legislativa")');
+  if (legend.length > 0) {
+    legend.html(`
+      <div class="legend-with-help">
+        <span>${legend.text()}</span>
+        <i class="fas fa-question-circle help-icon" id="help-icon-tipos" title="Ver exemplos de tipos de matéria"></i>
+      </div>
+    `);
+  }
+
+  // Exemplos de tipos de matéria legislativa
+  const exemplos = [
+    {
+      categoria: "Proposições Legislativas Principais",
+      items: [
+        { sigla: "PL", descricao: "Projeto de Lei" },
+        { sigla: "PLC", descricao: "Projeto de Lei Complementar" },
+        { sigla: "PEC", descricao: "Proposta de Emenda à Constituição" },
+        { sigla: "PLO", descricao: "Projeto de Lei Orçamentária" },
+        { sigla: "PLP", descricao: "Projeto de Lei do Plano Plurianual" }
+      ]
+    },
+    {
+      categoria: "Decretos e Resoluções",
+      items: [
+        { sigla: "DL", descricao: "Decreto Legislativo" },
+        { sigla: "RES", descricao: "Resolução" },
+        { sigla: "PDL", descricao: "Projeto de Decreto Legislativo" },
+        { sigla: "PRS", descricao: "Projeto de Resolução" }
+      ]
+    },
+    {
+      categoria: "Instrumentos de Fiscalização",
+      items: [
+        { sigla: "REQ", descricao: "Requerimento" },
+        { sigla: "IND", descricao: "Indicação" },
+        { sigla: "MOC", descricao: "Moção" },
+        { sigla: "PFC", descricao: "Proposta de Fiscalização e Controle" }
+      ]
+    },
+    {
+      categoria: "Mensagens e Comunicações",
+      items: [
+        { sigla: "MSG", descricao: "Mensagem" },
+        { sigla: "OFI", descricao: "Ofício" },
+        { sigla: "PAR", descricao: "Parecer" }
+      ]
+    },
+    {
+      categoria: "Emendas",
+      items: [
+        { sigla: "EMC", descricao: "Emenda Constitucional" },
+        { sigla: "EMD", descricao: "Emenda" },
+        { sigla: "SUB", descricao: "Substitutivo" }
+      ]
+    }
+  ];
+
+  // Criar HTML do modal
+  let modalHtml = `
+    <div class="modal fade" id="modal-exemplos-tipos" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header modal-header-custom">
+            <h4 class="modal-title">
+              <i class="fas fa-lightbulb"></i> Exemplos de Tipos de Matéria Legislativa
+            </h4>
+            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fechar">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted mb-3">
+              <i class="fas fa-info-circle"></i> Clique em qualquer exemplo abaixo para preencher automaticamente os campos do formulário.
+            </p>
+            <div class="exemplos-container">
+  `;
+
+  // Adicionar categorias e exemplos
+  exemplos.forEach(categoria => {
+    modalHtml += `<div class="categoria-titulo">${categoria.categoria}</div>`;
+    categoria.items.forEach(item => {
+      modalHtml += `
+        <div class="exemplo-item" data-sigla="${item.sigla}" data-descricao="${item.descricao}">
+          <div class="exemplo-sigla">${item.sigla}</div>
+          <div class="exemplo-descricao">${item.descricao}</div>
+        </div>
+      `;
+    });
+  });
+
+  modalHtml += `
+            </div>
+            <div class="alert alert-info mt-3" style="font-size: 13px;">
+              <i class="fas fa-hand-pointer"></i> <strong>Dica:</strong> Após selecionar um exemplo, você ainda pode editar os campos antes de salvar.
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Adicionar modal ao body
+  $('body').append(modalHtml);
+
+  // Evento para abrir o modal
+  $(document).on('click', '#help-icon-tipos', function() {
+    $('#modal-exemplos-tipos').modal('show');
+  });
+
+  // Evento para preencher os campos ao clicar em um exemplo
+  $(document).on('click', '.exemplo-item', function() {
+    const $this = $(this);
+    const sigla = $this.data('sigla');
+    const descricao = $this.data('descricao');
+
+    // Adicionar classe de clique com animação
+    $this.addClass('clicked');
+
+    // Criar efeito ripple
+    const ripple = $('<span class="ripple"></span>');
+    const x = event.pageX - $this.offset().left;
+    const y = event.pageY - $this.offset().top;
+
+    ripple.css({
+      position: 'absolute',
+      top: y + 'px',
+      left: x + 'px',
+      width: '0',
+      height: '0',
+      borderRadius: '50%',
+      background: 'rgba(0, 123, 255, 0.5)',
+      transform: 'translate(-50%, -50%)',
+      animation: 'ripple-effect 0.6s ease-out'
+    });
+
+    $this.append(ripple);
+
+    setTimeout(function() {
+      ripple.remove();
+      $this.removeClass('clicked');
+    }, 600);
+
+    // Preencher os campos
+    $('#id_sigla').val(sigla).focus();
+    $('#id_descricao').val(descricao);
+
+    // Adicionar efeito visual nos campos preenchidos
+    $('#id_sigla, #id_descricao').css('background-color', '#d4edda');
+    setTimeout(function() {
+      $('#id_sigla, #id_descricao').css('background-color', '');
+    }, 1500);
+
+    // Fechar o modal após um pequeno delay para mostrar a animação
+    setTimeout(function() {
+      $('#modal-exemplos-tipos').modal('hide');
+    }, 300);
+
+    // Mostrar mensagem de sucesso
+    const mensagem = `
+      <div class="alert alert-success alert-dismissible fade show" role="alert" style="position: fixed; top: 80px; right: 20px; z-index: 9999; min-width: 300px;">
+        <i class="fas fa-check-circle"></i> <strong>Campos preenchidos!</strong><br>
+        <small>Sigla: ${sigla} | Descrição: ${descricao}</small>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Fechar">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+    `;
+    $('body').append(mensagem);
+    setTimeout(function() {
+      $('.alert-success').fadeOut(function() { $(this).remove(); });
+    }, 3000);
+  });
+});
+</script>
+{% endblock %}

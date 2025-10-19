@@ -1,10 +1,332 @@
 {% extends "crud/form.html" %}
 {% load i18n %}
 
+{% block base_content %}
+  {{ block.super }}
+
+  <!-- Modal de Ajuda sobre Grupos de Permissões -->
+  <div class="modal fade" id="modalAjudaGrupos" tabindex="-1" role="dialog" aria-labelledby="modalAjudaGruposLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-info text-white">
+          <h5 class="modal-title" id="modalAjudaGruposLabel">
+            <i class="fas fa-info-circle"></i> Grupos de Permissões - Guia de Referência
+          </h5>
+          <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fechar">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p class="lead mb-4">Cada grupo de permissões concede acesso a funcionalidades específicas do SAPL. Selecione os grupos adequados conforme as responsabilidades do usuário.</p>
+
+          <div class="row">
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                  <strong><i class="fas fa-users-cog"></i> Operador Administrativo</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Gerenciar documentos e processos administrativos internos.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Criar e tramitar documentos administrativos</li>
+                    <li>Gerenciar protocolo administrativo</li>
+                    <li>Acompanhar processos internos da Casa Legislativa</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para funcionários que lidam com a parte administrativa e burocrática da Casa.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                  <strong><i class="fas fa-globe"></i> Operador Geral</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Acesso amplo a todas as funcionalidades principais do sistema.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Cadastrar e editar matérias legislativas</li>
+                    <li>Gerenciar normas jurídicas</li>
+                    <li>Configurar sessões plenárias</li>
+                    <li>Acesso a relatórios e consultas gerais</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para funcionários de confiança que precisam de acesso abrangente ao sistema.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-warning text-dark">
+                  <strong><i class="fas fa-gavel"></i> Operador de Audiência</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Gerenciar audiências públicas.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Cadastrar e agendar audiências públicas</li>
+                    <li>Registrar participantes e convidados</li>
+                    <li>Documentar decisões e encaminhamentos</li>
+                    <li>Gerar relatórios de audiências</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para funcionários responsáveis pela organização de audiências públicas.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                  <strong><i class="fas fa-users"></i> Operador de Comissões</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Gerenciar comissões parlamentares e suas atividades.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Criar e configurar comissões (permanentes, temporárias, especiais)</li>
+                    <li>Gerenciar composição e membros</li>
+                    <li>Registrar reuniões de comissão</li>
+                    <li>Acompanhar matérias em comissão</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para secretários de comissões ou assessores responsáveis.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-danger text-white">
+                  <strong><i class="fas fa-file-alt"></i> Operador de Matéria</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Gerenciar matérias legislativas (projetos, requerimentos, etc.).</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Cadastrar e editar matérias legislativas</li>
+                    <li>Controlar tramitação de matérias</li>
+                    <li>Anexar documentos e pareceres</li>
+                    <li>Registrar autoria e relatoria</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para funcionários do setor de expediente legislativo.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-secondary text-white">
+                  <strong><i class="fas fa-balance-scale"></i> Operador de Norma Jurídica</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Gerenciar normas jurídicas publicadas.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Cadastrar leis, decretos, resoluções, etc.</li>
+                    <li>Vincular normas às matérias de origem</li>
+                    <li>Publicar textos compilados e consolidados</li>
+                    <li>Gerenciar vigência e revogações</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para funcionários da assessoria jurídica ou setor de publicações.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-dark text-white">
+                  <strong><i class="fas fa-tv"></i> Operador de Painel Eletrônico</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Controlar painéis de votação e exibição.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Controlar painel eletrônico do plenário</li>
+                    <li>Gerenciar votações eletrônicas</li>
+                    <li>Exibir ordem do dia e resultados</li>
+                    <li>Registrar presença de parlamentares</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para operadores técnicos do plenário durante sessões.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                  <strong><i class="fas fa-inbox"></i> Operador de Protocolo Administrativo</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Protocolar e encaminhar documentos administrativos.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Protocolar documentos administrativos</li>
+                    <li>Gerar números de protocolo</li>
+                    <li>Encaminhar para setores competentes</li>
+                    <li>Consultar histórico de protocolos</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para atendentes do setor de protocolo.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                  <strong><i class="fas fa-calendar-check"></i> Operador de Sessão Plenária</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Gerenciar sessões plenárias e suas atas.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Criar e configurar sessões plenárias</li>
+                    <li>Definir ordem do dia e expediente</li>
+                    <li>Registrar votações e deliberações</li>
+                    <li>Gerar e publicar atas de sessão</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para secretários de plenário e taquígrafos.</small></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+              <div class="card h-100">
+                <div class="card-header bg-info text-white">
+                  <strong><i class="fas fa-user-shield"></i> Usuários com Login Social</strong>
+                </div>
+                <div class="card-body">
+                  <p><strong>Responsabilidade:</strong> Acesso público limitado via redes sociais.</p>
+                  <p><strong>Funcionalidades:</strong></p>
+                  <ul>
+                    <li>Login via Google, Facebook, etc.</li>
+                    <li>Acesso somente-leitura a informações públicas</li>
+                    <li>Consulta de matérias e normas</li>
+                    <li>Sem permissões de edição ou cadastro</li>
+                  </ul>
+                  <p class="text-muted mb-0"><small><strong>Quando usar:</strong> Para cidadãos que desejam acompanhar atividades legislativas.</small></p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="alert alert-warning mt-3">
+            <strong><i class="fas fa-exclamation-triangle"></i> Atenção:</strong>
+            <ul class="mb-0">
+              <li>Um usuário pode pertencer a múltiplos grupos simultaneamente.</li>
+              <li>As permissões são cumulativas - o usuário terá acesso a todas as funcionalidades dos grupos selecionados.</li>
+              <li>Os grupos <strong>Autor</strong> e <strong>Votante</strong> são gerenciados automaticamente através dos campos "Autor" e "Parlamentar".</li>
+            </ul>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Cadastro Completo de Autor -->
+  <div class="modal fade" id="modalCadastrarAutor" tabindex="-1" role="dialog" aria-labelledby="modalCadastrarAutorLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-primary text-white">
+          <h5 class="modal-title" id="modalCadastrarAutorLabel">
+            <i class="fas fa-user-plus"></i> Cadastrar Novo Autor
+          </h5>
+          <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fechar">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form id="formCadastrarAutor">
+            <!-- Tipo de Autor -->
+            <div class="form-group">
+              <label for="tipo_autor_modal">Tipo do Autor *</label>
+              <select class="form-control" id="tipo_autor_modal" name="tipo_autor" required>
+                <option value="">---------</option>
+              </select>
+              <small class="form-text text-muted">
+                Selecione o tipo de autor
+              </small>
+            </div>
+
+            <!-- Campos para Tipo com Content Type (Parlamentar, Comissão, etc) -->
+            <div id="campos_autor_related" class="d-none">
+              <div class="form-group">
+                <label for="autor_related_modal">Selecione o Registro *</label>
+                <select class="form-control" id="autor_related_modal" name="autor_related">
+                  <option value="">---------</option>
+                </select>
+                <small class="form-text text-muted">
+                  Selecione o registro que será vinculado a este autor
+                </small>
+              </div>
+            </div>
+
+            <!-- Campos para Tipo Genérico (sem content type) -->
+            <div id="campos_autor_generico" class="d-none">
+              <div class="form-group">
+                <label for="usuario_autor_modal">Selecione o Usuário *</label>
+                <select class="form-control" id="usuario_autor_modal" name="usuario">
+                  <option value="">Selecione um usuário...</option>
+                </select>
+                <small class="form-text text-muted">
+                  Selecione o usuário que será vinculado como autor, ou escolha "Digitar manualmente" para criar um autor sem vínculo com usuário
+                </small>
+              </div>
+
+              <div id="campo_nome_manual" class="d-none">
+                <div class="form-group">
+                  <label for="nome_autor_modal">Nome do Autor *</label>
+                  <input type="text" class="form-control" id="nome_autor_modal" name="nome" placeholder="Digite o nome do autor">
+                  <small class="form-text text-muted">
+                    Digite o nome completo do autor
+                  </small>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="cargo_autor_modal">Cargo</label>
+                <input type="text" class="form-control" id="cargo_autor_modal" name="cargo" placeholder="Digite o cargo (opcional)">
+                <small class="form-text text-muted">
+                  Campo opcional
+                </small>
+              </div>
+            </div>
+
+            <div class="alert alert-info mt-3">
+              <i class="fas fa-info-circle"></i>
+              <strong>Dica:</strong> Após cadastrar o autor, ele ficará disponível para seleção no campo "Autor" desta página.
+            </div>
+
+            <div class="alert alert-danger d-none" id="erro_modal_autor" role="alert"></div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">
+            <i class="fas fa-times"></i> Cancelar
+          </button>
+          <button type="button" class="btn btn-primary" id="btnSalvarAutor">
+            <i class="fas fa-save"></i> Salvar Autor
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock base_content %}
+
 {% block extra_js %}
 <script type="text/javascript">
   $(() => {
+    console.log('==========================================');
+    console.log('Script user_form.html carregado');
+    console.log('Modal de ajuda existe:', $('#modalAjudaGrupos').length > 0);
+    console.log('==========================================');
+
     var $crf_token = $('[name="csrfmiddlewaretoken"]').attr('value');
+
+    // Renovar token (funcionalidade existente)
     $("#renovar-token").click(() => {
       $.ajax({
         url: "{% url 'sapl.api:recria_token' object.id %}",
@@ -14,6 +336,440 @@
         success: (res) => $("#id_token").val(res.token)
       });
     });
+
+    // Adicionar ícone de ajuda ao campo Grupos
+    function adicionarIconeAjudaGrupos() {
+      console.log('Tentando adicionar ícone de ajuda...');
+
+      // Procurar pelo label do campo "groups" - tentar vários seletores
+      let gruposLabel = $('label[for="id_groups"]');
+
+      if (gruposLabel.length === 0) {
+        // Tentar encontrar por texto contendo "Grupos"
+        gruposLabel = $('label.col-form-label').filter(function() {
+          return $(this).text().trim() === 'Grupos';
+        });
+        console.log('Label encontrado por texto:', gruposLabel.length);
+      } else {
+        console.log('Label encontrado por for="id_groups":', gruposLabel.length);
+      }
+
+      if (gruposLabel.length > 0 && !$('#btnAjudaGrupos').length) {
+        // Criar botão de ajuda com espaçamento
+        const btnAjuda = $('<button type="button" class="btn btn-link btn-sm p-0 ml-2" id="btnAjudaGrupos" title="Clique para ver a descrição de cada grupo" style="vertical-align: middle;">')
+          .append('<i class="fas fa-question-circle text-info" style="font-size: 1.3em;"></i>');
+
+        // Adicionar ao label
+        gruposLabel.append('&nbsp;').append(btnAjuda);
+
+        console.log('✓ Ícone de ajuda adicionado ao campo Grupos');
+      } else if ($('#btnAjudaGrupos').length) {
+        console.log('Ícone já existe');
+      } else {
+        console.warn('Label Grupos não encontrado. Tentando alternativas...');
+
+        // Última tentativa: procurar em todos os labels
+        $('label').each(function() {
+          console.log('Label encontrado:', $(this).text().trim(), 'for:', $(this).attr('for'));
+        });
+      }
+    }
+
+    // Chamar função após DOM estar pronto - tentar múltiplas vezes
+    setTimeout(adicionarIconeAjudaGrupos, 100);
+    setTimeout(adicionarIconeAjudaGrupos, 300);
+    setTimeout(adicionarIconeAjudaGrupos, 500);
+    setTimeout(adicionarIconeAjudaGrupos, 1000);
+
+    // Observar mudanças no DOM para garantir que o ícone seja adicionado
+    const observer = new MutationObserver(function(mutations) {
+      if ($('#btnAjudaGrupos').length === 0) {
+        adicionarIconeAjudaGrupos();
+      }
+    });
+
+    // Configurar observador para monitorar o body
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+
+    // Abrir modal de ajuda quando clicar no ícone
+    $(document).on('click', '#btnAjudaGrupos', function(e) {
+      e.preventDefault();
+      console.log('Abrindo modal de ajuda sobre Grupos');
+
+      const modal = $('#modalAjudaGrupos');
+      console.log('Modal encontrado:', modal.length > 0);
+
+      // Tentar abrir com Bootstrap 4/5
+      if (typeof bootstrap !== 'undefined') {
+        console.log('Usando Bootstrap 5');
+        const bsModal = new bootstrap.Modal(document.getElementById('modalAjudaGrupos'));
+        bsModal.show();
+      } else if ($.fn.modal) {
+        console.log('Usando Bootstrap 4 (jQuery)');
+        modal.modal('show');
+      } else {
+        console.error('Bootstrap modal não disponível');
+        // Fallback: mostrar modal manualmente
+        modal.addClass('show').css('display', 'block');
+        $('body').addClass('modal-open').append('<div class="modal-backdrop fade show"></div>');
+      }
+    });
+
+    console.log('Script de ajuda de grupos carregado');
+
+    // ===== CADASTRO COMPLETO DE AUTOR VIA MODAL =====
+
+    // Variável para armazenar dados dos tipos de autor
+    let tiposAutorData = {};
+
+    // Adicionar botão que abre modal de cadastro
+    function adicionarBotaoCadastrarAutor() {
+      console.log('Tentando adicionar botão de cadastro de autor...');
+
+      let autorSelect = $('#id_autor');
+
+      if (autorSelect.length === 0) {
+        console.warn('Campo #id_autor não encontrado');
+        return;
+      }
+
+      if ($('#btnCadastrarAutor').length > 0) {
+        console.log('Botão já existe');
+        return;
+      }
+
+      const btnCadastrar = $('<button type="button" class="btn btn-success btn-sm ml-2" id="btnCadastrarAutor" title="Cadastrar novo autor">')
+        .append('<i class="fas fa-plus"></i> Cadastrar Autor');
+
+      autorSelect.after(btnCadastrar);
+
+      console.log('✓ Botão de cadastro de autor adicionado');
+    }
+
+    setTimeout(adicionarBotaoCadastrarAutor, 100);
+    setTimeout(adicionarBotaoCadastrarAutor, 500);
+    setTimeout(adicionarBotaoCadastrarAutor, 1000);
+
+    // Abrir modal ao clicar no botão
+    $(document).on('click', '#btnCadastrarAutor', function(e) {
+      e.preventDefault();
+      console.log('Abrindo modal de cadastro de autor');
+
+      // Limpar formulário
+      $('#formCadastrarAutor')[0].reset();
+      $('#erro_modal_autor').addClass('d-none').text('');
+      $('#campos_autor_related').addClass('d-none');
+      $('#campos_autor_generico').addClass('d-none');
+      $('#campo_nome_manual').addClass('d-none');
+      $('#usuario_autor_modal').find('option:not(:first)').remove();
+
+      // Carregar tipos de autor
+      $.ajax({
+        url: '/api/base/tipoautor/',
+        type: 'GET',
+        success: function(response) {
+          console.log('Tipos de autor carregados:', response.count);
+          let select = $('#tipo_autor_modal');
+          select.find('option:not(:first)').remove();
+
+          tiposAutorData = {};
+
+          response.results.forEach(function(tipo) {
+            select.append($('<option>', {
+              value: tipo.id,
+              text: tipo.descricao
+            }));
+            tiposAutorData[tipo.id] = tipo;
+          });
+
+          $('#modalCadastrarAutor').modal('show');
+        },
+        error: function(xhr, status, error) {
+          console.error('Erro ao carregar tipos de autor:', error);
+          alert('Erro ao carregar tipos de autor. Tente novamente.');
+        }
+      });
+    });
+
+    // Ao selecionar tipo de autor, mostrar campos apropriados
+    $(document).on('change', '#tipo_autor_modal', function() {
+      let tipoId = $(this).val();
+      console.log('Tipo de autor selecionado:', tipoId);
+
+      $('#campos_autor_related').addClass('d-none');
+      $('#campos_autor_generico').addClass('d-none');
+      $('#campo_nome_manual').addClass('d-none');
+      $('#erro_modal_autor').addClass('d-none');
+
+      // Limpar valores dos campos
+      $('#autor_related_modal').val('');
+      $('#usuario_autor_modal').val('');
+      $('#nome_autor_modal').val('');
+      $('#cargo_autor_modal').val('');
+
+      if (!tipoId) {
+        return;
+      }
+
+      let tipoData = tiposAutorData[tipoId];
+
+      if (!tipoData) {
+        console.error('Dados do tipo não encontrados');
+        return;
+      }
+
+      console.log('Dados do tipo selecionado:', tipoData);
+      console.log('Tem content_type?', tipoData.content_type);
+
+      // Se tem content_type (Parlamentar, Comissão, etc)
+      if (tipoData.content_type) {
+        console.log('Tipo tem content_type (ID):', tipoData.content_type);
+        console.log('Metadata:', tipoData.metadata);
+        console.log('Mostrando campos_autor_related, ocultando campos_autor_generico');
+        $('#campos_autor_related').removeClass('d-none');
+        $('#campos_autor_generico').addClass('d-none'); // Garantir que está oculto
+
+        // Verificar se tem metadata com content_type detalhado
+        if (tipoData.metadata && tipoData.metadata.content_type) {
+          console.log('Usando metadata.content_type');
+          let app = tipoData.metadata.content_type.app_label;
+          let model = tipoData.metadata.content_type.model;
+          carregarRegistrosRelacionados(app, model, tipoData.descricao);
+        } else {
+          // Tentar buscar via API
+          $.ajax({
+            url: `/api/contenttypes/contenttype/${tipoData.content_type}/`,
+            type: 'GET',
+            success: function(ctResponse) {
+              console.log('Content Type detalhado (via API):', ctResponse);
+              let app = ctResponse.app_label;
+              let model = ctResponse.model;
+              carregarRegistrosRelacionados(app, model, tipoData.descricao);
+            },
+            error: function() {
+              $('#erro_modal_autor')
+                .removeClass('d-none')
+                .text('Erro ao obter informações do tipo de autor.');
+            }
+          });
+        }
+      } else {
+        // Tipo genérico (sem content_type)
+        console.log('Tipo genérico - mostrando campos_autor_generico, ocultando campos_autor_related');
+        $('#campos_autor_generico').removeClass('d-none');
+        $('#campos_autor_related').addClass('d-none'); // Garantir que está oculto
+        $('#campo_nome_manual').addClass('d-none');
+
+        // Carregar usuários disponíveis
+        carregarUsuariosDisponiveis();
+      }
+    });
+
+    // Função para carregar registros relacionados
+    function carregarRegistrosRelacionados(app, model, tipoDescricao) {
+      $.ajax({
+        url: `/api/${app}/${model}/`,
+        type: 'GET',
+        data: { page_size: 1000 },
+        success: function(response) {
+          console.log('Registros carregados:', response.count);
+          let select = $('#autor_related_modal');
+          select.find('option:not(:first)').remove();
+
+          if (response.results.length === 0) {
+            $('#erro_modal_autor')
+              .removeClass('d-none')
+              .text(`Não há registros de "${tipoDescricao}" cadastrados. Cadastre primeiro um registro deste tipo.`);
+            return;
+          }
+
+          response.results.forEach(function(registro) {
+            // Determinar o texto a exibir
+            let texto = registro.nome || registro.nome_completo || registro.nome_parlamentar || registro.descricao || `ID: ${registro.id}`;
+
+            select.append($('<option>', {
+              value: registro.id,
+              text: texto
+            }));
+          });
+        },
+        error: function(xhr, status, error) {
+          console.error('Erro ao carregar registros:', error);
+          $('#erro_modal_autor')
+            .removeClass('d-none')
+            .text('Erro ao carregar registros disponíveis.');
+        }
+      });
+    }
+
+    // Função para carregar usuários disponíveis
+    function carregarUsuariosDisponiveis() {
+        $.ajax({
+          url: '{% url "sapl.base:criar_autor_ajax" %}',
+          type: 'GET',
+          success: function(response) {
+            console.log('Usuários carregados:', response.count);
+            let select = $('#usuario_autor_modal');
+            select.find('option:not(:first)').remove();
+
+            // Adicionar usuários
+            response.results.forEach(function(usuario) {
+              select.append($('<option>', {
+                value: usuario.id,
+                text: `${usuario.nome_completo} (${usuario.username})`,
+                'data-nome': usuario.nome_completo,
+                'data-username': usuario.username
+              }));
+            });
+
+            // Adicionar opção para digitar manualmente
+            select.append($('<option>', {
+              value: 'manual',
+              text: '──────────────────────'
+            }));
+            select.append($('<option>', {
+              value: 'manual',
+              text: '✍ Digitar manualmente...'
+            }));
+          },
+          error: function(xhr, status, error) {
+            console.error('Erro ao carregar usuários:', error);
+            $('#erro_modal_autor')
+              .removeClass('d-none')
+              .text('Erro ao carregar lista de usuários.');
+          }
+        });
+    }
+
+    // Ao selecionar usuário, mostrar/ocultar campo manual
+    $(document).on('change', '#usuario_autor_modal', function() {
+      let valor = $(this).val();
+
+      if (valor === 'manual') {
+        // Mostrar campo de texto manual
+        $('#campo_nome_manual').removeClass('d-none');
+        $('#nome_autor_modal').val('').focus();
+      } else {
+        // Ocultar campo manual
+        $('#campo_nome_manual').addClass('d-none');
+        $('#nome_autor_modal').val('');
+      }
+    });
+
+    // Salvar autor
+    $(document).on('click', '#btnSalvarAutor', function(e) {
+      e.preventDefault();
+      console.log('Salvando novo autor...');
+
+      let tipoAutor = $('#tipo_autor_modal').val();
+      let tipoData = tiposAutorData[tipoAutor];
+
+      if (!tipoAutor) {
+        $('#erro_modal_autor')
+          .removeClass('d-none')
+          .text('Por favor, selecione o Tipo de Autor.');
+        return;
+      }
+
+      let data = {
+        tipo_autor: tipoAutor
+      };
+
+      // Validar campos conforme o tipo
+      if (tipoData.content_type) {
+        // Tem content_type
+        let autorRelated = $('#autor_related_modal').val();
+        if (!autorRelated) {
+          $('#erro_modal_autor')
+            .removeClass('d-none')
+            .text('Por favor, selecione um registro.');
+          return;
+        }
+        data.autor_related = autorRelated;
+      } else {
+        // Genérico - verificar se selecionou usuário ou digitou manualmente
+        let usuarioSelecionado = $('#usuario_autor_modal').val();
+        let nome = '';
+
+        if (!usuarioSelecionado) {
+          $('#erro_modal_autor')
+            .removeClass('d-none')
+            .text('Por favor, selecione um usuário ou escolha "Digitar manualmente".');
+          return;
+        }
+
+        if (usuarioSelecionado === 'manual') {
+          // Usuario escolheu digitar manualmente
+          nome = $('#nome_autor_modal').val().trim();
+          if (!nome) {
+            $('#erro_modal_autor')
+              .removeClass('d-none')
+              .text('Por favor, preencha o Nome do Autor.');
+            return;
+          }
+        } else {
+          // Usuário selecionou um usuário do sistema
+          let optionSelecionada = $('#usuario_autor_modal option:selected');
+          nome = optionSelecionada.data('nome');
+
+          if (!nome) {
+            nome = optionSelecionada.data('username');
+          }
+        }
+
+        data.nome = nome;
+        data.cargo = $('#cargo_autor_modal').val().trim();
+      }
+
+      // Desabilitar botão
+      let btnSalvar = $(this);
+      btnSalvar.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Salvando...');
+
+      // Enviar requisição
+      $.ajax({
+        url: '{% url "sapl.base:criar_autor_ajax" %}',
+        type: 'POST',
+        headers: { "X-CSRFToken": $crf_token },
+        data: data,
+        success: function(response) {
+          console.log('Autor criado com sucesso:', response);
+
+          // Adicionar ao select principal
+          let autorSelect = $('#id_autor');
+          autorSelect.append($('<option>', {
+            value: response.autor.id,
+            text: response.autor.nome
+          }));
+
+          autorSelect.val(response.autor.id).trigger('change');
+
+          $('#modalCadastrarAutor').modal('hide');
+
+          // Mostrar mensagem
+          alert('Autor "' + response.autor.nome + '" cadastrado com sucesso!');
+        },
+        error: function(xhr, status, error) {
+          console.error('Erro ao criar autor:', xhr.responseJSON);
+
+          let errorMsg = 'Erro ao criar autor. Tente novamente.';
+          if (xhr.responseJSON && xhr.responseJSON.error) {
+            errorMsg = xhr.responseJSON.error;
+          }
+
+          $('#erro_modal_autor')
+            .removeClass('d-none')
+            .text(errorMsg);
+        },
+        complete: function() {
+          btnSalvar.prop('disabled', false).html('<i class="fas fa-save"></i> Salvar Autor');
+        }
+      });
+    });
+
+    console.log('Script de cadastro de autor via modal carregado');
   });
 </script>
 

@@ -13,6 +13,13 @@
           $("#div_id_texto_original").addClass('hidden');
       });
 
+      // Adicionar botão ao lado do select de tipo
+      var $tipoSelect = $("select[name=tipo]");
+      if ($tipoSelect.length > 0) {
+        var $btnNovoTipo = $('<a href="/sistema/proposicao/tipo/create" class="btn btn-sm btn-success" style="margin-left: 10px;" title="Cadastrar novo tipo de proposição" target="_blank"><i class="fa fa-plus"></i> Novo Tipo</a>');
+        $tipoSelect.parent().append($btnNovoTipo);
+      }
+
       $("select[name=tipo]").change(function(event) {
 
         if (this.selectedOptions[0].getAttribute('data-has-perfil') === "True") {
@@ -27,7 +34,7 @@
         }
         if ($("input[name=tipo_texto]:checked").length == 0) {
           $("input[name=tipo_texto]").first().prop('checked', true);
-          $("input[name=tipo_texto]").first().closest('label').addClass('checked');          
+          $("input[name=tipo_texto]").first().closest('label').addClass('checked');
         }
 
       });

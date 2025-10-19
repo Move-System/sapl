@@ -8,7 +8,7 @@ from django.views.generic.base import RedirectView, TemplateView
 from sapl.base.views import (AutorCrud, ConfirmarEmailView, TipoAutorCrud, get_estatistica,
                              RecuperarSenhaEmailView, RecuperarSenhaFinalizadoView,
                              RecuperarSenhaConfirmaView, RecuperarSenhaCompletoView, IndexView, UserCrud,
-                             GuiaProjetoView, FluxoProposicoesView)
+                             GuiaProjetoView, FluxoProposicoesView, CriarAutorAjaxView)
 from sapl.settings import MEDIA_URL, LOGOUT_REDIRECT_URL
 from .apps import AppConfig
 from .views import (LoginSapl, AlterarSenha, AppConfigCrud, CasaLegislativaCrud,
@@ -50,6 +50,7 @@ urlpatterns = [
     url(r'^$', IndexView.as_view(template_name='index.html'), name='sapl_index'),
 
     url(r'^sistema/autor/tipo/', include(TipoAutorCrud.get_urls())),
+    url(r'^sistema/autor/criar-ajax/$', CriarAutorAjaxView.as_view(), name='criar_autor_ajax'),
     url(r'^sistema/autor/', include(AutorCrud.get_urls())),
 
     url(r'^sistema/guia-projeto/$', GuiaProjetoView.as_view(),

@@ -1,39 +1,562 @@
 {% extends "crud/form.html" %}
 {% load i18n %}
 
+{% block extra_css %}
+<style>
+  .legend-with-help {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .help-icon {
+    cursor: pointer;
+    color: #17a2b8;
+    font-size: 18px;
+    transition: all 0.3s;
+  }
+
+  .help-icon:hover {
+    color: #138496;
+    transform: scale(1.1);
+  }
+
+  .modal-header-help {
+    background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+    color: white;
+    border-radius: 5px 5px 0 0;
+  }
+
+  .help-section {
+    margin-bottom: 25px;
+    padding: 20px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    border-left: 4px solid #17a2b8;
+  }
+
+  .help-section h5 {
+    color: #17a2b8;
+    font-weight: bold;
+    margin-bottom: 15px;
+    font-size: 16px;
+  }
+
+  .help-section p {
+    color: #495057;
+    line-height: 1.6;
+    margin-bottom: 10px;
+  }
+
+  .help-example {
+    background: white;
+    padding: 12px 15px;
+    border-radius: 5px;
+    border: 1px solid #dee2e6;
+    margin-top: 10px;
+    font-family: monospace;
+    color: #495057;
+  }
+
+  .help-step {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding: 10px;
+    background: white;
+    border-radius: 5px;
+  }
+
+  .help-step-number {
+    background: #17a2b8;
+    color: white;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    margin-right: 15px;
+    flex-shrink: 0;
+  }
+
+  .help-step-content {
+    flex: 1;
+  }
+
+  .help-warning {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    border-radius: 5px;
+    margin-top: 15px;
+  }
+
+  .help-warning strong {
+    color: #856404;
+  }
+
+  .help-info {
+    background: #d1ecf1;
+    border-left: 4px solid #17a2b8;
+    padding: 15px;
+    border-radius: 5px;
+    margin-top: 15px;
+  }
+
+  .help-info strong {
+    color: #0c5460;
+  }
+
+  .label-with-shortcut {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-create-type {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 5px;
+    text-decoration: none;
+    background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+    color: white;
+    border: none;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-create-type::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: left 0.5s;
+  }
+
+  .btn-create-type:hover::before {
+    left: 100%;
+  }
+
+  .btn-create-type:hover {
+    background: linear-gradient(135deg, #218838 0%, #1aa179 100%);
+    color: white;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(40, 167, 69, 0.4);
+  }
+
+  .btn-create-type:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.3);
+  }
+
+  .btn-create-type i {
+    font-size: 12px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.1);
+    }
+  }
+
+  .btn-create-type:hover i {
+    animation: spin 0.5s ease;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(180deg);
+    }
+  }
+
+  #btn-create-type-shortcut {
+    display: none;
+  }
+
+  /* Badge de "Novo" animado */
+  .btn-create-type .new-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #dc3545;
+    color: white;
+    font-size: 8px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-weight: bold;
+    animation: bounce 1s infinite;
+  }
+
+  @keyframes bounce {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-3px);
+    }
+  }
+</style>
+{% endblock %}
+
 {% block extra_js %}
 
 <!-- HACK: incluir uma div modal em um form de uma tela CRUD automática -->
 <div id="dialog" title="Dados ausentes" style="display: none">
-  <p>Não existem tipos vinculados para a definição de tipos informada.
-      <strong>Isto não permitirá salvar registros nessa tela.</strong></br>
-      Acesse a tela Parâmetros presente no submenu Sistema.
-      Em seguida procure a seção entitulada "Matérias Legislativas".
-      Nesta seção terão dois links: TIPO DE MATÉRIA LEGISLATIVA e TIPO DE DOCUMENTO.
-      Cadastre os tipos antes de retornar a esta tela.
+  <div style="margin-bottom: 15px;">
+    <i class="fas fa-exclamation-triangle" style="color: #f39c12; font-size: 24px; margin-right: 10px;"></i>
+    <strong style="font-size: 16px;">Nenhum tipo cadastrado!</strong>
+  </div>
+  <p style="margin-bottom: 20px;">
+    Não existem tipos vinculados para a definição selecionada.
+    <strong>Isto não permitirá salvar registros nessa tela.</strong>
+  </p>
+  <p style="margin-bottom: 15px;">
+    Para continuar, você precisa cadastrar pelo menos um tipo. Use os atalhos abaixo:
+  </p>
+  <div id="dialog-links" style="margin-top: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px; border-left: 4px solid #007bff;">
+    <!-- Links serão inseridos dinamicamente aqui -->
+  </div>
+  <p style="margin-top: 15px; font-size: 12px; color: #6c757d;">
+    <i class="fas fa-info-circle"></i> Após cadastrar os tipos necessários, volte a esta página e recarregue para vê-los disponíveis.
   </p>
 </div>
 
 <script type="text/javascript">
 
 $(document).ready(function(){
+  // Adicionar ícone de ajuda ao lado do legend
+  const legend = $('legend:contains("Tipo de Proposição"), legend:contains("Tipo Proposição")');
+  if (legend.length > 0) {
+    legend.html(`
+      <div class="legend-with-help">
+        <span>${legend.text()}</span>
+        <i class="fas fa-question-circle help-icon" id="help-icon-proposicao" title="Como preencher esta tela"></i>
+      </div>
+    `);
+  }
+
+  // Criar modal de ajuda
+  const modalHelpHtml = `
+    <div class="modal fade" id="modal-help-proposicao" tabindex="-1" role="dialog">
+      <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+          <div class="modal-header modal-header-help">
+            <h4 class="modal-title">
+              <i class="fas fa-info-circle"></i> Como Cadastrar um Tipo de Proposição
+            </h4>
+            <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fechar">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body" style="max-height: 500px; overflow-y: auto;">
+
+            <div class="help-info">
+              <strong><i class="fas fa-lightbulb"></i> O que é um Tipo de Proposição?</strong>
+              <p style="margin-top: 10px; margin-bottom: 0;">
+                Um Tipo de Proposição define como os autores (parlamentares, comissões, etc.) podem criar propostas
+                que serão transformadas em Matérias Legislativas ou Documentos.
+              </p>
+            </div>
+
+            <div class="help-section" style="margin-top: 25px;">
+              <h5><i class="fas fa-list-ol"></i> Passo a Passo para Cadastrar</h5>
+
+              <div class="help-step">
+                <div class="help-step-number">1</div>
+                <div class="help-step-content">
+                  <strong>Descrição</strong>
+                  <p>Informe um nome claro e descritivo para o tipo de proposição.</p>
+                  <div class="help-example">
+                    <strong>Exemplos:</strong><br>
+                    • Projeto de Lei<br>
+                    • Emenda ao Projeto<br>
+                    • Requerimento de Informação<br>
+                    • Indicação
+                  </div>
+                </div>
+              </div>
+
+              <div class="help-step">
+                <div class="help-step-number">2</div>
+                <div class="help-step-content">
+                  <strong>Tipo de Conteúdo</strong>
+                  <p>Selecione o tipo de objeto que será criado quando a proposição for incorporada:</p>
+                  <div class="help-example">
+                    <strong>• Tipo de Matéria Legislativa:</strong> Para proposições que virarão matérias (PLs, PECs, etc.)<br>
+                    <strong>• Tipo de Documento:</strong> Para documentos anexos ou complementares
+                  </div>
+                </div>
+              </div>
+
+              <div class="help-step">
+                <div class="help-step-number">3</div>
+                <div class="help-step-content">
+                  <strong>Seleção de Tipo</strong>
+                  <p>Após selecionar o "Tipo de Conteúdo", escolha qual tipo específico será usado.</p>
+                  <div class="help-example">
+                    Se escolheu "Tipo de Matéria Legislativa", selecione qual tipo (ex: Projeto de Lei, Resolução, etc.)
+                  </div>
+                  <div class="help-warning">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Atenção:</strong> Se não aparecer nenhuma opção, você precisa cadastrar primeiro
+                    os tipos correspondentes. O sistema mostrará um aviso com links diretos para cadastro.
+                  </div>
+                </div>
+              </div>
+
+              <div class="help-step">
+                <div class="help-step-number">4</div>
+                <div class="help-step-content">
+                  <strong>Perfis (Opcional)</strong>
+                  <p>Selecione quais perfis de autores podem criar proposições deste tipo.</p>
+                  <div class="help-example">
+                    <strong>Exemplo:</strong> Se marcar "Parlamentar", apenas parlamentares poderão criar
+                    proposições deste tipo. Se não marcar nada, todos os perfis poderão usar.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="help-section">
+              <h5><i class="fas fa-lightbulb"></i> Exemplo Prático</h5>
+              <p><strong>Cenário:</strong> Você quer permitir que parlamentares criem Projetos de Lei</p>
+
+              <div style="background: white; padding: 15px; border-radius: 5px; border: 1px solid #dee2e6; margin-top: 10px;">
+                <strong>1. Descrição:</strong> Projeto de Lei<br>
+                <strong>2. Tipo de Conteúdo:</strong> Tipo de Matéria Legislativa<br>
+                <strong>3. Seleção de Tipo:</strong> Projeto de Lei (da lista)<br>
+                <strong>4. Perfis:</strong> ☑ Parlamentar
+              </div>
+
+              <div class="help-info" style="margin-top: 15px;">
+                <i class="fas fa-check-circle"></i>
+                <strong>Resultado:</strong> Parlamentares poderão criar proposições do tipo "Projeto de Lei"
+                que, ao serem incorporadas, virarão Matérias Legislativas do tipo "Projeto de Lei".
+              </div>
+            </div>
+
+            <div class="help-warning">
+              <i class="fas fa-info-circle"></i>
+              <strong>Dica:</strong> O fluxo completo é: Autor cria Proposição → Proposição é recebida →
+              Proposição é incorporada → Vira Matéria Legislativa ou Documento
+            </div>
+
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-dismiss="modal">
+              <i class="fas fa-times"></i> Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Adicionar modal ao body
+  $('body').append(modalHelpHtml);
+
+  // Evento para abrir o modal de ajuda
+  $(document).on('click', '#help-icon-proposicao', function() {
+    $('#modal-help-proposicao').modal('show');
+  });
+
+  // Adicionar botão de atalho ao lado do label "Seleção de Tipo"
+  // Tentar múltiplos seletores para encontrar o label correto
+  let labelSelecaoTipo = $('label:contains("Seleção de Tipo")').filter(function() {
+    return $(this).text().trim() === 'Seleção de Tipo';
+  }).first();
+
+  // Se não encontrar, tentar pelo ID do campo
+  if (labelSelecaoTipo.length === 0) {
+    labelSelecaoTipo = $('label[for^="id_tipo_conteudo_related"]').first();
+  }
+
+  // Se não encontrar, tentar pelo container do campo de radio
+  if (labelSelecaoTipo.length === 0) {
+    const radioContainer = $('#div_id_tipo_conteudo_related_radio');
+    if (radioContainer.length > 0) {
+      labelSelecaoTipo = radioContainer.find('label').first();
+    }
+  }
+
+  // Se ainda não encontrou, procurar pelo div que contém o campo
+  if (labelSelecaoTipo.length === 0) {
+    const divContainer = $('div[id*="tipo_conteudo_related"]').find('label').first();
+    if (divContainer.length > 0) {
+      labelSelecaoTipo = divContainer;
+    }
+  }
+
+  console.log('Label encontrado:', labelSelecaoTipo.length > 0 ? 'Sim' : 'Não', labelSelecaoTipo.text());
+
+  if (labelSelecaoTipo.length > 0 && !labelSelecaoTipo.parent().hasClass('label-with-shortcut')) {
+    labelSelecaoTipo.wrap('<div class="label-with-shortcut"></div>');
+    labelSelecaoTipo.after(`
+      <a href="#" id="btn-create-type-shortcut" class="btn-create-type" target="_blank" title="Criar novo tipo em uma nova aba">
+        <i class="fas fa-plus-circle"></i>
+        <span id="btn-create-type-text">Criar Tipo</span>
+      </a>
+    `);
+    console.log('Botão de atalho adicionado com sucesso');
+  } else {
+    console.log('Não foi possível adicionar o botão - label não encontrado ou já existe');
+
+    // Fallback: adicionar após o container do select de content_type
+    setTimeout(function() {
+      const contentTypeContainer = $('#div_id_content_type');
+      if (contentTypeContainer.length > 0 && $('#btn-create-type-shortcut').length === 0) {
+        const radioDiv = $('#div_id_tipo_conteudo_related_radio');
+        if (radioDiv.length > 0) {
+          const existingLabel = radioDiv.find('label').first();
+          if (existingLabel.length > 0 && !existingLabel.parent().hasClass('label-with-shortcut')) {
+            existingLabel.wrap('<div class="label-with-shortcut"></div>');
+            existingLabel.after(`
+              <a href="#" id="btn-create-type-shortcut" class="btn-create-type" target="_blank" title="Criar novo tipo em uma nova aba">
+                <i class="fas fa-plus-circle"></i>
+                <span id="btn-create-type-text">Criar Tipo</span>
+              </a>
+            `);
+            console.log('Botão adicionado via fallback');
+          }
+        }
+      }
+    }, 500);
+  }
+
+  // Adicionar evento de clique no botão para mostrar notificação
+  $(document).on('click', '#btn-create-type-shortcut', function(e) {
+    const tipoCriando = $('#btn-create-type-text').text();
+
+    // Mostrar toast de confirmação
+    const toast = $(`
+      <div class="alert alert-info alert-dismissible fade show"
+           style="position: fixed; top: 80px; right: 20px; z-index: 9999; min-width: 320px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+        <button type="button" class="close" data-dismiss="alert" aria-label="Fechar">
+          <span aria-hidden="true">&times;</span>
+        </button>
+        <strong><i class="fas fa-external-link-alt"></i> Abrindo nova aba...</strong><br>
+        <small>Criando: ${tipoCriando}</small><br>
+        <small class="text-muted">💡 Após criar o tipo, volte a esta página e atualize a lista.</small>
+      </div>
+    `);
+
+    $('body').append(toast);
+    setTimeout(function() {
+      toast.fadeOut(function() { $(this).remove(); });
+    }, 5000);
+  });
+
+  // Função para atualizar o botão de atalho
+  function updateCreateTypeButton(contentType) {
+    const typeLinks = {
+      'materia/tipomaterialegislativa': {
+        url: '/sistema/materia/tipo/create',
+        label: 'Criar Tipo de Matéria',
+        icon: 'fa-file-alt',
+        tooltip: 'Abrir tela de criação de Tipo de Matéria Legislativa em nova aba'
+      },
+      'materia/tipodocumento': {
+        url: '/sistema/materia/tipo-documento/create',
+        label: 'Criar Tipo de Documento',
+        icon: 'fa-file',
+        tooltip: 'Abrir tela de criação de Tipo de Documento em nova aba'
+      }
+    };
+
+    if (contentType && typeLinks[contentType]) {
+      const link = typeLinks[contentType];
+      $('#btn-create-type-shortcut')
+        .attr('href', link.url)
+        .attr('title', link.tooltip)
+        .fadeIn(300);
+      $('#btn-create-type-text').text(link.label);
+      $('#btn-create-type-shortcut i').attr('class', `fas ${link.icon}`);
+    } else {
+      $('#btn-create-type-shortcut').fadeOut(200);
+    }
+  }
+
   var initial_select = parseInt($("input[name=tipo_conteudo_related]").val());
   $("input[name=tipo_conteudo_related]").remove();
   $('#id_content_type').change(function(event) {
     const url_part_pattern = this[event.target.selectedIndex].value
     const url = `/api/${url_part_pattern}/?o=id&page=1&page_size=100`
 
+    // Atualizar botão de atalho
+    updateCreateTypeButton(url_part_pattern);
+
     const rad_tip_conteudo = $("#div_id_tipo_conteudo_related_radio > div").html('');
     const popule_rad_tip_conteudo = function(url_get) {
       $.get(url_get).done(function(response) {
         if (response.pagination.total_entries === 0) {
+          // Detectar o tipo selecionado e criar links apropriados
+          const contentType = url_part_pattern;
+          let dialogLinksHtml = '';
+
+          // Mapeamento de content types para URLs de criação
+          const typeLinks = {
+            'materia/tipomaterialegislativa': {
+              url: '/sistema/materia/tipo/create',
+              label: 'Criar Tipo de Matéria Legislativa',
+              icon: 'fa-file-alt'
+            },
+            'materia/tipodocumento': {
+              url: '/sistema/materia/tipo-documento/create',
+              label: 'Criar Tipo de Documento',
+              icon: 'fa-file'
+            }
+          };
+
+          if (typeLinks[contentType]) {
+            const link = typeLinks[contentType];
+            dialogLinksHtml = `
+              <div style="text-align: center;">
+                <a href="${link.url}" target="_blank" class="btn btn-primary" style="padding: 10px 20px; text-decoration: none; display: inline-block;">
+                  <i class="fas ${link.icon}" style="margin-right: 8px;"></i>
+                  ${link.label}
+                </a>
+              </div>
+              <p style="margin-top: 10px; text-align: center; font-size: 13px; color: #495057;">
+                <i class="fas fa-external-link-alt"></i> O link será aberto em uma nova aba
+              </p>
+            `;
+          } else {
+            dialogLinksHtml = `
+              <p style="text-align: center; color: #6c757d;">
+                <i class="fas fa-cog"></i> Acesse a tela de <strong>Parâmetros</strong> no menu <strong>Sistema</strong> para cadastrar os tipos necessários.
+              </p>
+            `;
+          }
+
+          $('#dialog-links').html(dialogLinksHtml);
+
           $( "#dialog" ).dialog({
               resizable: false,
               height: "auto",
-              width: 400,
+              width: 550,
               modal: true,
               buttons: {
-                  OK: function() {
+                  "Fechar": function() {
                       $( this ).dialog( "close" );
                   }
               }
@@ -58,10 +581,98 @@ $(document).ready(function(){
           })
           if(response.pagination.links.next !== null )
             popule_rad_tip_conteudo(response.pagination.links.next)
+          else {
+            // Após popular todos os radio buttons, adicionar o botão se ainda não existir
+            setTimeout(function() {
+              if ($('#btn-create-type-shortcut').length === 0) {
+                const $radioFieldDiv = $('#div_id_tipo_conteudo_related_radio');
+                let $targetLabel = $radioFieldDiv.find('label.col-form-label').first();
+
+                if ($targetLabel.length === 0) {
+                  $targetLabel = $radioFieldDiv.find('label').first();
+                }
+
+                if ($targetLabel.length > 0 && !$targetLabel.parent().hasClass('label-with-shortcut')) {
+                  $targetLabel.wrap('<div class="label-with-shortcut"></div>');
+                  $targetLabel.after(`
+                    <a href="#" id="btn-create-type-shortcut" class="btn-create-type" target="_blank" title="Criar novo tipo em uma nova aba">
+                      <i class="fas fa-plus-circle"></i>
+                      <span id="btn-create-type-text">Criar Tipo</span>
+                    </a>
+                  `);
+                  console.log('✓ Botão adicionado após popular radio buttons');
+
+                  // Atualizar o botão com o tipo atual
+                  const currentType = $('#id_content_type').val();
+                  if (currentType) {
+                    updateCreateTypeButton(currentType);
+                  }
+                }
+              }
+            }, 200);
+          }
       })
     }
     popule_rad_tip_conteudo(url)
   })
+
+  // Inicializar o botão de atalho com o valor inicial
+  const initialContentType = $('#id_content_type').val();
+  if (initialContentType) {
+    updateCreateTypeButton(initialContentType);
+  }
+
+  // Garantir que o botão seja adicionado após o DOM estar completamente carregado
+  setTimeout(function() {
+    if ($('#btn-create-type-shortcut').length === 0) {
+      console.log('Tentando adicionar botão via método alternativo...');
+
+      // Procurar pelo div do campo tipo_conteudo_related_radio
+      const $radioFieldDiv = $('#div_id_tipo_conteudo_related_radio');
+
+      if ($radioFieldDiv.length > 0) {
+        console.log('Div do campo encontrado');
+
+        // Procurar pelo label dentro deste div
+        let $targetLabel = $radioFieldDiv.find('label.col-form-label').first();
+
+        if ($targetLabel.length === 0) {
+          $targetLabel = $radioFieldDiv.find('label').first();
+        }
+
+        console.log('Label dentro do div:', $targetLabel.length > 0 ? 'encontrado' : 'não encontrado');
+        console.log('Texto do label:', $targetLabel.text());
+
+        if ($targetLabel.length > 0) {
+          // Verificar se já não foi aplicado
+          if (!$targetLabel.parent().hasClass('label-with-shortcut')) {
+            $targetLabel.wrap('<div class="label-with-shortcut"></div>');
+            $targetLabel.after(`
+              <a href="#" id="btn-create-type-shortcut" class="btn-create-type" target="_blank" title="Criar novo tipo em uma nova aba">
+                <i class="fas fa-plus-circle"></i>
+                <span id="btn-create-type-text">Criar Tipo</span>
+              </a>
+            `);
+            console.log('✓ Botão de atalho adicionado com sucesso (método alternativo)!');
+
+            // Atualizar o botão com o tipo atual
+            const currentType = $('#id_content_type').val();
+            if (currentType) {
+              updateCreateTypeButton(currentType);
+            }
+          }
+        } else {
+          console.log('⚠ Label não encontrado no div do campo');
+        }
+      } else {
+        console.log('⚠ Div do campo não encontrado');
+        console.log('Divs disponíveis com "tipo_conteudo":', $('div[id*="tipo_conteudo"]').length);
+      }
+    } else {
+      console.log('✓ Botão já foi adicionado anteriormente');
+    }
+  }, 1000);
+
   $('#id_content_type').trigger('change')
 })
 </script>

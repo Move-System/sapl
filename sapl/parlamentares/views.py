@@ -3,6 +3,7 @@ import json
 import logging
 
 from django.contrib import messages
+from django.contrib.auth.decorators import permission_required
 from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.models import ContentType
@@ -1468,6 +1469,163 @@ class VincularParlamentarView(PermissionRequiredMixin, FormView):
         mandato.save()
 
         return HttpResponseRedirect(self.get_success_url())
+
+
+@permission_required('parlamentares.add_parlamentar')
+def criar_parlamentar_ajax(request):
+    """View AJAX para criar parlamentar via modal"""
+    if request.method == 'POST':
+        try:
+            nome_completo = request.POST.get('nome_completo', '').strip()
+            nome_parlamentar = request.POST.get('nome_parlamentar', '').strip()
+            sexo = request.POST.get('sexo', '').strip()
+
+            # Validações básicas dos campos obrigatórios
+            if not nome_completo or not nome_parlamentar or not sexo:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Nome Completo, Nome Parlamentar e Sexo são obrigatórios.'
+                })
+
+            if sexo not in ['F', 'M']:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Sexo inválido. Use F (Feminino) ou M (Masculino).'
+                })
+
+            # Campos opcionais
+            cpf = request.POST.get('cpf', '').strip()
+            rg = request.POST.get('rg', '').strip()
+            data_nascimento = request.POST.get('data_nascimento', '').strip()
+            email = request.POST.get('email', '').strip()
+            telefone = request.POST.get('telefone', '').strip()
+            telefone_celular = request.POST.get('telefone_celular', '').strip()
+
+            # Processar data de nascimento se fornecida
+            data_nascimento_obj = None
+            if data_nascimento:
+                try:
+                    data_nascimento_obj = datetime.strptime(data_nascimento, '%d/%m/%Y').date()
+                except ValueError:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Formato de data de nascimento inválido. Use DD/MM/AAAA.'
+                    })
+
+            # Criar parlamentar com todos os campos
+            parlamentar = Parlamentar.objects.create(
+                nome_completo=nome_completo,
+                nome_parlamentar=nome_parlamentar,
+                sexo=sexo,
+                cpf=cpf,
+                rg=rg,
+                data_nascimento=data_nascimento_obj,
+                email=email,
+                telefone=telefone,
+                telefone_celular=telefone_celular,
+                ativo=True  # Por padrão, marcar como ativo
+            )
+
+            return JsonResponse({
+                'success': True,
+                'parlamentar': {
+                    'id': parlamentar.id,
+                    'nome': str(parlamentar)
+                }
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Erro ao criar parlamentar: {str(e)}'
+            })
+
+    return JsonResponse({'success': False, 'error': 'Método não permitido'})
+
+
+@permission_required('parlamentares.add_parlamentar')
+def criar_legislatura_ajax(request):
+    """View AJAX para criar legislatura via modal"""
+    if request.method == 'POST':
+        try:
+            numero = request.POST.get('numero', '').strip()
+            data_inicio = request.POST.get('data_inicio', '').strip()
+            data_fim = request.POST.get('data_fim', '').strip()
+            data_eleicao = request.POST.get('data_eleicao', '').strip()
+
+            # Validações básicas
+            if not numero or not data_inicio or not data_fim or not data_eleicao:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Todos os campos são obrigatórios.'
+                })
+
+            try:
+                numero = int(numero)
+                if numero <= 0:
+                    raise ValueError
+            except ValueError:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Número deve ser um valor inteiro positivo.'
+                })
+
+            # Converter datas do formato brasileiro (DD/MM/YYYY) para YYYY-MM-DD
+            from datetime import datetime
+
+            try:
+                data_inicio_obj = datetime.strptime(data_inicio, '%d/%m/%Y').date()
+                data_fim_obj = datetime.strptime(data_fim, '%d/%m/%Y').date()
+                data_eleicao_obj = datetime.strptime(data_eleicao, '%d/%m/%Y').date()
+            except ValueError:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Formato de data inválido. Use DD/MM/YYYY.'
+                })
+
+            # Validar ordem das datas
+            if data_inicio_obj >= data_fim_obj:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Data de Início deve ser anterior à Data Fim.'
+                })
+
+            if data_eleicao_obj >= data_inicio_obj:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Data de Eleição deve ser anterior à Data de Início.'
+                })
+
+            # Verificar se já existe legislatura com esse número
+            if Legislatura.objects.filter(numero=numero).exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Já existe uma legislatura com o número {numero}.'
+                })
+
+            # Criar legislatura
+            legislatura = Legislatura.objects.create(
+                numero=numero,
+                data_inicio=data_inicio_obj,
+                data_fim=data_fim_obj,
+                data_eleicao=data_eleicao_obj
+            )
+
+            return JsonResponse({
+                'success': True,
+                'legislatura': {
+                    'id': legislatura.id,
+                    'nome': str(legislatura)
+                }
+            })
+
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': f'Erro ao criar legislatura: {str(e)}'
+            })
+
+    return JsonResponse({'success': False, 'error': 'Método não permitido'})
 
 
 class BlocoCrud(CrudAux):

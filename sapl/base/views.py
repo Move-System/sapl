@@ -1587,3 +1587,154 @@ def pesquisa_textual(request):
         json_dict['resultados'].append(sec_dict)
 
     return JsonResponse(json_dict)
+
+
+@method_decorator(ratelimit(key=ratelimit_ip,
+                            rate=RATE_LIMITER_RATE,
+                            method='POST',
+                            block=True), name='dispatch')
+class CriarAutorAjaxView(PermissionRequiredMixin, FormView):
+    """
+    View AJAX para criar Autor rapidamente na tela de edição de usuário.
+    Suporta tanto autores com content_type (Parlamentar, Comissão, etc)
+    quanto autores genéricos (nome e cargo).
+    """
+    permission_required = ('base.add_autor',)
+    logger = logging.getLogger(__name__)
+
+    def get(self, request, *args, **kwargs):
+        """
+        Retorna lista de usuários ativos para seleção no modal.
+        """
+        User = get_user_model()
+
+        usuarios = User.objects.filter(is_active=True).order_by('first_name', 'username')
+
+        usuarios_data = []
+        for user in usuarios:
+            nome_completo = f"{user.first_name} {user.last_name}".strip() if user.first_name else user.username
+            usuarios_data.append({
+                'id': user.id,
+                'username': user.username,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'nome_completo': nome_completo
+            })
+
+        return JsonResponse({
+            'success': True,
+            'count': len(usuarios_data),
+            'results': usuarios_data
+        })
+
+    def post(self, request, *args, **kwargs):
+        from django.contrib.contenttypes.models import ContentType
+
+        try:
+            tipo_autor_id = request.POST.get('tipo_autor')
+            autor_related_id = request.POST.get('autor_related')
+            nome = request.POST.get('nome', '').strip()
+            cargo = request.POST.get('cargo', '').strip()
+
+            if not tipo_autor_id:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Tipo de Autor é obrigatório.'
+                }, status=400)
+
+            # Buscar TipoAutor
+            try:
+                tipo_autor = TipoAutor.objects.get(pk=tipo_autor_id)
+            except TipoAutor.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Tipo de Autor não encontrado.'
+                }, status=404)
+
+            # Verificar se tipo tem content_type
+            if tipo_autor.content_type:
+                # Tipo com content_type (Parlamentar, Comissão, etc)
+                if not autor_related_id:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Selecione um registro de {tipo_autor.descricao}.'
+                    }, status=400)
+
+                # Buscar o registro relacionado
+                model_class = tipo_autor.content_type.model_class()
+                try:
+                    related_obj = model_class.objects.get(pk=autor_related_id)
+                except model_class.DoesNotExist:
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Registro de {tipo_autor.descricao} não encontrado.'
+                    }, status=404)
+
+                # Verificar se já existe autor para este registro
+                if Autor.objects.filter(
+                    content_type=tipo_autor.content_type,
+                    object_id=autor_related_id
+                ).exists():
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Já existe um autor cadastrado para "{related_obj}".'
+                    }, status=400)
+
+                # Criar autor com content_type
+                autor = Autor.objects.create(
+                    tipo=tipo_autor,
+                    content_type=tipo_autor.content_type,
+                    object_id=autor_related_id,
+                    nome=str(related_obj)
+                )
+
+                self.logger.info(
+                    f"user={request.user.username}. Autor '{autor.nome}' criado "
+                    f"via AJAX vinculado a {tipo_autor.descricao} (ID: {autor.id})"
+                )
+
+            else:
+                # Tipo genérico (sem content_type)
+                if not nome:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Nome do Autor é obrigatório.'
+                    }, status=400)
+
+                # Verificar se já existe autor com este nome
+                if Autor.objects.filter(nome=nome).exists():
+                    return JsonResponse({
+                        'success': False,
+                        'error': f'Já existe um autor com o nome "{nome}".'
+                    }, status=400)
+
+                # Criar autor genérico
+                autor = Autor.objects.create(
+                    tipo=tipo_autor,
+                    nome=nome,
+                    cargo=cargo if cargo else ''
+                )
+
+                self.logger.info(
+                    f"user={request.user.username}. Autor genérico '{autor.nome}' "
+                    f"criado via AJAX (ID: {autor.id})"
+                )
+
+            return JsonResponse({
+                'success': True,
+                'autor': {
+                    'id': autor.id,
+                    'nome': autor.nome,
+                    'tipo': str(autor.tipo),
+                    'cargo': autor.cargo if autor.cargo else ''
+                }
+            })
+
+        except Exception as e:
+            self.logger.error(
+                f"user={request.user.username}. Erro ao criar autor via AJAX: {str(e)}"
+            )
+            return JsonResponse({
+                'success': False,
+                'error': f'Erro ao criar autor: {str(e)}'
+            }, status=500)

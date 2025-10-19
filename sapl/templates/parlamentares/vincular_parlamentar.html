@@ -3,6 +3,465 @@
 {% load crispy_forms_tags %}
 {% load common_tags %}
 
-{% block detail_content %}
- {% crispy form %}
-{% endblock detail_content %}
+{% block base_content %}
+  {% crispy form %}
+
+<!-- Modal para criar Parlamentar -->
+<div class="modal fade" id="modalCriarParlamentar" tabindex="-1" role="dialog" aria-labelledby="modalCriarParlamentarLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="modalCriarParlamentarLabel">
+          <i class="fas fa-user-plus"></i> Criar Novo Parlamentar
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fechar">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="formCriarParlamentar">
+          {% csrf_token %}
+          <div class="row">
+            <div class="col-md-8">
+              <div class="form-group">
+                <label for="parlamentar_nome_completo">Nome Completo <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="parlamentar_nome_completo" name="nome_completo" required>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="form-group">
+                <label for="parlamentar_sexo">Sexo <span class="text-danger">*</span></label>
+                <select class="form-control" id="parlamentar_sexo" name="sexo" required>
+                  <option value="">Selecione</option>
+                  <option value="F">Feminino</option>
+                  <option value="M">Masculino</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-12">
+              <div class="form-group">
+                <label for="parlamentar_nome_parlamentar">Nome Parlamentar <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="parlamentar_nome_parlamentar" name="nome_parlamentar" required>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="parlamentar_cpf">CPF</label>
+                <input type="text" class="form-control" id="parlamentar_cpf" name="cpf" placeholder="000.000.000-00">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="parlamentar_rg">RG</label>
+                <input type="text" class="form-control" id="parlamentar_rg" name="rg">
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-4">
+              <div class="form-group">
+                <label for="parlamentar_data_nascimento">Data de Nascimento</label>
+                <input type="text" class="form-control dateinput" id="parlamentar_data_nascimento" name="data_nascimento" placeholder="DD/MM/AAAA">
+              </div>
+            </div>
+            <div class="col-md-8">
+              <div class="form-group">
+                <label for="parlamentar_email">E-mail</label>
+                <input type="email" class="form-control" id="parlamentar_email" name="email" placeholder="parlamentar@exemplo.com">
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="parlamentar_telefone">Telefone</label>
+                <input type="text" class="form-control" id="parlamentar_telefone" name="telefone" placeholder="(00) 0000-0000">
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="parlamentar_telefone_celular">Telefone Celular</label>
+                <input type="text" class="form-control" id="parlamentar_telefone_celular" name="telefone_celular" placeholder="(00) 00000-0000">
+              </div>
+            </div>
+          </div>
+          <div id="parlamentar-error-message" class="alert alert-danger" style="display: none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSalvarParlamentar">
+          <i class="fas fa-save"></i> Salvar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal para criar Legislatura -->
+<div class="modal fade" id="modalCriarLegislatura" tabindex="-1" role="dialog" aria-labelledby="modalCriarLegislaturaLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="modalCriarLegislaturaLabel">
+          <i class="fas fa-calendar-plus"></i> Criar Nova Legislatura
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Fechar">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="formCriarLegislatura">
+          {% csrf_token %}
+          <div class="form-group">
+            <label for="legislatura_numero">Número <span class="text-danger">*</span></label>
+            <input type="number" class="form-control" id="legislatura_numero" name="numero" min="1" required>
+          </div>
+          <div class="form-group">
+            <label for="legislatura_data_eleicao">Data Eleição <span class="text-danger">*</span></label>
+            <input type="text" class="form-control dateinput" id="legislatura_data_eleicao" name="data_eleicao" placeholder="DD/MM/AAAA" required>
+          </div>
+          <div class="form-group">
+            <label for="legislatura_data_inicio">Data Início <span class="text-danger">*</span></label>
+            <input type="text" class="form-control dateinput" id="legislatura_data_inicio" name="data_inicio" placeholder="DD/MM/AAAA" required>
+          </div>
+          <div class="form-group">
+            <label for="legislatura_data_fim">Data Fim <span class="text-danger">*</span></label>
+            <input type="text" class="form-control dateinput" id="legislatura_data_fim" name="data_fim" placeholder="DD/MM/AAAA" required>
+          </div>
+          <div id="legislatura-error-message" class="alert alert-danger" style="display: none;"></div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnSalvarLegislatura">
+          <i class="fas fa-save"></i> Salvar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock base_content %}
+
+{% block extra_js %}
+<script type="text/javascript">
+$(document).ready(function() {
+
+    // Debug: Verificar bibliotecas disponíveis
+    console.log('jQuery disponível:', typeof $ !== 'undefined');
+    console.log('Bootstrap 5 disponível:', typeof bootstrap !== 'undefined');
+    console.log('Bootstrap 4 modal (jQuery):', typeof $.fn.modal !== 'undefined');
+
+    // Função para obter CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    const csrftoken = getCookie('csrftoken');
+
+    // Adicionar botões de atalho aos selects
+    function adicionarBotaoAtalho() {
+        // Botão para Parlamentar
+        const parlamentarWrapper = $('#div_id_parlamentar');
+        if (parlamentarWrapper.length && !$('#btnAbrirModalParlamentar').length) {
+            const btnParlamentar = $('<button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAbrirModalParlamentar"><i class="fas fa-plus"></i> Criar Novo Parlamentar</button>');
+            parlamentarWrapper.append(btnParlamentar);
+            console.log('Botão Parlamentar adicionado');
+        }
+
+        // Botão para Legislatura
+        const legislaturaWrapper = $('#div_id_legislatura');
+        if (legislaturaWrapper.length && !$('#btnAbrirModalLegislatura').length) {
+            const btnLegislatura = $('<button type="button" class="btn btn-sm btn-outline-primary mt-2" id="btnAbrirModalLegislatura"><i class="fas fa-plus"></i> Criar Nova Legislatura</button>');
+            legislaturaWrapper.append(btnLegislatura);
+            console.log('Botão Legislatura adicionado');
+        }
+    }
+
+    // Chamar função para adicionar botões após DOM estar pronto
+    setTimeout(adicionarBotaoAtalho, 100);
+
+    // Abrir modal de criar Parlamentar
+    $(document).on('click', '#btnAbrirModalParlamentar', function(e) {
+        e.preventDefault();
+        console.log('Abrindo modal Parlamentar');
+
+        // Limpar todos os campos
+        $('#parlamentar_nome_completo').val('');
+        $('#parlamentar_nome_parlamentar').val('');
+        $('#parlamentar_sexo').val('');
+        $('#parlamentar_cpf').val('');
+        $('#parlamentar_rg').val('');
+        $('#parlamentar_data_nascimento').val('');
+        $('#parlamentar_email').val('');
+        $('#parlamentar_telefone').val('');
+        $('#parlamentar_telefone_celular').val('');
+
+        $('#parlamentar-error-message').hide();
+
+        // Verificar se modal existe
+        const modal = $('#modalCriarParlamentar');
+        console.log('Modal Parlamentar encontrado:', modal.length > 0);
+
+        // Tentar abrir com Bootstrap 4/5
+        if (typeof bootstrap !== 'undefined') {
+            console.log('Usando Bootstrap 5');
+            const bsModal = new bootstrap.Modal(document.getElementById('modalCriarParlamentar'));
+            bsModal.show();
+        } else if ($.fn.modal) {
+            console.log('Usando Bootstrap 4 (jQuery)');
+            modal.modal('show');
+        } else {
+            console.error('Bootstrap modal não disponível');
+            // Fallback: mostrar modal manualmente
+            modal.addClass('show').css('display', 'block');
+            $('body').addClass('modal-open').append('<div class="modal-backdrop fade show"></div>');
+        }
+    });
+
+    // Abrir modal de criar Legislatura
+    $(document).on('click', '#btnAbrirModalLegislatura', function(e) {
+        e.preventDefault();
+        console.log('Abrindo modal Legislatura');
+
+        // Limpar campos
+        $('#legislatura_numero').val('');
+        $('#legislatura_data_eleicao').val('');
+        $('#legislatura_data_inicio').val('');
+        $('#legislatura_data_fim').val('');
+
+        $('#legislatura-error-message').hide();
+
+        // Verificar se modal existe
+        const modal = $('#modalCriarLegislatura');
+        console.log('Modal Legislatura encontrado:', modal.length > 0);
+
+        // Tentar abrir com Bootstrap 4/5
+        if (typeof bootstrap !== 'undefined') {
+            console.log('Usando Bootstrap 5');
+            const bsModal = new bootstrap.Modal(document.getElementById('modalCriarLegislatura'));
+            bsModal.show();
+        } else if ($.fn.modal) {
+            console.log('Usando Bootstrap 4 (jQuery)');
+            modal.modal('show');
+        } else {
+            console.error('Bootstrap modal não disponível');
+            // Fallback: mostrar modal manualmente
+            modal.addClass('show').css('display', 'block');
+            $('body').addClass('modal-open').append('<div class="modal-backdrop fade show"></div>');
+        }
+    });
+
+    // Função helper para fechar modal
+    function fecharModal(modalId) {
+        const modal = $('#' + modalId);
+        if (typeof bootstrap !== 'undefined') {
+            const bsModal = bootstrap.Modal.getInstance(document.getElementById(modalId));
+            if (bsModal) {
+                bsModal.hide();
+            }
+        } else if ($.fn.modal) {
+            modal.modal('hide');
+        } else {
+            modal.removeClass('show').css('display', 'none');
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open');
+        }
+    }
+
+    // Salvar Parlamentar
+    $('#btnSalvarParlamentar').click(function() {
+        const formData = {
+            nome_completo: $('#parlamentar_nome_completo').val(),
+            nome_parlamentar: $('#parlamentar_nome_parlamentar').val(),
+            sexo: $('#parlamentar_sexo').val(),
+            cpf: $('#parlamentar_cpf').val(),
+            rg: $('#parlamentar_rg').val(),
+            data_nascimento: $('#parlamentar_data_nascimento').val(),
+            email: $('#parlamentar_email').val(),
+            telefone: $('#parlamentar_telefone').val(),
+            telefone_celular: $('#parlamentar_telefone_celular').val()
+        };
+
+        console.log('Salvando parlamentar:', formData);
+
+        $.ajax({
+            url: '{% url "sapl.parlamentares:criar_parlamentar_ajax" %}',
+            type: 'POST',
+            data: formData,
+            headers: {
+                'X-CSRFToken': csrftoken
+            },
+            success: function(response) {
+                console.log('Resposta do servidor:', response);
+                if (response.success) {
+                    // Adicionar nova opção ao select
+                    const newOption = new Option(
+                        response.parlamentar.nome,
+                        response.parlamentar.id,
+                        true,
+                        true
+                    );
+                    $('#id_parlamentar').append(newOption).trigger('change');
+
+                    // Fechar modal
+                    fecharModal('modalCriarParlamentar');
+
+                    // Mostrar mensagem de sucesso
+                    alert('Parlamentar criado com sucesso!');
+                } else {
+                    $('#parlamentar-error-message').text(response.error).show();
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Erro ao salvar:', error);
+                $('#parlamentar-error-message').text('Erro ao criar parlamentar. Tente novamente.').show();
+            }
+        });
+    });
+
+    // Salvar Legislatura
+    $('#btnSalvarLegislatura').click(function() {
+        const formData = {
+            numero: $('#legislatura_numero').val(),
+            data_eleicao: $('#legislatura_data_eleicao').val(),
+            data_inicio: $('#legislatura_data_inicio').val(),
+            data_fim: $('#legislatura_data_fim').val()
+        };
+
+        console.log('Salvando legislatura:', formData);
+
+        $.ajax({
+            url: '{% url "sapl.parlamentares:criar_legislatura_ajax" %}',
+            type: 'POST',
+            data: formData,
+            headers: {
+                'X-CSRFToken': csrftoken
+            },
+            success: function(response) {
+                console.log('Resposta do servidor:', response);
+                if (response.success) {
+                    // Adicionar nova opção ao select
+                    const newOption = new Option(
+                        response.legislatura.nome,
+                        response.legislatura.id,
+                        true,
+                        true
+                    );
+                    $('#id_legislatura').append(newOption).trigger('change');
+
+                    // Fechar modal
+                    fecharModal('modalCriarLegislatura');
+
+                    // Mostrar mensagem de sucesso
+                    alert('Legislatura criada com sucesso!');
+                } else {
+                    $('#legislatura-error-message').text(response.error).show();
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Erro ao salvar:', error);
+                $('#legislatura-error-message').text('Erro ao criar legislatura. Tente novamente.').show();
+            }
+        });
+    });
+
+    // Inicializar datepicker para campos de data (se disponível)
+    if ($.fn.datepicker) {
+        $('.dateinput').datepicker({
+            format: 'dd/mm/yyyy',
+            language: 'pt-BR',
+            autoclose: true,
+            todayHighlight: true
+        });
+    } else {
+        console.log('Datepicker não disponível, usando input nativo');
+        // Configurar máscara manualmente se datepicker não estiver disponível
+        $('.dateinput').attr('placeholder', 'DD/MM/AAAA');
+    }
+
+    // Validação de formato de data nos campos
+    $('.dateinput').on('blur', function() {
+        const val = $(this).val();
+        if (val) {
+            const regex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+            if (!regex.test(val)) {
+                $(this).addClass('is-invalid');
+                alert('Data inválida. Use o formato DD/MM/AAAA');
+            } else {
+                $(this).removeClass('is-invalid');
+            }
+        }
+    });
+
+    // Máscaras de input
+    function aplicarMascaras() {
+        // Máscara CPF
+        $('#parlamentar_cpf').on('input', function() {
+            let val = $(this).val().replace(/\D/g, '');
+            if (val.length > 11) val = val.substr(0, 11);
+
+            if (val.length > 9) {
+                val = val.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+            } else if (val.length > 6) {
+                val = val.replace(/^(\d{3})(\d{3})(\d{1,3})$/, '$1.$2.$3');
+            } else if (val.length > 3) {
+                val = val.replace(/^(\d{3})(\d{1,3})$/, '$1.$2');
+            }
+            $(this).val(val);
+        });
+
+        // Máscara Telefone
+        $('#parlamentar_telefone').on('input', function() {
+            let val = $(this).val().replace(/\D/g, '');
+            if (val.length > 10) val = val.substr(0, 10);
+
+            if (val.length > 6) {
+                val = val.replace(/^(\d{2})(\d{4})(\d{1,4})$/, '($1) $2-$3');
+            } else if (val.length > 2) {
+                val = val.replace(/^(\d{2})(\d{1,4})$/, '($1) $2');
+            } else if (val.length > 0) {
+                val = val.replace(/^(\d{1,2})$/, '($1');
+            }
+            $(this).val(val);
+        });
+
+        // Máscara Celular
+        $('#parlamentar_telefone_celular').on('input', function() {
+            let val = $(this).val().replace(/\D/g, '');
+            if (val.length > 11) val = val.substr(0, 11);
+
+            if (val.length > 7) {
+                val = val.replace(/^(\d{2})(\d{5})(\d{1,4})$/, '($1) $2-$3');
+            } else if (val.length > 2) {
+                val = val.replace(/^(\d{2})(\d{1,5})$/, '($1) $2');
+            } else if (val.length > 0) {
+                val = val.replace(/^(\d{1,2})$/, '($1');
+            }
+            $(this).val(val);
+        });
+    }
+
+    // Aplicar máscaras
+    aplicarMascaras();
+
+    console.log('Script de modais carregado com sucesso');
+});
+</script>
+{% endblock extra_js %}

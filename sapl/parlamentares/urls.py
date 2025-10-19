@@ -23,7 +23,8 @@ from sapl.parlamentares.views import (CargoMesaCrud, ColigacaoCrud,
                                       PesquisarParlamentarView, VincularParlamentarView,
                                       get_sessoes_legislatura, FrenteCargoCrud, FrenteParlamentarCrud,
                                       get_parlamentar_frentes, PesquisarColigacaoView, PesquisarPartidoView,
-                                      BlocoCargoCrud, BlocoMembroCrud)
+                                      BlocoCargoCrud, BlocoMembroCrud, criar_parlamentar_ajax,
+                                      criar_legislatura_ajax)
 
 from .apps import AppConfig
 
@@ -55,6 +56,12 @@ urlpatterns = [
 
     url(r'^parlamentar/vincular-parlamentar/$',
         VincularParlamentarView.as_view(), name='vincular_parlamentar'),
+
+    url(r'^parlamentar/criar-parlamentar-ajax/$',
+        criar_parlamentar_ajax, name='criar_parlamentar_ajax'),
+
+    url(r'^parlamentar/criar-legislatura-ajax/$',
+        criar_legislatura_ajax, name='criar_legislatura_ajax'),
 
     url(r'^parlamentar/coligacao-legislatura/',
         coligacao_legislatura, name="coligacao_legislatura"),
