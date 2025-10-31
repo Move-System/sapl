@@ -6,7 +6,27 @@
 {% block base_content%}
   <div class="container-home">
     <div id="homeIndex">
+      <!-- Proposições -->
+      {% if is_parlamentar %}
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-file-signature"></i>
+        </div>
+        <h3 class="card-title">Proposições</h3>
+        <p class="card-description">Crie e gerencie suas proposições legislativas</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.materia:proposicao_create' %}" class="btn-action" title="Criar Proposição">
+            <i class="fas fa-plus"></i> Criar
+          </a>
+          <a href="{% url 'sapl.materia:proposicao_list' %}" class="btn-action" title="Listar Proposições">
+            <i class="fas fa-list"></i> Listar
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Mesa Diretora -->
+      {% if not is_parlamentar %}
       <div class="homeBlock">
         <div class="card-icon">
           <i class="fas fa-users-cog"></i>
@@ -131,8 +151,10 @@
           </a>
         </div>
       </div>
+      {% endif %}
 
       <!-- Fluxo de Proposições -->
+      {% if is_parlamentar %}
       <div class="homeBlock">
         <div class="card-icon">
           <i class="fas fa-paper-plane"></i>
@@ -145,8 +167,10 @@
           </a>
         </div>
       </div>
+      {% endif %}
 
       <!-- Tribunal de Contas (TCE) -->
+      {% if not is_parlamentar %}
       <div class="homeBlock">
         <div class="card-icon">
           <i class="fas fa-file-invoice"></i>
@@ -159,6 +183,7 @@
           </a>
         </div>
       </div>
+      {% endif %}
     </div>
   </div>
 {% endblock %}

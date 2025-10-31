@@ -1,6 +1,5 @@
-
-$blue:    #02baf2 !default;
-$red:     #f84545 !default;
+// Import custom variables before Bootstrap
+@import "variables";
 
 @import "~bootstrap/scss/bootstrap";
 

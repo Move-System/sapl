@@ -66,6 +66,15 @@ class IndexView(TemplateView):
             return redirect('/norma/pesquisar')
         return TemplateView.get(self, request, *args, **kwargs)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Verifica se o usuário é operador de algum Autor (Parlamentar)
+        if self.request.user.is_authenticated:
+            context['is_parlamentar'] = self.request.user.autor_set.exists()
+        else:
+            context['is_parlamentar'] = False
+        return context
+
 
 class GuiaProjetoView(TemplateView):
     template_name = 'guia_projeto.html'

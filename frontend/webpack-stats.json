@@ -26,15 +26,15 @@
       "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/compilacao.0baf3580.css.gz",
       "publicPath": "/static/sapl/frontend/css/compilacao.0baf3580.css.gz"
     },
-    "css/global.bdbed894.css": {
-      "name": "css/global.bdbed894.css",
-      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.bdbed894.css",
-      "publicPath": "/static/sapl/frontend/css/global.bdbed894.css"
+    "css/global.4212bc6f.css": {
+      "name": "css/global.4212bc6f.css",
+      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.4212bc6f.css",
+      "publicPath": "/static/sapl/frontend/css/global.4212bc6f.css"
     },
-    "css/global.bdbed894.css.gz": {
-      "name": "css/global.bdbed894.css.gz",
-      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.bdbed894.css.gz",
-      "publicPath": "/static/sapl/frontend/css/global.bdbed894.css.gz"
+    "css/global.4212bc6f.css.gz": {
+      "name": "css/global.4212bc6f.css.gz",
+      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.4212bc6f.css.gz",
+      "publicPath": "/static/sapl/frontend/css/global.4212bc6f.css.gz"
     },
     "css/painel.e2b9504e.css": {
       "name": "css/painel.e2b9504e.css",
@@ -235,6 +235,11 @@
       "name": "img/logo_interlegis.png",
       "path": "/home/bruno/sapl/sapl/static/sapl/frontend/img/logo_interlegis.png",
       "publicPath": "/static/sapl/frontend/img/logo_interlegis.png"
+    },
+    "img/logo-camara-padrao.png": {
+      "name": "img/logo-camara-padrao.png",
+      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/img/logo-camara-padrao.png",
+      "publicPath": "/static/sapl/frontend/img/logo-camara-padrao.png"
     },
     "img/logo.png": {
       "name": "img/logo.png",
@@ -1007,7 +1012,7 @@
     "global": [
       "css/chunk-vendors.045ec640.css",
       "js/chunk-vendors.e8ab4373.js",
-      "css/global.bdbed894.css",
+      "css/global.4212bc6f.css",
       "js/global.b14eb920.js"
     ],
     "painel": [

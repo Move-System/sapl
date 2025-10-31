@@ -441,7 +441,7 @@
         return;
       }
 
-      const btnCadastrar = $('<button type="button" class="btn btn-success btn-sm ml-2" id="btnCadastrarAutor" title="Cadastrar novo autor">')
+      const btnCadastrar = $('<a href="/sistema/autor/create" target="_blank" class="btn btn-success btn-sm ml-2" id="btnCadastrarAutor" title="Cadastrar novo autor">')
         .append('<i class="fas fa-plus"></i> Cadastrar Autor');
 
       autorSelect.after(btnCadastrar);
@@ -453,6 +453,11 @@
     setTimeout(adicionarBotaoCadastrarAutor, 500);
     setTimeout(adicionarBotaoCadastrarAutor, 1000);
 
+    // REMOVIDO: Botão agora é um link direto para /sistema/autor/create
+    // O modal ainda existe na página para possível uso futuro, mas não é mais
+    // acionado pelo botão "Cadastrar Autor"
+
+    /*
     // Abrir modal ao clicar no botão
     $(document).on('click', '#btnCadastrarAutor', function(e) {
       e.preventDefault();
@@ -493,6 +498,7 @@
         }
       });
     });
+    */
 
     // Ao selecionar tipo de autor, mostrar campos apropriados
     $(document).on('change', '#tipo_autor_modal', function() {

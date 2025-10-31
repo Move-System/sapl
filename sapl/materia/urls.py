@@ -32,6 +32,8 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 get_zip_docacessorios, get_pdf_docacessorios,
                                 configEtiquetaMateriaLegislativaCrud,
                                 PesquisarStatusTramitacaoView, HistoricoProposicaoView)
+from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_download,
+                                            onlyoffice_callback, onlyoffice_editor)
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
     FichaPesquisaAdmView, FichaSelecionaAdmView
@@ -158,6 +160,16 @@ urlpatterns_proposicao = [
         name='retornar-proposicao'),
     url(r'^proposicao/historico', HistoricoProposicaoView.as_view(),
         name='historico-proposicao'),
+
+    # OnlyOffice endpoints
+    url(r'^proposicao/(?P<pk>\d+)/onlyoffice/editor$', onlyoffice_editor,
+        name='onlyoffice_editor'),
+    url(r'^proposicao/(?P<pk>\d+)/onlyoffice/config$', onlyoffice_config,
+        name='onlyoffice_config'),
+    url(r'^proposicao/(?P<pk>\d+)/onlyoffice/download$', onlyoffice_download,
+        name='onlyoffice_download'),
+    url(r'^proposicao/(?P<pk>\d+)/onlyoffice/callback$', onlyoffice_callback,
+        name='onlyoffice_callback'),
 
 ]
 

@@ -303,6 +303,11 @@ DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', cast=str, default='')
 SERVER_EMAIL = config('SERVER_EMAIL', cast=str, default='')
 EMAIL_RUNNING = None
 
+# OnlyOffice Document Server Configuration
+ONLYOFFICE_URL = config('ONLYOFFICE_URL', default='http://localhost:8002')
+ONLYOFFICE_JWT_SECRET = config('ONLYOFFICE_JWT_SECRET', default='')
+ONLYOFFICE_JWT_ENABLED = config('ONLYOFFICE_JWT_ENABLED', cast=bool, default=False)
+
 # Feature Flag
 WAFFLE_FLAG_DEFAULT = False
 WAFFLE_SWITCH_DEFAULT = False

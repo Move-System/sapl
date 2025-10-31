@@ -17,3 +17,25 @@ services:
       DEBUG: 'True'
       DATABASE_URL: postgresql://sapl:sapl@host.docker.internal:5432/sapl
       TZ: America/Sao_Paulo
+      ONLYOFFICE_URL: 'http://onlyoffice:80'
+    depends_on:
+      - onlyoffice
+
+  onlyoffice:
+    container_name: onlyoffice-documentserver
+    image: onlyoffice/documentserver:latest
+    ports:
+      - "8001:80"
+    environment:
+      - JWT_ENABLED=false
+      - JWT_SECRET=your-secret-key-change-this
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_log:/var/log/onlyoffice
+      - onlyoffice_fonts:/usr/share/fonts/truetype/custom
+    restart: unless-stopped
+
+volumes:
+  onlyoffice_data:
+  onlyoffice_log:
+  onlyoffice_fonts:

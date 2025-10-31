@@ -7,10 +7,18 @@
     $(document).ready(function(){
 
     	$("input[name=tipo_texto]").change(function(event) {
-        if (this.value == 'D' && this.checked)
+        if (this.value == 'D' && this.checked) {
           $("#div_id_texto_original").removeClass('hidden');
-        else if (this.value == 'T' && this.checked)
+          $("#onlyoffice-info").addClass('hidden');
+        }
+        else if (this.value == 'T' && this.checked) {
           $("#div_id_texto_original").addClass('hidden');
+          $("#onlyoffice-info").addClass('hidden');
+        }
+        else if (this.value == 'O' && this.checked) {
+          $("#div_id_texto_original").addClass('hidden');
+          $("#onlyoffice-info").removeClass('hidden');
+        }
       });
 
       // Adicionar botão ao lado do select de tipo
@@ -22,16 +30,12 @@
 
       $("select[name=tipo]").change(function(event) {
 
-        if (this.selectedOptions[0].getAttribute('data-has-perfil') === "True") {
-          $("input[name=tipo_texto]").closest('label').removeClass('disabled');
-          $("input[name=tipo_texto]").closest('.form-group').parent().removeClass('hidden');
-          $("input[name=tipo_texto]").prop('disabled', false);
-        }
-        else {
-            $("input[name=tipo_texto]").closest('label').addClass('disabled');
-            $("input[name=tipo_texto]").closest('.form-group').parent().addClass('hidden');
-            $("input[name=tipo_texto]").prop('disabled', true);
-        }
+        // Sempre mostrar as opções de tipo_texto quando texto_articulado_proposicao está habilitado
+        // Inclui suporte para OnlyOffice além de Arquivo Digital e Texto Articulado
+        $("input[name=tipo_texto]").closest('label').removeClass('disabled');
+        $("input[name=tipo_texto]").closest('.form-group').parent().removeClass('hidden');
+        $("input[name=tipo_texto]").prop('disabled', false);
+
         if ($("input[name=tipo_texto]:checked").length == 0) {
           $("input[name=tipo_texto]").first().prop('checked', true);
           $("input[name=tipo_texto]").first().closest('label').addClass('checked');

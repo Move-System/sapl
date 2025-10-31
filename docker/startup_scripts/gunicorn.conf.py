@@ -7,7 +7,7 @@ import multiprocessing
 # ---- SAPL app configuration ----
 NAME = "SAPL"
 DJANGODIR = "/var/interlegis/sapl"
-SOCKFILE = f"unix:{DJANGODIR}/run/gunicorn.sock"
+SOCKFILE = f"{DJANGODIR}/run/gunicorn.sock"
 USER = "sapl"
 GROUP = "nginx"
 NUM_WORKERS = int(os.getenv("WEB_CONCURRENCY", "3"))

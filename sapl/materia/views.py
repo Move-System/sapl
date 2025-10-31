@@ -1177,6 +1177,14 @@ class ProposicaoCrud(Crud):
                     você será redirecionado para o Texto Eletrônico. \
                     Use a opção "Editar Texto" para construir seu texto.""".format(username))
                 return reverse('sapl.materia:proposicao_ta', kwargs={'pk': self.object.pk})
+            elif tipo_texto == 'O':
+                messages.info(self.request, _("""\
+                    Proposição criada com sucesso! \
+                    Você será redirecionado para o Editor OnlyOffice para criar o documento."""))
+                self.logger.debug("""\
+                    User={}. Proposição criada com OnlyOffice. \
+                    Redirecionando para o editor.""".format(username))
+                return reverse('sapl.materia:onlyoffice_editor', kwargs={'pk': self.object.pk})
             else:
                 return Crud.CreateView.get_success_url(self)
 
