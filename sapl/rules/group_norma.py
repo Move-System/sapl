@@ -1,9 +1,9 @@
 from sapl.compilacao import models as compilacao
 from sapl.norma import models as norma
-from sapl.rules import SAPL_GROUP_NORMA, __base__, __perms_publicas__
+from sapl.rules import Legisinc_GROUP_NORMA, __base__, __perms_publicas__
 
 rules_group_norma = {
-    'group': SAPL_GROUP_NORMA,
+    'group': Legisinc_GROUP_NORMA,
     'rules': [
         (norma.NormaJuridica, __base__, __perms_publicas__),
         (norma.NormaRelacionada, __base__, __perms_publicas__),

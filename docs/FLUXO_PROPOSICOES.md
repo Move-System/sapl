@@ -1,4 +1,4 @@
-# Fluxo de Proposições no SAPL
+# Fluxo de Proposições no Legisinc
 
 ## Visão Geral
 
@@ -912,4 +912,4 @@ Antes de usar o fluxo de proposições, configure:
 ---
 
 **Documento criado em**: 2025-10-02
-**Versão SAPL**: 3.1.164-RC5
+**Versão Legisinc**: 3.1.164-RC5

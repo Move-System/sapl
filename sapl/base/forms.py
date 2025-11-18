@@ -32,7 +32,7 @@ from sapl.norma.models import NormaJuridica, NormaEstatisticas
 from sapl.parlamentares.models import Partido, SessaoLegislativa, \
     Parlamentar, Votante
 from sapl.protocoloadm.models import DocumentoAdministrativo
-from sapl.rules import SAPL_GROUP_AUTOR, SAPL_GROUP_VOTANTE
+from sapl.rules import Legisinc_GROUP_AUTOR, Legisinc_GROUP_VOTANTE
 from sapl.sessao.models import SessaoPlenaria
 from sapl.settings import MAX_IMAGE_UPLOAD_SIZE
 from sapl.utils import (autor_label, autor_modal, ChoiceWithoutValidationField,
@@ -224,7 +224,7 @@ class UserAdminForm(ModelForm):
                 ] + [
                     (p.id, p) for p in Permission.objects.filter(
                         content_type__app_label__in=list(
-                            map(lambda x: x.split('.')[-1], settings.SAPL_APPS))
+                            map(lambda x: x.split('.')[-1], settings.Legisinc_APPS))
                     ).exclude(
                         user=self.instance
                     ).order_by('content_type__app_label',
@@ -251,8 +251,8 @@ class UserAdminForm(ModelForm):
         if permissions:
             inst.user_permissions.add(*permissions)
 
-        g_autor = Group.objects.get(name=SAPL_GROUP_AUTOR)
-        g_votante = Group.objects.get(name=SAPL_GROUP_VOTANTE)
+        g_autor = Group.objects.get(name=Legisinc_GROUP_AUTOR)
+        g_votante = Group.objects.get(name=Legisinc_GROUP_VOTANTE)
 
         if not self.cleaned_data['autor']:
             inst.groups.remove(g_autor)
@@ -564,7 +564,7 @@ class AutorForm(ModelForm):
     operadores = forms.ModelMultipleChoiceField(
         queryset=get_user_model().objects.all(),
         widget=forms.CheckboxSelectMultiple(),
-        label=_('Usuários do SAPL ligados ao autor acima selecionado'),
+        label=_('Usuários do Legisinc ligados ao autor acima selecionado'),
         required=False,
         help_text=_(
             'Para ser listado aqui, o usuário não pode estar em nenhum outro autor e deve estar marcado como ativo.')

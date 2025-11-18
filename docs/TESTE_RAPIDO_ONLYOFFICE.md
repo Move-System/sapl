@@ -63,7 +63,7 @@ else:
 "
 ```
 
-### 2️⃣ Acessar o SAPL
+### 2️⃣ Acessar o Legisinc
 
 1. Abra o navegador: **http://localhost:8000/login**
 2. Faça login:

@@ -1,6 +1,6 @@
-# Configuração do SAPL com Banco de Dados Remoto
+# Configuração do Legisinc com Banco de Dados Remoto
 
-Este documento explica como configurar o SAPL para usar um banco de dados PostgreSQL remoto.
+Este documento explica como configurar o Legisinc para usar um banco de dados PostgreSQL remoto.
 
 ## Problemas Corrigidos
 
@@ -84,7 +84,7 @@ No mesmo arquivo, remova `sapldb` das dependências:
 
 ### Passo 3: Testar a conexão com o banco remoto
 
-Antes de iniciar o SAPL, teste a conexão:
+Antes de iniciar o Legisinc, teste a conexão:
 
 ```bash
 docker run --rm postgres:10.5-alpine psql \
@@ -145,7 +145,7 @@ Se estiver usando um banco remoto existente, use os usuários já cadastrados ne
 
 ```
 ┌─────────────────┐
-│      SAPL       │ → Porta 8000:80
+│      Legisinc       │ → Porta 8000:80
 │  (Aplicação)    │
 └────────┬────────┘
          │
@@ -196,7 +196,7 @@ docker logs sapl 2>&1 | grep -i error
 # Ver status dos containers
 docker-compose ps
 
-# Reiniciar o SAPL
+# Reiniciar o Legisinc
 docker-compose restart sapl
 
 # Ver logs em tempo real
@@ -221,7 +221,7 @@ docker exec -it sapl bash
 sapl/
 ├── docker/
 │   ├── docker-compose.yaml          # Configuração principal
-│   ├── Dockerfile                   # Imagem do SAPL
+│   ├── Dockerfile                   # Imagem do Legisinc
 │   └── startup_scripts/
 │       ├── gunicorn.conf.py         # Configuração do gunicorn
 │       ├── start.sh                 # Script de inicialização

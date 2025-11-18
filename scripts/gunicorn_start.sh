@@ -5,18 +5,18 @@
 # As seen in http://tutos.readthedocs.org/en/latest/source/ndg.html
 
 
-SAPL_DIR="/var/interlegis/sapl"
+Legisinc_DIR="/var/interlegis/sapl"
 
-# Seta um novo diretório foi passado como raiz para o SAPL
+# Seta um novo diretório foi passado como raiz para o Legisinc
 # caso esse tenha sido passado como parâmetro
 if [ "$1" ]
 then
-    SAPL_DIR="$1"
+    Legisinc_DIR="$1"
 fi
 
-NAME="SAPL"                                     # Name of the application (*)
-DJANGODIR="$SAPL_DIR/"                          # Django project directory (*)
-SOCKFILE="$SAPL_DIR/run/gunicorn.sock"          # we will communicate using this unix socket (*)
+NAME="Legisinc"                                     # Name of the application (*)
+DJANGODIR="$Legisinc_DIR/"                          # Django project directory (*)
+SOCKFILE="$Legisinc_DIR/run/gunicorn.sock"          # we will communicate using this unix socket (*)
 USER=`whoami`                                   # the user to run as (*)
 GROUP=`whoami`                                  # the group to run as (*)
 NUM_WORKERS=3                                   # how many worker processes should Gunicorn spawn (*)
@@ -26,11 +26,11 @@ MAX_REQUESTS=100                                # number of requests before rest
 DJANGO_SETTINGS_MODULE=sapl.settings            # which settings file should Django use (*)
 DJANGO_WSGI_MODULE=sapl.wsgi                    # WSGI module name (*)
 
-echo "Starting $NAME as `whoami` on base dir $SAPL_DIR"
+echo "Starting $NAME as `whoami` on base dir $Legisinc_DIR"
 
 # Ativa ambiente virtual
 cd $DJANGODIR
-source $SAPL_DIR/../.virtualenvs/sapl/bin/activate
+source $Legisinc_DIR/../.virtualenvs/sapl/bin/activate
 
 export DJANGO_SETTINGS_MODULE=$DJANGO_SETTINGS_MODULE
 export PYTHONPATH=$DJANGODIR:$PYTHONPATH

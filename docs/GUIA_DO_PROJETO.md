@@ -1,8 +1,8 @@
-# SAPL - Sistema de Apoio ao Processo Legislativo
+# Legisinc
 
 ## Visão Geral
 
-O **SAPL** é um sistema web completo para gerenciamento de processos legislativos em casas legislativas municipais, estaduais e federais. Desenvolvido pelo Interlegis (Senado Federal), o sistema abrange todo o ciclo de vida legislativo, desde o cadastro de parlamentares até a votação e publicação de normas jurídicas.
+O **Legisinc** é um sistema web completo para gerenciamento de processos legislativos em casas legislativas municipais, estaduais e federais. Desenvolvido pelo Interlegis (Senado Federal), o sistema abrange todo o ciclo de vida legislativo, desde o cadastro de parlamentares até a votação e publicação de normas jurídicas.
 
 **Versão Atual**: 3.1.164-RC5
 
@@ -41,7 +41,7 @@ O **SAPL** é um sistema web completo para gerenciamento de processos legislativ
 
 ## Módulos Principais
 
-O SAPL está organizado em 9 módulos principais:
+O Legisinc está organizado em 9 módulos principais:
 
 ### 1. **Base** (`sapl.base`)
 - Configurações gerais do sistema
@@ -285,7 +285,7 @@ Antes de começar a usar o sistema para criar dados, é necessário configurar:
 sapl/
 ├── docker/                    # Configurações Docker
 │   ├── docker-compose.yaml   # Orquestração de containers
-│   └── Dockerfile            # Imagem do SAPL
+│   └── Dockerfile            # Imagem do Legisinc
 ├── frontend/                  # Código frontend (Vue.js)
 │   ├── src/
 │   │   ├── __global/         # Estilos e componentes globais
@@ -339,7 +339,7 @@ yarn build
 
 ## API REST
 
-O SAPL disponibiliza uma API REST completa para integração com outros sistemas.
+O Legisinc disponibiliza uma API REST completa para integração com outros sistemas.
 
 - **Documentação**: http://localhost:8000/api/docs/
 - **Schema OpenAPI**: http://localhost:8000/api/schema/
@@ -384,11 +384,11 @@ O SAPL disponibiliza uma API REST completa para integração com outros sistemas
 
 ## Tipos de Usuários e Permissões
 
-O SAPL possui um sistema robusto de controle de acesso com **11 grupos de usuários** diferentes, cada um com permissões específicas para módulos e funcionalidades.
+O Legisinc possui um sistema robusto de controle de acesso com **11 grupos de usuários** diferentes, cada um com permissões específicas para módulos e funcionalidades.
 
 ### Grupos de Usuários Principais
 
-#### 1. **Operador Geral** (Superusuário SAPL)
+#### 1. **Operador Geral** (Superusuário Legisinc)
 **Acesso**: Todos os módulos e funcionalidades
 - Configurações do sistema
 - Gestão de usuários
@@ -567,7 +567,7 @@ O sistema cria automaticamente usuários de teste com senha padrão `interlegis`
 
 ### Permissões por Tipo de Operação
 
-O SAPL usa 5 radicais de permissão para cada entidade:
+O Legisinc usa 5 radicais de permissão para cada entidade:
 
 - **`.list_`** - Listar registros (visualizar lista)
 - **`.detail_`** - Ver detalhes de um registro específico

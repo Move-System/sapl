@@ -43,15 +43,15 @@ ALLOWED_HOSTS = ['*']
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/login/?next='
 
-SAPL_VERSION = '3.1.164-RC5'
+Legisinc_VERSION = '3.1.164-RC5'
 
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
-# SAPL business apps in dependency order
-SAPL_APPS = (
+# Legisinc business apps in dependency order
+Legisinc_APPS = (
     'sapl.audiencia',
     'sapl.base',
     'sapl.crud',
@@ -101,7 +101,7 @@ INSTALLED_APPS = (
 
                      'django_prometheus',
 
-                 ) + SAPL_APPS
+                 ) + Legisinc_APPS
 
 # FTS = Full Text Search
 # Desabilita a indexação textual até encontramos uma solução para a issue

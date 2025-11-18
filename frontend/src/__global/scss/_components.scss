@@ -78,9 +78,19 @@
 
   thead th {
     background-color: $primary-color;
-    color: white;
+    color: white !important;
     border-color: $primary-color;
     font-weight: 600;
+
+    a {
+      color: white !important;
+      text-decoration: none;
+
+      &:hover {
+        color: white !important;
+        text-decoration: underline;
+      }
+    }
   }
 
   tbody tr {

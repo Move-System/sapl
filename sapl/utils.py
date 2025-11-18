@@ -1092,7 +1092,7 @@ def google_recaptcha_configured():
 
 def sapn_is_enabled():
     import waffle
-    return waffle.switch_is_active('SAPLN_SWITCH')
+    return waffle.switch_is_active('LegisincN_SWITCH')
 
 
 def timing(f):

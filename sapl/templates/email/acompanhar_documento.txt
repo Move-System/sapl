@@ -1,7 +1,5 @@
 {{casa_legislativa}}
 
-Sistema de Apoio ao Processo Legislativo
-
 >Registramos seu pedido para acompanhamento por e-mail do documento administrativo identificado a seguir:
 
 {{base_url}}{{documento_url}} - {{documento}} -  {{descricao_documento}}

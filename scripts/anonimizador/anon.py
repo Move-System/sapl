@@ -9,9 +9,9 @@ from django.db.models.fields import CharField, TextField
 from sapl.materia.models import Orgao, Origem
 from sapl.norma.models import AssuntoNorma
 from sapl.parlamentares.models import Municipio, NivelInstrucao, Partido
-from sapl.settings import SAPL_APPS
+from sapl.settings import Legisinc_APPS
 
-sapl_appconfs = [apps.get_app_config(n.split('.')[1]) for n in SAPL_APPS]
+sapl_appconfs = [apps.get_app_config(n.split('.')[1]) for n in Legisinc_APPS]
 models = [model for app in sapl_appconfs for model in app.get_models()]
 
 excluidos = Origem, Orgao, AssuntoNorma, Partido, NivelInstrucao, Municipio,

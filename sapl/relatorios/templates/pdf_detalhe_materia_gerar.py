@@ -23,8 +23,6 @@ def cabecalho(dic_inf_basicas, imagem):
         tmp += '\t\t\t\t<setFont name="Helvetica" size="16"/>\n'
         tmp += '\t\t\t\t<drawString x="5cm" y="27.2cm">' + \
             dic_inf_basicas['nom_camara'] + '</drawString>\n'
-    tmp += '\t\t\t\t<setFont name="Helvetica" size="14"/>\n'
-    tmp += '\t\t\t\t<drawString x="5cm" y="26.5cm">Sistema de Apoio ao Processo Legislativo</drawString>\n'
     if str(dic_inf_basicas['nom_projeto']) != "" and str(dic_inf_basicas['nom_projeto']) != None:
         tmp += '\t\t\t\t<setFont name="Helvetica" size="15"/>\n'
         tmp += '\t\t\t\t<drawCentredString x="10.5cm" y="25.2cm">' + \

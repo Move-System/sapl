@@ -26,8 +26,6 @@ def cabecalho(inf_basicas_dic, imagem):
     tmp += '\t\t\t\t<setFont name="Helvetica-Bold" size="16"/>\n'
     tmp += '\t\t\t\t<drawString x="5cm" y="27.1cm">' + \
         str(inf_basicas_dic["nom_camara"]) + '</drawString>\n'
-    tmp += '\t\t\t\t<setFont name="Helvetica" size="12"/>\n'
-    tmp += '\t\t\t\t<drawString x="5cm" y="26.6cm">Sistema de Apoio ao Processo Legislativo</drawString>\n'
     tmp += '\t\t\t\t<setFont name="Helvetica-Bold" size="12"/>\n'
     tmp += '\t\t\t\t<drawString x="4.2cm" y="25cm">Resumo da ' + str(inf_basicas_dic['num_sessao_plen']) + 'ª Reunião ' + str(inf_basicas_dic['nom_sessao']) + ' da ' + str(
         inf_basicas_dic['num_sessao_leg']) + 'ª Sessão Legislativa da </drawString>\n'
