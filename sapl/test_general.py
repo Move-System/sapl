@@ -4,12 +4,12 @@ from django.db.models.fields import BooleanField
 from model_bakery import baker
 import pytest
 
-from .settings import SAPL_APPS
+from .settings import Legisinc_APPS
 
 
 pytestmark = pytest.mark.django_db
 
-sapl_appconfs = [apps.get_app_config(n[5:]) for n in SAPL_APPS]
+sapl_appconfs = [apps.get_app_config(n[5:]) for n in Legisinc_APPS]
 
 
 def test_charfield_textfield():

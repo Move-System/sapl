@@ -14,7 +14,7 @@ import json
 def tce_admin_index(request):
     """
     Dashboard principal do TCE no admin
-    Com navbar e footer padrão do SAPL
+    Com navbar e footer padrão do Legisinc
     """
     context = {
         'title': 'Tribunal de Contas (TCE)',

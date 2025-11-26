@@ -1,0 +1,352 @@
+// ============================================
+// RESPONSIVE DESIGN IMPROVEMENTS
+// ============================================
+
+// Breakpoints (Bootstrap default)
+// xs: 0-575px
+// sm: 576px-767px
+// md: 768px-991px
+// lg: 992px-1199px
+// xl: 1200px+
+
+// ============================================
+// MOBILE FIRST IMPROVEMENTS
+// ============================================
+
+// Base mobile styles
+@media (max-width: 575px) {
+  // Typography
+  h1, .h1 { font-size: 24px; }
+  h2, .h2 { font-size: 20px; }
+  h3, .h3 { font-size: 18px; }
+
+  // Container spacing
+  .container {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+
+  // Tables - make scrollable
+  .table-responsive {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    .table {
+      min-width: 600px;
+    }
+  }
+
+  // Forms
+  .form-group {
+    margin-bottom: 1rem;
+  }
+
+  .btn {
+    width: 100%;
+    margin-bottom: 0.5rem;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  // Cards
+  .card {
+    margin-bottom: 1rem;
+  }
+
+  // Modals
+  .modal-dialog {
+    margin: 10px;
+  }
+
+  // Navigation
+  .navbar-collapse {
+    background-color: white;
+    padding: 10px;
+    border: 1px solid $border-color;
+    margin-top: 10px;
+  }
+
+  // Footer
+  .footer {
+    padding: 15px 0;
+
+    .container {
+      padding-top: 15px;
+    }
+  }
+}
+
+// Tablet styles
+@media (min-width: 576px) and (max-width: 991px) {
+  // Typography
+  h1, .h1 { font-size: 28px; }
+
+  // Buttons - not full width on tablets
+  .btn {
+    width: auto;
+  }
+
+  // Tables
+  .table-responsive {
+    .table {
+      font-size: 14px;
+    }
+  }
+
+  // Cards in grid
+  .card-deck .card {
+    flex-basis: calc(50% - 30px);
+    margin: 15px;
+  }
+}
+
+// Desktop improvements
+@media (min-width: 992px) {
+  // Container max width
+  .container {
+    max-width: 1140px;
+  }
+
+  // Card hover effects
+  .card {
+    &:hover {
+      transform: translateY(-2px);
+    }
+  }
+
+  // Tables
+  .table {
+    font-size: 15px;
+  }
+}
+
+// ============================================
+// COMPONENT-SPECIFIC RESPONSIVE STYLES
+// ============================================
+
+// Masthead responsive
+@media (max-width: 767px) {
+  .masthead {
+    .navbar-brand {
+      flex-direction: column;
+      text-align: center;
+
+      img.img-responsive {
+        height: 60px;
+        margin-bottom: 10px;
+      }
+
+      small {
+        display: block;
+        margin-top: 5px;
+      }
+    }
+
+    .navbar-nav {
+      margin-top: 10px;
+    }
+
+    .nav-link {
+      text-align: center;
+      padding: 0.5rem 1rem;
+      margin: 2px 0;
+    }
+  }
+}
+
+// Forms responsive
+@media (max-width: 767px) {
+  .form-horizontal {
+    .control-label {
+      text-align: left;
+      margin-bottom: 5px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+  }
+
+  // Form buttons
+  .form-actions {
+    text-align: center;
+
+    .btn {
+      width: 100%;
+      margin-bottom: 10px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+  }
+}
+
+// Sidebar responsive
+@media (max-width: 991px) {
+  .container-tabaux {
+    .sidebar-tabaux {
+      margin-top: 0;
+      margin-bottom: 20px;
+    }
+  }
+}
+
+// Data tables responsive
+@media (max-width: 767px) {
+  .dataTables_wrapper {
+    .dataTables_filter,
+    .dataTables_length,
+    .dataTables_info,
+    .dataTables_paginate {
+      text-align: center;
+      float: none !important;
+      margin-bottom: 10px;
+    }
+  }
+}
+
+// Modal responsive
+@media (max-width: 575px) {
+  .modal-dialog {
+    max-width: 100%;
+    margin: 0;
+    height: 100vh;
+
+    .modal-content {
+      height: 100%;
+      border-radius: 0;
+    }
+  }
+}
+
+// Utility classes for responsive
+.hidden-mobile {
+  @media (max-width: 767px) {
+    display: none !important;
+  }
+}
+
+.hidden-desktop {
+  @media (min-width: 768px) {
+    display: none !important;
+  }
+}
+
+.mobile-center {
+  @media (max-width: 767px) {
+    text-align: center !important;
+  }
+}
+
+// ============================================
+// PRINT STYLES
+// ============================================
+
+@media print {
+  // Hide unnecessary elements
+  .masthead,
+  .footer,
+  .sidebar,
+  .btn,
+  .navbar,
+  .breadcrumb {
+    display: none !important;
+  }
+
+  // Full width for content
+  .container {
+    max-width: 100%;
+  }
+
+  // Better table printing
+  .table {
+    border-collapse: collapse;
+
+    th, td {
+      border: 1px solid #000;
+      padding: 8px;
+    }
+
+    thead th {
+      background-color: #f0f0f0 !important;
+      color: #000 !important;
+    }
+  }
+
+  // Better page breaks
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+
+  .card {
+    page-break-inside: avoid;
+    border: 1px solid #000;
+    box-shadow: none;
+  }
+}
+
+// ============================================
+// ACCESSIBILITY IMPROVEMENTS
+// ============================================
+
+// Focus styles for keyboard navigation
+*:focus {
+  outline: 2px solid $secondary-color;
+  outline-offset: 2px;
+}
+
+// Skip to content link
+.skip-to-content {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: $primary-color;
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  z-index: 9999;
+
+  &:focus {
+    top: 0;
+  }
+}
+
+// High contrast mode support
+@media (prefers-contrast: high) {
+  .btn,
+  .card,
+  .form-control {
+    border-width: 2px;
+  }
+}
+
+// Reduced motion support
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+// ============================================
+// SCREEN-SPECIFIC STYLES (não impressão)
+// ============================================
+
+// Garantir que os títulos das tabelas sejam brancos em telas
+@media screen {
+  .table thead th {
+    color: white !important;
+
+    a {
+      color: white !important;
+    }
+  }
+}

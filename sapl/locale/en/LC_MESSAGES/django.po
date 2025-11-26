@@ -5,7 +5,7 @@
 # Translators:
 msgid ""
 msgstr ""
-"Project-Id-Version: SAPL\n"
+"Project-Id-Version: Legisinc\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2015-07-20 15:05-0300\n"
 "PO-Revision-Date: 2015-07-17 13:38+0000\n"
@@ -382,7 +382,7 @@ msgid "Autor"
 msgstr ""
 
 #: materia/forms.py:127
-msgid "Acesso ao SAPL"
+msgid "Acesso ao Legisinc"
 msgstr ""
 
 #: materia/forms.py:144 materia/models.py:213
@@ -1699,5 +1699,5 @@ msgid "Sessão: %(sessao_plen)s Data: %(data)s"
 msgstr ""
 
 #: templates/base.html:7
-msgid "SAPL - Sistema de Apoio ao Processo Legislativo"
+msgid "Legisinc"
 msgstr ""

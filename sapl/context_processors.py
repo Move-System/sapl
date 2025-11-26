@@ -34,7 +34,7 @@ def google_recaptcha_configured(request):
 
 @cached_call("site-title", timeout=60 * 2)
 def enable_sapn(request):
-    verbose_name = _('Sistema de Apoio ao Processo Legislativo') \
+    verbose_name = _('Legisinc') \
         if not sapn_is_enabled() \
         else _('Sistema de Apoio à Publicação de Leis e Normas')
 

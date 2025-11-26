@@ -11,6 +11,11 @@
       {% if object.texto_original %}
         <a class="btn btn-success" href="{% url 'sapl.materia:proposicao_texto' object.pk %}">{% trans "Texto Original" %}</a>
       {% endif %}
+      {% if not object.data_envio %}
+        <a class="btn btn-primary" href="{% url 'sapl.materia:onlyoffice_editor' object.pk %}">
+          <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
+        </a>
+      {% endif %}
     </div>
   {% endif %}
 {% endblock sub_actions%}

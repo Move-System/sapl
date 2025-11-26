@@ -1,7 +1,5 @@
 {{casa_legislativa}}
 
-Sistema de Apoio ao Processo Legislativo
-
 >Registramos seu pedido para acompanhamento por e-mail da matéria legislativa identificada a seguir:
 
 {{base_url}}{{materia_url}} - {{materia}} -  {{descricao_materia}}

@@ -12,7 +12,7 @@
 
   <head>
     <meta charset="utf-8">
-    <title>{% block head_title %}{% switch "SAPLN_SWITCH" %}SAPL-Normas - {% else %}SAPL - {%endswitch%}{{nome_casa}}{% endblock %}</title>
+    <title>{% block head_title %}{% switch "LegisincN_SWITCH" %}Legisinc-Normas - {% else %}Legisinc - {%endswitch%}{{nome_casa}}{% endblock %}</title>
     <script type="application/ld+json">
     {
       "@context" : "https://schema.org",
@@ -43,6 +43,27 @@
 
       {% if not sapl_as_sapn or user.is_authenticated%}
         {% if not request|has_iframe %}
+          {# Header - Masthead com Logo (SEMPRE APARECE PRIMEIRO) #}
+          {% block main_header %}
+          <header class="masthead">
+            <div class="container">
+              <div class="navbar-header">
+                <a class="navbar-brand" href="/">
+                  <img src="{% if logotipo %}{{ MEDIA_URL }}{{ logotipo }}{% else %}{% webpack_static 'img/logo-camara-padrao.png' %}{% endif %}"
+                  alt="Logo" class="img-responsive"
+                  onerror="this.onerror=null; this.src='{% webpack_static 'img/logo-camara-padrao.png' %}';">
+                  <span class="vcenter">{% if nome %}{{ nome }}{% else %}{% trans 'Câmara/Assembléia não configurada'%}{% endif %}
+                  </span>
+                </a>
+              </div>
+              <div class="hidden-print">
+                {% block sections_nav %} {% subnav %} {% endblock sections_nav %}
+              </div>
+            </div>
+          </header>
+          {% endblock main_header %}
+
+          {# Barra de Navegação (APARECE DEPOIS DO MASTHEAD) #}
           {% block navigation %}
             <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
               <div class="container">
@@ -105,26 +126,6 @@
             {% endif %}
           </div>
         </div>
-      {% endif %}
-      {% if not request|has_iframe %}
-        {# Header #}
-        {% block main_header %}
-        <header class="masthead">
-          <div class="container">
-            <div class="navbar-header">
-              <a class="navbar-brand" href="/">
-                <img src="{% if logotipo %}{{ MEDIA_URL }}{{ logotipo }}{% else %}{% webpack_static 'img/logo.png' %}{% endif %}"
-                alt="Logo" class="img-responsive" >
-                <span class="vcenter">{% if nome %}{{ nome }}{% else %}{% trans 'Câmara/Assembléia não configurada'%}{% endif %}
-                </span>
-              </a>
-            </div>
-            <div class="hidden-print">
-              {% block sections_nav %} {% subnav %} {% endblock sections_nav %}
-            </div>
-          </div>
-        </header>
-        {% endblock main_header %}
       {% endif %}
 
       {# Main content #}

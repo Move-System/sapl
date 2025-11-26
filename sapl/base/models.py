@@ -322,7 +322,7 @@ class TipoAutor(models.Model):
         ContentType,
         null=True,
         default=None,
-        verbose_name=_('Modelagem no SAPL'),
+        verbose_name=_('Modelagem no Legisinc'),
         on_delete=models.PROTECT)
 
     class Meta:

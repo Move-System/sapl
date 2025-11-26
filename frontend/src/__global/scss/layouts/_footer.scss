@@ -3,18 +3,30 @@ body {
   margin-bottom: 160px;
 }
 .footer {
-  background: #364347;
-  color: white;
+  background: $footer-bg;
+  color: $footer-text;
   text-align: center;
   position: absolute;
   width: 100%;
   bottom: 0px;
+  box-shadow: 0 -2px 8px rgba($neutral-dark, 0.1);
+
   p {
-    color: white;
+    color: $footer-text;
     margin-top: 10px;
   }
   .container {
     padding-top: 25px;
+  }
+
+  a {
+    color: $secondary-color;
+    transition: $transition-fast;
+
+    &:hover {
+      color: lighten($secondary-color, 15%);
+      text-decoration: none;
+    }
   }
 }
 

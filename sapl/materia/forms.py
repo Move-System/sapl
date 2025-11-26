@@ -1564,10 +1564,54 @@ class TipoProposicaoForm(ModelForm):
                 ),
                 to_column(
                     (
-                        Row(
-                            to_column(('content_type', 12)),
-                            to_column(('tipo_conteudo_related_radio', 12)),
-                            to_column(('tipo_conteudo_related', 12)),
+                        Div(
+                            Row(
+                                to_column(('content_type', 10)),
+                                to_column((
+                                    HTML('''
+                                        <div id="btn-criar-tipo-container" style="display: none; margin-top: 32px;">
+                                            <a id="btn-criar-tipo" href="#" target="_blank"
+                                               class="btn btn-primary btn-sm"
+                                               title="Criar novo tipo">
+                                                <i class="fa fa-plus"></i> Criar Novo
+                                            </a>
+                                        </div>
+                                        <script>
+                                            (function() {
+                                                const contentTypeSelect = document.querySelector('select[name="content_type"]');
+                                                const btnContainer = document.getElementById('btn-criar-tipo-container');
+                                                const btnCriarTipo = document.getElementById('btn-criar-tipo');
+
+                                                const urlMap = {
+                                                    'materia/tipomaterialegislativa': '/sistema/materia/tipo/create',
+                                                    'materia/tipodocumento': '/sistema/materia/tipo-documento/create'
+                                                };
+
+                                                function updateButton() {
+                                                    const selectedValue = contentTypeSelect.value;
+                                                    if (selectedValue && urlMap[selectedValue]) {
+                                                        btnCriarTipo.href = urlMap[selectedValue];
+                                                        btnContainer.style.display = 'block';
+                                                    } else {
+                                                        btnContainer.style.display = 'none';
+                                                    }
+                                                }
+
+                                                if (contentTypeSelect) {
+                                                    contentTypeSelect.addEventListener('change', updateButton);
+                                                    // Verificar ao carregar a página
+                                                    updateButton();
+                                                }
+                                            })();
+                                        </script>
+                                    '''),
+                                    2
+                                )),
+                            ),
+                            Row(
+                                to_column(('tipo_conteudo_related_radio', 12)),
+                                to_column(('tipo_conteudo_related', 12)),
+                            ),
                         ),
                         7
                     )
@@ -1866,7 +1910,8 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
 
     TIPO_TEXTO_CHOICE = [
         ('D', _('Arquivo Digital')),
-        ('T', _('Texto Articulado'))
+        ('T', _('Texto Articulado')),
+        ('O', _('Criar com OnlyOffice'))
     ]
 
     tipo_materia = forms.ModelChoiceField(
@@ -1928,11 +1973,10 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
-        self.texto_articulado_proposicao = BaseAppConfig.attr(
-            'texto_articulado_proposicao')
-
-        self.receber_recibo = BaseAppConfig.attr(
-            'receber_recibo_proposicao')
+        # Usar query direta em vez de cache para evitar problemas com configurações atualizadas
+        app_config = BaseAppConfig.objects.last()
+        self.texto_articulado_proposicao = app_config.texto_articulado_proposicao if app_config else False
+        self.receber_recibo = app_config.receber_recibo_proposicao if app_config else False
 
         if not self.texto_articulado_proposicao:
             if 'tipo_texto' in self._meta.fields:
@@ -1976,6 +2020,84 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
                                 ('ano_materia', 6)]),
                     ), 12)),
         )
+
+        # JavaScript e HTML para gerenciar campo de upload e mensagem OnlyOffice
+        fields.append(
+            to_column((HTML("""
+                <div id="onlyoffice-info" class="alert alert-info" style="display: none;">
+                    <h5><i class="fa fa-file-word-o"></i> Editor OnlyOffice</h5>
+                    <p>
+                        Após salvar esta proposição, você será redirecionado automaticamente
+                        para o <strong>Editor OnlyOffice</strong>, onde poderá criar e editar
+                        o documento diretamente no navegador com todos os recursos de um
+                        editor de texto profissional.
+                    </p>
+                    <p class="mb-0">
+                        <strong>Recursos disponíveis:</strong> formatação de texto, tabelas,
+                        listas, imagens, cabeçalhos, rodapés e muito mais!
+                    </p>
+                </div>
+                <script>
+                    (function() {
+                        function toggleTextoOriginal() {
+                            var tipoTextoRadios = document.querySelectorAll('input[name="tipo_texto"]');
+                            var tipoTextoSelecionado = null;
+
+                            // Encontrar qual radio está selecionado
+                            for (var i = 0; i < tipoTextoRadios.length; i++) {
+                                if (tipoTextoRadios[i].checked) {
+                                    tipoTextoSelecionado = tipoTextoRadios[i].value;
+                                    break;
+                                }
+                            }
+
+                            var textoOriginalDiv = document.getElementById('div_id_texto_original');
+                            var onlyofficeInfo = document.getElementById('onlyoffice-info');
+                            var textoOriginalInput = document.getElementById('id_texto_original');
+
+                            if (tipoTextoSelecionado === 'O') {
+                                // Esconder campo de upload e mostrar mensagem OnlyOffice
+                                if (textoOriginalDiv) textoOriginalDiv.style.display = 'none';
+                                if (onlyofficeInfo) onlyofficeInfo.style.display = 'block';
+                                // Remover atributo required se existir
+                                if (textoOriginalInput) textoOriginalInput.removeAttribute('required');
+                            } else if (tipoTextoSelecionado === 'T') {
+                                // Esconder campo de upload para Texto Articulado
+                                if (textoOriginalDiv) textoOriginalDiv.style.display = 'none';
+                                if (onlyofficeInfo) onlyofficeInfo.style.display = 'none';
+                                if (textoOriginalInput) textoOriginalInput.removeAttribute('required');
+                            } else {
+                                // Mostrar campo de upload para Arquivo Digital
+                                if (textoOriginalDiv) textoOriginalDiv.style.display = 'block';
+                                if (onlyofficeInfo) onlyofficeInfo.style.display = 'none';
+                            }
+                        }
+
+                        // Executar quando o DOM estiver pronto
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', function() {
+                                setTimeout(toggleTextoOriginal, 100);
+
+                                // Adicionar event listeners aos radios
+                                var tipoTextoRadios = document.querySelectorAll('input[name="tipo_texto"]');
+                                for (var i = 0; i < tipoTextoRadios.length; i++) {
+                                    tipoTextoRadios[i].addEventListener('change', toggleTextoOriginal);
+                                }
+                            });
+                        } else {
+                            setTimeout(toggleTextoOriginal, 100);
+
+                            // Adicionar event listeners aos radios
+                            var tipoTextoRadios = document.querySelectorAll('input[name="tipo_texto"]');
+                            for (var i = 0; i < tipoTextoRadios.length; i++) {
+                                tipoTextoRadios[i].addEventListener('change', toggleTextoOriginal);
+                            }
+                        }
+                    })();
+                </script>
+            """), 12))
+        )
+
         self.helper = SaplFormHelper()
         self.helper.layout = SaplFormLayout(*fields)
 
@@ -2076,6 +2198,11 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
 
                 if cd['tipo_texto'] == 'T' and inst.texto_original:
                     inst.texto_original.delete()
+
+                elif cd['tipo_texto'] == 'O':
+                    # OnlyOffice: apenas remove texto articulado se houver
+                    inst.texto_articulado.all().delete()
+                    # Não remove texto_original pois será criado/editado no OnlyOffice
 
                 elif cd['tipo_texto'] != 'T':
                     inst.texto_articulado.all().delete()

@@ -32,7 +32,7 @@ from sapl.norma.models import NormaJuridica, NormaEstatisticas
 from sapl.parlamentares.models import Partido, SessaoLegislativa, \
     Parlamentar, Votante
 from sapl.protocoloadm.models import DocumentoAdministrativo
-from sapl.rules import SAPL_GROUP_AUTOR, SAPL_GROUP_VOTANTE
+from sapl.rules import Legisinc_GROUP_AUTOR, Legisinc_GROUP_VOTANTE
 from sapl.sessao.models import SessaoPlenaria
 from sapl.settings import MAX_IMAGE_UPLOAD_SIZE
 from sapl.utils import (autor_label, autor_modal, ChoiceWithoutValidationField,
@@ -152,7 +152,19 @@ class UserAdminForm(ModelForm):
 
         row_pwd += [
 
-            ('parlamentar', 6),
+            ('parlamentar', 5),
+            (
+                HTML('''
+                    <div style="margin-top: 32px;">
+                        <a href="/parlamentar/create" target="_blank"
+                           class="btn btn-success btn-sm"
+                           title="Criar novo parlamentar">
+                            <i class="fa fa-plus"></i> Criar Parlamentar
+                        </a>
+                    </div>
+                '''),
+                1
+            ),
             ('autor', 6),
             ('groups', 12),
 
@@ -166,8 +178,11 @@ class UserAdminForm(ModelForm):
 
         self.fields['groups'].widget = forms.CheckboxSelectMultiple()
 
+        # Mostrar todos os parlamentares ativos, não apenas com mandato
+        # Isso permite que um usuário seja votante mesmo sem mandato formal
+        parlamentares_disponiveis = Parlamentar.objects.filter(ativo=True).order_by('nome_parlamentar')
         self.fields['parlamentar'].choices = [('', '---------')] + [
-            (p.id, p) for p in parlamentares_ativos(timezone.now())
+            (p.id, p) for p in parlamentares_disponiveis
         ]
 
         if not self.instance.pk:
@@ -209,7 +224,7 @@ class UserAdminForm(ModelForm):
                 ] + [
                     (p.id, p) for p in Permission.objects.filter(
                         content_type__app_label__in=list(
-                            map(lambda x: x.split('.')[-1], settings.SAPL_APPS))
+                            map(lambda x: x.split('.')[-1], settings.Legisinc_APPS))
                     ).exclude(
                         user=self.instance
                     ).order_by('content_type__app_label',
@@ -236,8 +251,8 @@ class UserAdminForm(ModelForm):
         if permissions:
             inst.user_permissions.add(*permissions)
 
-        g_autor = Group.objects.get(name=SAPL_GROUP_AUTOR)
-        g_votante = Group.objects.get(name=SAPL_GROUP_VOTANTE)
+        g_autor = Group.objects.get(name=Legisinc_GROUP_AUTOR)
+        g_votante = Group.objects.get(name=Legisinc_GROUP_VOTANTE)
 
         if not self.cleaned_data['autor']:
             inst.groups.remove(g_autor)
@@ -549,7 +564,7 @@ class AutorForm(ModelForm):
     operadores = forms.ModelMultipleChoiceField(
         queryset=get_user_model().objects.all(),
         widget=forms.CheckboxSelectMultiple(),
-        label=_('Usuários do SAPL ligados ao autor acima selecionado'),
+        label=_('Usuários do Legisinc ligados ao autor acima selecionado'),
         required=False,
         help_text=_(
             'Para ser listado aqui, o usuário não pode estar em nenhum outro autor e deve estar marcado como ativo.')
@@ -580,7 +595,54 @@ class AutorForm(ModelForm):
             data_application='AutorSearch',
             data_field='autor_related')
 
-        autor_select = Row(to_column(('tipo', 3)),
+        autor_select = Row(to_column(('tipo', 2)),
+                           to_column((
+                               HTML('''
+                                   <div id="btn-criar-registro-container" style="display: none; margin-top: 32px;">
+                                       <a id="btn-criar-registro" href="#" target="_blank"
+                                          class="btn btn-primary btn-sm"
+                                          title="Criar novo registro">
+                                           <i class="fa fa-plus"></i> Criar Novo
+                                       </a>
+                                   </div>
+                                   <script>
+                                       (function() {
+                                           const tipoSelect = document.querySelector('select[name="tipo"]');
+                                           const btnContainer = document.getElementById('btn-criar-registro-container');
+                                           const btnCriarRegistro = document.getElementById('btn-criar-registro');
+
+                                           const urlMap = {
+                                               'Parlamentar': '/parlamentar/create',
+                                               'Comissão': '/comissao/create',
+                                               'Frente Parlamentar': '/sistema/frente/create',
+                                               'Bloco Parlamentar': '/sistema/bloco/create',
+                                               'Órgão': '/sistema/materia/orgao/create'
+                                           };
+
+                                           function updateButton() {
+                                               if (!tipoSelect) return;
+
+                                               const selectedOption = tipoSelect.options[tipoSelect.selectedIndex];
+                                               const tipoTexto = selectedOption ? selectedOption.text.trim() : '';
+
+                                               if (tipoTexto && urlMap[tipoTexto]) {
+                                                   btnCriarRegistro.href = urlMap[tipoTexto];
+                                                   btnContainer.style.display = 'block';
+                                               } else {
+                                                   btnContainer.style.display = 'none';
+                                               }
+                                           }
+
+                                           if (tipoSelect) {
+                                               tipoSelect.addEventListener('change', updateButton);
+                                               // Verificar ao carregar a página
+                                               setTimeout(updateButton, 100);
+                                           }
+                                       })();
+                                   </script>
+                               '''),
+                               1
+                           )),
                            Div(to_column(('nome', 7)),
                                to_column(('cargo', 5)),
                                css_class="div_nome_cargo row col"),

@@ -45,6 +45,7 @@ services:
       ADMIN_PASSWORD: interlegis
       ADMIN_EMAIL: email@dominio.net
       DEBUG: 'False'
+      DATABASE_URL: postgresql://bruno:Sapl%402025@legisinc.com.br:5432/sapl
       EMAIL_PORT: 587
       EMAIL_USE_TLS: 'False'
       EMAIL_HOST: smtp.dominio.net
@@ -57,14 +58,33 @@ services:
       IS_ZK_EMBEDDED: 'True'
       ENABLE_SAPN: 'False'
       TZ: America/Sao_Paulo
+      ONLYOFFICE_URL: 'http://onlyoffice:80'
+      ONLYOFFICE_JWT_ENABLED: 'False'
     volumes:
       - sapl_data:/var/interlegis/sapl/data
       - sapl_media:/var/interlegis/sapl/media
     depends_on:
-      - sapldb
       - saplsolr
+      - onlyoffice
     ports:
       - "8000:80"
+    networks:
+      - sapl-net
+  onlyoffice:
+    image: onlyoffice/documentserver:latest
+    container_name: onlyoffice-documentserver
+    labels:
+       NAME: "onlyoffice"
+    restart: always
+    environment:
+      - JWT_ENABLED=false
+      - JWT_SECRET=your-secret-key-change-this
+    volumes:
+      - onlyoffice_data:/var/www/onlyoffice/Data
+      - onlyoffice_log:/var/log/onlyoffice
+      - onlyoffice_fonts:/usr/share/fonts/truetype/custom
+    ports:
+      - "8002:80"
     networks:
       - sapl-net
 networks:
@@ -77,3 +97,6 @@ volumes:
   sapl_media:
   solr_data:
   solr_configsets:
+  onlyoffice_data:
+  onlyoffice_log:
+  onlyoffice_fonts:

@@ -1,8 +1,5 @@
 {{casa_legislativa}}
 
-Sistema de Apoio ao Processo Legislativo
------------------------------------------
-
 A seguinte matéria, de seu interesse, sofreu Tramitação registrada em {{data_registro}}
 
 Matéria: {{materia}} - {{descricao_materia}}

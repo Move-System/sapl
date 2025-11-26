@@ -1,0 +1,97 @@
+// ============================================
+// PALETA DE CORES INSTITUCIONAL Legisinc
+// ============================================
+
+// Cores Primárias
+$primary-color: #0E3A5D;        // Azul institucional - Autoridade, confiança, estabilidade
+$secondary-color: #3DB8CF;      // Azul claro - Modernidade, tecnologia, fluidez
+
+// Cores Neutras
+$neutral-dark: #2C2C2C;         // Cinza escuro - Texto, contraste
+$neutral-light: #F5F6FA;        // Cinza claro - Fundo limpo, leveza
+$neutral-medium: #6C757D;       // Cinza médio - Ícones, bordas, estados neutros
+
+// Cores de Feedback
+$success-color: #28A745;        // Verde - Aprovação, sucesso, positivo
+$warning-color: #FFC107;        // Amarelo - Atenção, aviso
+$danger-color: #DC3545;         // Vermelho - Erro, reprovação
+
+// ============================================
+// BOOTSTRAP CUSTOMIZATION
+// ============================================
+
+// Override Bootstrap's default colors
+$blue:    $primary-color !default;
+$cyan:    $secondary-color !default;
+$green:   $success-color !default;
+$yellow:  $warning-color !default;
+$red:     $danger-color !default;
+
+// Theme colors for Bootstrap
+$primary:   $primary-color !default;
+$secondary: $secondary-color !default;
+$success:   $success-color !default;
+$warning:   $warning-color !default;
+$danger:    $danger-color !default;
+$info:      $secondary-color !default;
+$light:     $neutral-light !default;
+$dark:      $neutral-dark !default;
+
+// Typography
+$body-color:            $neutral-dark !default;
+$headings-color:        $primary-color !default;
+$text-muted:            $neutral-medium !default;
+
+// Links
+$link-color:            $primary-color !default;
+$link-hover-color:      darken($secondary-color, 10%) !default;
+
+// Borders
+$border-color:          lighten($neutral-medium, 30%) !default;
+
+// Backgrounds
+$body-bg:               #FFFFFF !default;
+$gray-100:              $neutral-light !default;
+
+// ============================================
+// CUSTOM VARIABLES
+// ============================================
+
+// Header/Masthead
+$masthead-bg:           #FFFFFF !default;
+$masthead-border:       lighten($neutral-medium, 35%) !default;
+$nav-link-hover-bg:     $secondary-color !default;
+$nav-link-hover-color:  #FFFFFF !default;
+
+// Footer
+$footer-bg:             $primary-color !default;
+$footer-text:           #FFFFFF !default;
+
+// Forms
+$input-border-color:    $neutral-medium !default;
+$input-focus-border:    $secondary-color !default;
+
+// Buttons
+$btn-border-radius:     4px !default;
+$btn-padding-y:         0.5rem !default;
+$btn-padding-x:         1rem !default;
+
+// Cards
+$card-border-color:     $border-color !default;
+$card-cap-bg:           $neutral-light !default;
+
+// Tables
+$table-border-color:    $border-color !default;
+$table-hover-bg:        rgba($secondary-color, 0.05) !default;
+
+// Alerts
+$alert-border-radius:   4px !default;
+
+// Shadows
+$box-shadow:            0 2px 8px rgba($neutral-dark, 0.1) !default;
+$box-shadow-sm:         0 1px 4px rgba($neutral-dark, 0.08) !default;
+$box-shadow-lg:         0 4px 16px rgba($neutral-dark, 0.15) !default;
+
+// Transitions
+$transition-base:       all 0.3s ease-in-out !default;
+$transition-fast:       all 0.15s ease-in-out !default;

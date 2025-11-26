@@ -11,12 +11,12 @@ from sapl.crud.base import PermissionRequiredForAppCrudMixin
 from sapl.rules.apps import AppConfig, update_groups
 from scripts.lista_urls import lista_urls
 
-from .settings import SAPL_APPS
+from .settings import Legisinc_APPS
 
 
 pytestmark = pytest.mark.django_db
 
-sapl_appconfs = [apps.get_app_config(n[5:]) for n in SAPL_APPS]
+sapl_appconfs = [apps.get_app_config(n[5:]) for n in Legisinc_APPS]
 _lista_urls = lista_urls()
 
 
@@ -299,7 +299,7 @@ def test_urlpatterns(url_item, admin_client):
                 %s
                 """ % (url, app_name, prefixs)
     else:
-        # ignorando app de redirecionamento de urls no padrão do SAPL 2.5
+        # ignorando app de redirecionamento de urls no padrão do Legisinc 2.5
         pass
 
 

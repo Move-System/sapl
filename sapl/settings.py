@@ -43,15 +43,15 @@ ALLOWED_HOSTS = ['*']
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/login/?next='
 
-SAPL_VERSION = '3.1.164-RC5'
+Legisinc_VERSION = '3.1.164-RC5'
 
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
-# SAPL business apps in dependency order
-SAPL_APPS = (
+# Legisinc business apps in dependency order
+Legisinc_APPS = (
     'sapl.audiencia',
     'sapl.base',
     'sapl.crud',
@@ -101,7 +101,7 @@ INSTALLED_APPS = (
 
                      'django_prometheus',
 
-                 ) + SAPL_APPS
+                 ) + Legisinc_APPS
 
 # FTS = Full Text Search
 # Desabilita a indexação textual até encontramos uma solução para a issue
@@ -302,6 +302,11 @@ EMAIL_SEND_USER = config('EMAIL_SEND_USER', cast=str, default='')
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', cast=str, default='')
 SERVER_EMAIL = config('SERVER_EMAIL', cast=str, default='')
 EMAIL_RUNNING = None
+
+# OnlyOffice Document Server Configuration
+ONLYOFFICE_URL = config('ONLYOFFICE_URL', default='http://localhost:8002')
+ONLYOFFICE_JWT_SECRET = config('ONLYOFFICE_JWT_SECRET', default='')
+ONLYOFFICE_JWT_ENABLED = config('ONLYOFFICE_JWT_ENABLED', cast=bool, default=False)
 
 # Feature Flag
 WAFFLE_FLAG_DEFAULT = False

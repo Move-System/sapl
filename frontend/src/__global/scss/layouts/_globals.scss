@@ -60,7 +60,7 @@ ul {
 .form-control-static {
   padding: 0.2em 0;
   padding-left: 12px;
-  background-color: #f7f7f7;
+  background-color: $neutral-light;
   &:empty {
     display: none;
   }
@@ -73,14 +73,26 @@ ul {
   margin-bottom: 20px;
   font-size: 21px;
   line-height: inherit;
-  color: #333;
+  color: $primary-color;
   border: 0;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 2px solid $secondary-color;
   clear: both;
+  font-weight: 600;
 }
 
 .page-header {
   margin: 20px 0px 10px;
+
+  // Esconde page-header se estiver vazio
+  &:empty {
+    display: none;
+    margin: 0;
+  }
+}
+
+// Espaçamento do conteúdo principal após navbar
+.content.page__row {
+  margin-top: 30px;
 }
 
 .caret {
@@ -93,15 +105,15 @@ ul {
   vertical-align: middle;
 }
 small {
-  color: #777;
+  color: $neutral-medium;
 }
 
 .container-tabaux {
   .sidebar-tabaux {
-    background: #fafafa;
+    background: $neutral-light;
     margin-top: -70px;
     padding: 10px;
-    border: 1px solid #eee;
+    border: 1px solid $border-color;
     .navbar-right {
       margin: 0;
     }
@@ -150,15 +162,16 @@ small {
     }
     & > li {
       width: 100%;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid $border-color;
       padding-bottom: 20px;
       margin-bottom: 20px;
     }
 
     .head_title {
-      color: #364347;
+      color: $primary-color;
       font-size: 1.7rem;
       text-transform: none;
+      font-weight: 600;
     }
 
     a {

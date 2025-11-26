@@ -1,4 +1,4 @@
-from sapl.rules import SAPL_GROUP_LOGIN_SOCIAL
+from sapl.rules import Legisinc_GROUP_LOGIN_SOCIAL
 from sapl.rules.group_administrativo import rules_group_administrativo
 from sapl.rules.group_anonymous import rules_group_anonymous
 from sapl.rules.group_audiencia import rules_group_audiencia
@@ -13,7 +13,7 @@ from sapl.rules.group_sessao import rules_group_sessao
 from sapl.rules.group_votante import rules_group_votante
 
 rules_group_login_social = {
-    'group': SAPL_GROUP_LOGIN_SOCIAL,
+    'group': Legisinc_GROUP_LOGIN_SOCIAL,
     'rules': []
 }
 """
@@ -33,7 +33,7 @@ todos as rules de groups são um dicionario com duas chaves: 'group' e 'rules'
 exemplo:
 
 rules_group_exemplo = {
-    'group': SAPL_GROUP_EXEMPLO,
+    'group': Legisinc_GROUP_EXEMPLO,
     'rules': [
         (
             model_exemplo1,
@@ -49,7 +49,7 @@ rules_group_exemplo = {
 }
 
 rules_group_exemplo['rules'][0]
-  1 significa q usuários que estão no grupo SAPL_GROUP_EXEMPLO
+  1 significa q usuários que estão no grupo Legisinc_GROUP_EXEMPLO
     só podem acessar o que está em rules_group_exemplo['rules'][0][1], ou seja,
     listar e ver os detalhes de model_exemplo1
 
@@ -60,7 +60,7 @@ rules_group_exemplo['rules'][0]
 --------------------------
 
 rules_group_exemplo['rules'][1]
-  1 significa q usuários que estão no grupo SAPL_GROUP_EXEMPLO
+  1 significa q usuários que estão no grupo Legisinc_GROUP_EXEMPLO
     podem acessar o que está em rules_group_exemplo['rules'][1][1], ou seja,
     listar, ver detalhes, editar, apagar e adicionar registros de model_exemplo2
 

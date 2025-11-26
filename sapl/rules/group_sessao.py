@@ -1,9 +1,9 @@
 
-from sapl.rules import SAPL_GROUP_SESSAO, __perms_publicas__, __base__
+from sapl.rules import Legisinc_GROUP_SESSAO, __perms_publicas__, __base__
 from sapl.sessao import models as sessao
 
 rules_group_sessao = {
-    'group': SAPL_GROUP_SESSAO,
+    'group': Legisinc_GROUP_SESSAO,
     'rules': [
         (sessao.SessaoPlenaria, __base__, __perms_publicas__),
         (sessao.SessaoPlenariaPresenca, __base__, __perms_publicas__),

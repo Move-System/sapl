@@ -1177,6 +1177,14 @@ class ProposicaoCrud(Crud):
                     você será redirecionado para o Texto Eletrônico. \
                     Use a opção "Editar Texto" para construir seu texto.""".format(username))
                 return reverse('sapl.materia:proposicao_ta', kwargs={'pk': self.object.pk})
+            elif tipo_texto == 'O':
+                messages.info(self.request, _("""\
+                    Proposição criada com sucesso! \
+                    Você será redirecionado para o Editor OnlyOffice para criar o documento."""))
+                self.logger.debug("""\
+                    User={}. Proposição criada com OnlyOffice. \
+                    Redirecionando para o editor.""".format(username))
+                return reverse('sapl.materia:onlyoffice_editor', kwargs={'pk': self.object.pk})
             else:
                 return Crud.CreateView.get_success_url(self)
 
@@ -1282,11 +1290,11 @@ class HistoricoProposicaoView(PermissionRequiredMixin, ListView):
     def get_queryset(self):
         qs = super().get_queryset()
 
-        from sapl.rules import SAPL_GROUP_AUTOR
+        from sapl.rules import Legisinc_GROUP_AUTOR
         from django.contrib.auth.models import Group
 
         user = self.request.user
-        grupo_autor = Group.objects.get(name=SAPL_GROUP_AUTOR)
+        grupo_autor = Group.objects.get(name=Legisinc_GROUP_AUTOR)
 
         if not user.is_superuser and grupo_autor.user_set.filter(
                 id=user.id).exists():
@@ -2977,7 +2985,7 @@ def get_zip_docacessorios(request, pk):
     except Exception as e:
         logger.error("user={}. Um erro inesperado ocorreu na criação do pdf de documentos acessorios: {}"
                      .format(username, str(e)))
-        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SAPL.')
+        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do Legisinc.')
         messages.add_message(request, messages.ERROR, msg)
         return redirect(reverse('sapl.materia:documentoacessorio_list',
                                 kwargs={'pk': pk}))
@@ -3048,7 +3056,7 @@ def get_pdf_docacessorios(request, pk):
     except Exception as e:
         logger.error("user= {}.Um erro inesperado ocorreu na criação do pdf de documentos acessorios: {}"
                      .format(username, str(e)))
-        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SAPL.')
+        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do Legisinc.')
         messages.add_message(request, messages.ERROR, msg)
         return redirect(reverse('sapl.materia:documentoacessorio_list',
                                 kwargs={'pk': pk}))

@@ -1,0 +1,364 @@
+// ============================================
+// CUSTOM COMPONENTS WITH NEW COLOR PALETTE
+// ============================================
+
+// Buttons
+.btn {
+  border-radius: $btn-border-radius;
+  transition: $transition-fast;
+  font-weight: 500;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: $box-shadow-sm;
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.btn-primary {
+  background-color: $primary-color;
+  border-color: $primary-color;
+
+  &:hover, &:focus {
+    background-color: darken($primary-color, 8%);
+    border-color: darken($primary-color, 8%);
+  }
+}
+
+.btn-secondary {
+  background-color: $secondary-color;
+  border-color: $secondary-color;
+
+  &:hover, &:focus {
+    background-color: darken($secondary-color, 8%);
+    border-color: darken($secondary-color, 8%);
+  }
+}
+
+.btn-success {
+  background-color: $success-color;
+  border-color: $success-color;
+}
+
+.btn-warning {
+  background-color: $warning-color;
+  border-color: $warning-color;
+  color: $neutral-dark;
+}
+
+.btn-danger {
+  background-color: $danger-color;
+  border-color: $danger-color;
+}
+
+// Cards
+.card {
+  border-color: $card-border-color;
+  box-shadow: $box-shadow-sm;
+  transition: $transition-base;
+
+  &:hover {
+    box-shadow: $box-shadow;
+  }
+
+  .card-header {
+    background-color: $card-cap-bg;
+    color: $primary-color;
+    font-weight: 600;
+    border-bottom: 2px solid $secondary-color;
+  }
+}
+
+// Tables
+.table {
+  border-color: $table-border-color;
+
+  thead th {
+    background-color: $primary-color;
+    color: white !important;
+    border-color: $primary-color;
+    font-weight: 600;
+
+    a {
+      color: white !important;
+      text-decoration: none;
+
+      &:hover {
+        color: white !important;
+        text-decoration: underline;
+      }
+    }
+  }
+
+  tbody tr {
+    transition: $transition-fast;
+
+    &:hover {
+      background-color: $table-hover-bg;
+    }
+  }
+
+  td, th {
+    border-color: $table-border-color;
+  }
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba($neutral-light, 0.5);
+}
+
+// Forms
+.form-control {
+  border-color: $input-border-color;
+  transition: $transition-fast;
+
+  &:focus {
+    border-color: $input-focus-border;
+    box-shadow: 0 0 0 0.2rem rgba($secondary-color, 0.25);
+  }
+}
+
+.form-label, label {
+  color: $primary-color;
+  font-weight: 500;
+}
+
+// Alerts
+.alert {
+  border-radius: $alert-border-radius;
+  border-width: 1px;
+  border-style: solid;
+
+  &.alert-success {
+    background-color: lighten($success-color, 45%);
+    border-color: $success-color;
+    color: darken($success-color, 10%);
+  }
+
+  &.alert-warning {
+    background-color: lighten($warning-color, 45%);
+    border-color: $warning-color;
+    color: darken($warning-color, 30%);
+  }
+
+  &.alert-danger {
+    background-color: lighten($danger-color, 40%);
+    border-color: $danger-color;
+    color: darken($danger-color, 10%);
+  }
+
+  &.alert-info {
+    background-color: lighten($secondary-color, 45%);
+    border-color: $secondary-color;
+    color: darken($secondary-color, 20%);
+  }
+}
+
+// Badges
+.badge {
+  font-weight: 500;
+
+  &.badge-primary {
+    background-color: $primary-color;
+  }
+
+  &.badge-secondary {
+    background-color: $secondary-color;
+  }
+
+  &.badge-success {
+    background-color: $success-color;
+  }
+
+  &.badge-warning {
+    background-color: $warning-color;
+    color: $neutral-dark;
+  }
+
+  &.badge-danger {
+    background-color: $danger-color;
+  }
+}
+
+// Pagination
+.pagination {
+  .page-link {
+    color: $primary-color;
+    border-color: $border-color;
+    transition: $transition-fast;
+
+    &:hover {
+      background-color: $secondary-color;
+      color: white;
+      border-color: $secondary-color;
+    }
+  }
+
+  .page-item.active .page-link {
+    background-color: $primary-color;
+    border-color: $primary-color;
+  }
+}
+
+// Breadcrumb
+.breadcrumb {
+  background-color: $neutral-light;
+
+  .breadcrumb-item {
+    a {
+      color: $primary-color;
+      transition: $transition-fast;
+
+      &:hover {
+        color: $secondary-color;
+        text-decoration: none;
+      }
+    }
+
+    &.active {
+      color: $neutral-medium;
+    }
+  }
+}
+
+// Nav tabs
+.nav-tabs {
+  border-bottom-color: $border-color;
+
+  .nav-link {
+    color: $primary-color;
+    transition: $transition-fast;
+
+    &:hover {
+      border-color: $border-color;
+      background-color: $neutral-light;
+    }
+
+    &.active {
+      color: $primary-color;
+      background-color: white;
+      border-color: $border-color $border-color white;
+      font-weight: 600;
+    }
+  }
+}
+
+// Dropdown
+.dropdown-menu {
+  border-color: $border-color;
+  box-shadow: $box-shadow;
+
+  .dropdown-item {
+    color: $neutral-dark;
+    transition: $transition-fast;
+
+    &:hover, &:focus {
+      background-color: $secondary-color;
+      color: white;
+    }
+
+    &.active {
+      background-color: $primary-color;
+    }
+  }
+}
+
+// Modal
+.modal-header {
+  background-color: $primary-color;
+  color: white;
+  border-bottom-color: darken($primary-color, 5%);
+
+  .modal-title {
+    font-weight: 600;
+  }
+
+  .close {
+    color: white;
+    opacity: 0.8;
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+.modal-footer {
+  border-top-color: $border-color;
+}
+
+// Progress bar
+.progress {
+  background-color: $neutral-light;
+
+  .progress-bar {
+    background-color: $secondary-color;
+  }
+}
+
+// Links
+a {
+  color: $link-color;
+  transition: $transition-fast;
+
+  &:hover {
+    color: $link-hover-color;
+  }
+}
+
+// Page header
+.page-header {
+  border-bottom: 2px solid $secondary-color;
+  padding-bottom: 10px;
+
+  h1, h2, h3 {
+    color: $primary-color;
+    font-weight: 600;
+  }
+
+  // Esconde se estiver vazio
+  &:empty {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+  }
+}
+
+// Navbar customization
+.navbar.navbar-dark.bg-dark {
+  background-color: $primary-color !important;
+  box-shadow: $box-shadow;
+  margin-bottom: 0;
+
+  .navbar-brand {
+    font-weight: 600;
+    transition: $transition-fast;
+
+    &:hover {
+      color: $secondary-color !important;
+    }
+  }
+
+  .nav-link {
+    transition: $transition-fast;
+
+    &:hover {
+      color: $secondary-color !important;
+    }
+  }
+
+  .dropdown-menu {
+    border-color: $primary-color;
+
+    .dropdown-item {
+      &:hover {
+        background-color: $secondary-color;
+        color: white;
+      }
+    }
+  }
+}

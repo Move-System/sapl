@@ -66,6 +66,15 @@ class IndexView(TemplateView):
             return redirect('/norma/pesquisar')
         return TemplateView.get(self, request, *args, **kwargs)
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Verifica se o usuário é operador de algum Autor (Parlamentar)
+        if self.request.user.is_authenticated:
+            context['is_parlamentar'] = self.request.user.autor_set.exists()
+        else:
+            context['is_parlamentar'] = False
+        return context
+
 
 class GuiaProjetoView(TemplateView):
     template_name = 'guia_projeto.html'
@@ -176,7 +185,7 @@ class TipoAutorCrud(CrudAux):
         @property
         def verbose_name(self):
             vn = super().verbose_name
-            vn = "{} {}".format(vn, _('Externo ao SAPL'))
+            vn = "{} {}".format(vn, _('Externo ao Legisinc'))
             return vn
 
     class ListView(CrudAux.ListView):
@@ -245,13 +254,13 @@ class AutorCrud(CrudAux):
                     kwargs['token'] = default_token_generator.make_token(user)
                     kwargs['uidb64'] = urlsafe_base64_encode(
                         force_bytes(user.pk))
-                    assunto = "SAPL - Confirmação de Conta"
+                    assunto = "Legisinc - Confirmação de Conta"
                     full_url = self.request.get_raw_uri()
                     url_base = full_url[:full_url.find('sistema') - 1]
 
                     mensagem = (
                             "Este e-mail foi utilizado para fazer cadastro no " +
-                            "SAPL com o perfil de Autor. Agora você pode " +
+                            "Legisinc com o perfil de Autor. Agora você pode " +
                             "criar/editar/enviar Proposições.\n" +
                             "Seu nome de usuário é: " +
                             self.request.POST['username'] + "\n"
