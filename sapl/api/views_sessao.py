@@ -164,6 +164,11 @@ class _SessaoPlenariaViewSet:
 
         return Response({
             'sessao': pk,
+            'sessao_nome': str(sessao),
+            'tipo_sessao': {
+                'id': sessao.tipo_id,
+                'nome': getattr(sessao.tipo, 'nome', None)
+            },
             'expediente': expediente_items,
             'ordem_dia': ordem_items
         })
