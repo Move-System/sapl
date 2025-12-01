@@ -185,7 +185,7 @@ class TipoAutorCrud(CrudAux):
         @property
         def verbose_name(self):
             vn = super().verbose_name
-            vn = "{} {}".format(vn, _('Externo ao Legisinc'))
+            vn = "{} {}".format(vn, _('Externo ao SGVP'))
             return vn
 
     class ListView(CrudAux.ListView):
@@ -254,13 +254,13 @@ class AutorCrud(CrudAux):
                     kwargs['token'] = default_token_generator.make_token(user)
                     kwargs['uidb64'] = urlsafe_base64_encode(
                         force_bytes(user.pk))
-                    assunto = "Legisinc - Confirmação de Conta"
+                    assunto = "SGVP - Confirmação de Conta"
                     full_url = self.request.get_raw_uri()
                     url_base = full_url[:full_url.find('sistema') - 1]
 
                     mensagem = (
                             "Este e-mail foi utilizado para fazer cadastro no " +
-                            "Legisinc com o perfil de Autor. Agora você pode " +
+                            "SGVP com o perfil de Autor. Agora você pode " +
                             "criar/editar/enviar Proposições.\n" +
                             "Seu nome de usuário é: " +
                             self.request.POST['username'] + "\n"

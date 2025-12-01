@@ -1,11 +1,11 @@
 from django.apps import apps
 from django.db import models
 
-from sapl.settings import Legisinc_APPS
+from sapl.settings import SGVP_APPS
 
 
 def convert_null_to_empty():
-    for name in Legisinc_APPS:
+    for name in SGVP_APPS:
         for model in apps.get_app_config(name).get_models():
             try:
                 print('Convertendo null p/ vazio. model [%s]'

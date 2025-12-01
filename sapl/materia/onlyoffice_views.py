@@ -47,7 +47,7 @@ def onlyoffice_config(request, pk):
     base_url = get_base_url(request)
 
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    # OnlyOffice precisa acessar o container Legisinc pelo nome do serviço
+    # OnlyOffice precisa acessar o container SGVP pelo nome do serviço
     download_url = request.build_absolute_uri(
         reverse('sapl.materia:onlyoffice_download', kwargs={'pk': pk})
     )

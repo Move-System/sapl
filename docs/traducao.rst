@@ -3,7 +3,7 @@ Instruções para Tradução
 ========================
 
 Nós utilizamos o `Transifex <https://www.transifex.com>`_  para gerenciar as traduções do projeto.
-Se você deseja contribuir, por favor crie uma conta no site e peça para se juntar a nós em `Transifex Legisinc Page <https://www.transifex.com/projects/p/sapl>`_.
+Se você deseja contribuir, por favor crie uma conta no site e peça para se juntar a nós em `Transifex SGVP Page <https://www.transifex.com/projects/p/sapl>`_.
 Assim que for aceito, você já pode começar a traduzir.
 
 Para integrar as últimas traduções ao projeto atual, siga estes passos:

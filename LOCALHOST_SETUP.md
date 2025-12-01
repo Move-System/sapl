@@ -1,6 +1,6 @@
 # Subir o SAPL apontando para o banco remoto (localhost)
 
-Passo a passo para subir o ambiente local usando o Postgres já disponível em `legisinc.com.br:5432`.
+Passo a passo para subir o ambiente local usando o Postgres já disponível em `sgvp.com.br:5432`.
 
 ## 1) Preparar o ambiente Python
 
@@ -16,7 +16,7 @@ pip install -r requirements/requirements.txt
 Edite `sapl/.env` com os valores do banco remoto:
 
 ```env
-DATABASE_URL=postgresql://kemuel:kasepulvida@legisinc.com.br:5432/sapl
+DATABASE_URL=postgresql://kemuel:kasepulvida@sgvp.com.br:5432/sapl
 SECRET_KEY=<sua-chave-secreta>
 DEBUG=True
 EMAIL_USE_TLS=True

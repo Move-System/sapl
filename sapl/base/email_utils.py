@@ -126,7 +126,7 @@ def do_envia_email_confirmacao(base_url, casa, tipo, doc_mat, destinatario):
         msg = " - Ative o Acompanhamento da Matéria"
     else:
         msg = " - Ative o Acompanhamento de Documento"
-    subject = "[Legisinc] {} {}".format(str(doc_mat), msg)
+    subject = "[SGVP] {} {}".format(str(doc_mat), msg)
     messages = []
     recipients = []
 
@@ -233,7 +233,7 @@ def do_envia_email_tramitacao(base_url, tipo, doc_mat, status, unidade_destino):
         msg = " - Acompanhamento de Matéria Legislativa"
     else:
         msg = " - Acompanhamento de Documento"
-    subject = "[Legisinc] {} {}".format(str(doc_mat), msg)
+    subject = "[SGVP] {} {}".format(str(doc_mat), msg)
 
     connection = get_connection()
     connection.open()

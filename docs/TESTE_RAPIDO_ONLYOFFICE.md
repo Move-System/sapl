@@ -63,7 +63,7 @@ else:
 "
 ```
 
-### 2️⃣ Acessar o Legisinc
+### 2️⃣ Acessar o SGVP
 
 1. Abra o navegador: **http://localhost:8000/login**
 2. Faça login:

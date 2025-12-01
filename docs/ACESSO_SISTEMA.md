@@ -1,4 +1,4 @@
-# 🎉 Sistema Legisinc + OnlyOffice - PRONTO PARA USO!
+# 🎉 Sistema SGVP + OnlyOffice - PRONTO PARA USO!
 
 ## ✅ Status dos Serviços
 
@@ -6,7 +6,7 @@ Todos os containers estão rodando e funcionando:
 
 ```
 ✓ PostgreSQL     - Porta 5435 (localhost) / 5432 (interno)
-✓ Legisinc           - http://localhost:8000
+✓ SGVP           - http://localhost:8000
 ✓ OnlyOffice     - http://localhost:8002
 ```
 
@@ -14,7 +14,7 @@ Todos os containers estão rodando e funcionando:
 
 ## 🔑 Credenciais de Acesso
 
-### Superusuário Legisinc
+### Superusuário SGVP
 - **URL**: http://localhost:8000/login
 - **Usuário**: `admin`
 - **Senha**: `admin`
@@ -131,7 +131,7 @@ else:
 ```bash
 cd /home/bruno/sapl/docker
 
-# Ver logs do Legisinc
+# Ver logs do SGVP
 docker logs sapl-dev -f
 
 # Ver logs do OnlyOffice
@@ -215,10 +215,10 @@ docker exec sapl-dev python manage.py makemigrations
 
 ## 🌐 URLs Importantes
 
-- **Legisinc**: http://localhost:8000
+- **SGVP**: http://localhost:8000
 - **Admin Django**: http://localhost:8000/admin
 - **OnlyOffice Welcome**: http://localhost:8002/welcome/
-- **API Legisinc**: http://localhost:8000/api/
+- **API SGVP**: http://localhost:8000/api/
 - **Swagger API**: http://localhost:8000/api/docs/
 
 ---
@@ -227,7 +227,7 @@ docker exec sapl-dev python manage.py makemigrations
 
 | Serviço | Porta Externa | Porta Interna |
 |---------|---------------|---------------|
-| Legisinc | 8000 | 8000 |
+| SGVP | 8000 | 8000 |
 | OnlyOffice | 8002 | 80 |
 | PostgreSQL | 5435 | 5432 |
 
@@ -248,7 +248,7 @@ curl http://localhost:8002/welcome/
 docker logs onlyoffice-documentserver
 ```
 
-### Legisinc não conecta ao banco
+### SGVP não conecta ao banco
 
 **Verificar PostgreSQL:**
 ```bash
@@ -289,7 +289,7 @@ docker exec sapl-dev env | grep DATABASE_URL
 
 ## 🎉 TUDO PRONTO!
 
-O sistema Legisinc com integração OnlyOffice está **100% funcional** e pronto para uso!
+O sistema SGVP com integração OnlyOffice está **100% funcional** e pronto para uso!
 
 **Desenvolvido com ❤️ usando Claude Code**
 

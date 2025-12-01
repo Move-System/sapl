@@ -2,15 +2,15 @@
 
 
 ******
-Legisinc
+SGVP
 ******
 
-UPDATE! [02/08/2022]: Novas alterações foram realizadas nos containers do Legisinc e no docker-compose.yaml. Estas mudanças estarão funcionais a partir do próximo release. Enquanto isso não vem, continuem utilizando as versões antigas do docker-compose.yaml. 
+UPDATE! [02/08/2022]: Novas alterações foram realizadas nos containers do SGVP e no docker-compose.yaml. Estas mudanças estarão funcionais a partir do próximo release. Enquanto isso não vem, continuem utilizando as versões antigas do docker-compose.yaml. 
 
 ~~**UPDATE! [16/05/2022]: Devido a refatorações recentes no Solr, foi necessårio
-adaptar o uso deste pelo Legisinc. Para isso foram feitas mudanças no docker-compose.yml
+adaptar o uso deste pelo SGVP. Para isso foram feitas mudanças no docker-compose.yml
 como a adição de um container para o ZooKeeper e upload de arquivo de segurança.
-Recomendamos fortemente que para a versão 3.1.162 e superior do Legisinc seja feito o backup do
+Recomendamos fortemente que para a versão 3.1.162 e superior do SGVP seja feito o backup do
 Banco de Dados, limpeza dos containers no host (`sudo docker system prune -a -f --volumes`),
 e consequente instalação dos novos containers a partir da execução do docker-compose. É
 importante frisar que o comando `docker system prune` irá apagar TODOS os containers E
@@ -18,7 +18,7 @@ TODOS os volumes (incluindo o BD) do host. Após o inicio dos novos containers, 
 com a restauração do BD, pare os containers e reinicie novamente para indexação textual.
 Além disso, o docker-compose.yml foi movido para a pasta dist/ na raiz do projeto.**~~
 
-Esta página reúne informações úteis sobre o desenvolvimento atual do Legisinc.
+Esta página reúne informações úteis sobre o desenvolvimento atual do SGVP.
 
 Isso significa que toda a informação aqui apresentada aplica-se apenas para a versão 3.1 e superior.
 
@@ -27,12 +27,12 @@ Para obter mais informações sobre o projeto como um todo e a versão de trabal
 atual do sistema (2.5), visite a página do `projeto na Interlegis wiki <https://colab.interlegis.leg.br/wiki/ProjetoSapl>`_.
 
 
-**IMPORTANTE:** A partir da versão 3.1.162 do Legisinc, as funcionalidades de recuperar senha,
+**IMPORTANTE:** A partir da versão 3.1.162 do SGVP, as funcionalidades de recuperar senha,
 acompanhamento de matéria, e acompanhamento de documento exigirão o uso do `Google reCaptcha <https://www.google.com/recaptcha/>`_. Cada casa legislativa será responsável pela geração
-das chaves do reCaptcha e configuração no Legisinc em Sistema -> Parâmetros -> Configurações da Aplicação.
+das chaves do reCaptcha e configuração no SGVP em Sistema -> Parâmetros -> Configurações da Aplicação.
 Sem essa configuração não serão habilitados os recursos citados anteriormente.
 Veja mais detalhes sobre o processo de geração de chaves e configuração neste link https://www.youtube.com/watch?v=6ZCCyBjSJ-c
-e no caderno de exercícios do Legisinc 3.1 disponível na `Wiki do projeto <https://colab.interlegis.leg.br/wiki/ProjetoSapl3.1>`_
+e no caderno de exercícios do SGVP 3.1 disponível na `Wiki do projeto <https://colab.interlegis.leg.br/wiki/ProjetoSapl3.1>`_
 
 Instalação do Ambiente de Desenvolvimento
 =========================================
@@ -46,12 +46,12 @@ Instalação do Solr
 
 Instruções para Deploy
 ======================
-   `Deploy Legisinc com Nginx + Gunicorn <https://github.com/interlegis/sapl/blob/3.1.x/docs/deploy.rst>`_
+   `Deploy SGVP com Nginx + Gunicorn <https://github.com/interlegis/sapl/blob/3.1.x/docs/deploy.rst>`_
 
 
 Instruções para Importação da base mysql 2.5
 ============================================
-   `Importação da Base do Legisinc 2.5 para Legisinc 3.1 <https://github.com/interlegis/sapl/wiki/Migra%C3%A7%C3%A3o-sapl-2.5-para-3.1>`_
+   `Importação da Base do SGVP 2.5 para SGVP 3.1 <https://github.com/interlegis/sapl/wiki/Migra%C3%A7%C3%A3o-sapl-2.5-para-3.1>`_
 
 
 Instruções para Tradução
@@ -72,7 +72,7 @@ Orientações gerais sobre o GitHub
 
 Suporte ao utilizadores
 ===================================
-   `Sala do Discord "Somos Interlegis" sobre Legisinc  <https://discord.gg/fzXSbhZbcy>`_
+   `Sala do Discord "Somos Interlegis" sobre SGVP  <https://discord.gg/fzXSbhZbcy>`_
 
 
 Perguntas Frequentes

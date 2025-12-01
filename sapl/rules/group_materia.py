@@ -2,10 +2,10 @@
 from sapl.compilacao import models as compilacao
 from sapl.materia import models as materia
 from sapl.norma import models as norma
-from sapl.rules import Legisinc_GROUP_MATERIA, __base__, __perms_publicas__
+from sapl.rules import SGVP_GROUP_MATERIA, __base__, __perms_publicas__
 
 rules_group_materia = {
-    'group': Legisinc_GROUP_MATERIA,
+    'group': SGVP_GROUP_MATERIA,
     'rules': [
         (materia.Anexada, __base__, __perms_publicas__),
         (materia.Autoria, __base__, __perms_publicas__),

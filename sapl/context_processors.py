@@ -34,9 +34,9 @@ def google_recaptcha_configured(request):
 
 @cached_call("site-title", timeout=60 * 2)
 def enable_sapn(request):
-    verbose_name = _('Legisinc') \
+    verbose_name = _('SGVP') \
         if not sapn_is_enabled() \
-        else _('Sistema de Apoio à Publicação de Leis e Normas')
+        else _('Sistema de Gestão e Votação Parlamentar')
 
     from sapl.base.models import CasaLegislativa
     casa_legislativa = CasaLegislativa.objects.first()

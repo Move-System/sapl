@@ -30,7 +30,7 @@ class TipoDocumentoAdministrativo(models.Model):
 """
 uuid4 + filenames diversos apesar de tornar url de um arquivo praticamente
 impossível de ser localizado não está controlando o acesso.
-Exemplo: o Legisinc está configurado para ser docs adm restritivo porém
+Exemplo: o SGVP está configurado para ser docs adm restritivo porém
 alguem resolve perga o link e mostrar o tal arquivo para um amigo, ou um
 vizinho de departamento que não possui acesso... ou mesmo alguem que nem ao
 menos está logado... este arquivo estará livre

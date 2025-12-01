@@ -20,7 +20,7 @@ três permissões registadas na classe Permission:
         # o radical .view_ não existia no django quando a app rules foi criada
         # e portanto não é utilizada
 
-No Legisinc foram acrescidas em todos os models as duas regras abaixo, adicionadas
+No SGVP foram acrescidas em todos os models as duas regras abaixo, adicionadas
 com o Signal post_migrate `create_proxy_permissions`
 localizado em sapl.rules.apps.py.
 
@@ -43,7 +43,7 @@ com permissões, sempre é analisado se é apenas um radical ou permissão
 completa, sendo apenas um radical, a permissão completa é montada com base
 no model associado.
 
-NESTE ARQUIVO ESTÃO DEFINIDOS OS RADICAIS E OS GRUPOS DEFAULT DO Legisinc
+NESTE ARQUIVO ESTÃO DEFINIDOS OS RADICAIS E OS GRUPOS DEFAULT DO SGVP
 
 """
 
@@ -55,41 +55,41 @@ __listdetailchange__ = [RP_LIST, RP_DETAIL, RP_CHANGE]
 
 __perms_publicas__ = {RP_LIST, RP_DETAIL}
 
-Legisinc_GROUP_ADMINISTRATIVO = _("Operador Administrativo")
-Legisinc_GROUP_AUDIENCIA = _("Operador de Audiência")
-Legisinc_GROUP_PROTOCOLO = _("Operador de Protocolo Administrativo")
-Legisinc_GROUP_COMISSOES = _("Operador de Comissões")
-Legisinc_GROUP_MATERIA = _("Operador de Matéria")
-Legisinc_GROUP_NORMA = _("Operador de Norma Jurídica")
-Legisinc_GROUP_SESSAO = _("Operador de Sessão Plenária")
-Legisinc_GROUP_PAINEL = _("Operador de Painel Eletrônico")
-Legisinc_GROUP_GERAL = _("Operador Geral")
-Legisinc_GROUP_AUTOR = _("Autor")
-Legisinc_GROUP_VOTANTE = _("Votante")
+SGVP_GROUP_ADMINISTRATIVO = _("Operador Administrativo")
+SGVP_GROUP_AUDIENCIA = _("Operador de Audiência")
+SGVP_GROUP_PROTOCOLO = _("Operador de Protocolo Administrativo")
+SGVP_GROUP_COMISSOES = _("Operador de Comissões")
+SGVP_GROUP_MATERIA = _("Operador de Matéria")
+SGVP_GROUP_NORMA = _("Operador de Norma Jurídica")
+SGVP_GROUP_SESSAO = _("Operador de Sessão Plenária")
+SGVP_GROUP_PAINEL = _("Operador de Painel Eletrônico")
+SGVP_GROUP_GERAL = _("Operador Geral")
+SGVP_GROUP_AUTOR = _("Autor")
+SGVP_GROUP_VOTANTE = _("Votante")
 
 # TODO - funcionalidade ainda não existe mas está aqui para efeito de anotação
-Legisinc_GROUP_LOGIN_SOCIAL = _("Usuários com Login Social")
+SGVP_GROUP_LOGIN_SOCIAL = _("Usuários com Login Social")
 
 # ANONYMOUS não é um grupo mas é uma variável usadas nas rules para anotar
 # explicitamente models que podem ter ação de usuários anônimos
 # como por exemplo AcompanhamentoMateria
-Legisinc_GROUP_ANONYMOUS = ''
+SGVP_GROUP_ANONYMOUS = ''
 
-Legisinc_GROUPS = [
-    Legisinc_GROUP_ADMINISTRATIVO,
-    Legisinc_GROUP_PROTOCOLO,
-    Legisinc_GROUP_COMISSOES,
-    Legisinc_GROUP_MATERIA,
-    Legisinc_GROUP_NORMA,
-    Legisinc_GROUP_SESSAO,
-    Legisinc_GROUP_PAINEL,
-    Legisinc_GROUP_GERAL,
-    Legisinc_GROUP_AUTOR,
-    Legisinc_GROUP_VOTANTE,
-    Legisinc_GROUP_LOGIN_SOCIAL,
-    Legisinc_GROUP_ANONYMOUS,
+SGVP_GROUPS = [
+    SGVP_GROUP_ADMINISTRATIVO,
+    SGVP_GROUP_PROTOCOLO,
+    SGVP_GROUP_COMISSOES,
+    SGVP_GROUP_MATERIA,
+    SGVP_GROUP_NORMA,
+    SGVP_GROUP_SESSAO,
+    SGVP_GROUP_PAINEL,
+    SGVP_GROUP_GERAL,
+    SGVP_GROUP_AUTOR,
+    SGVP_GROUP_VOTANTE,
+    SGVP_GROUP_LOGIN_SOCIAL,
+    SGVP_GROUP_ANONYMOUS,
 ]
 
-Legisinc_GROUPS_DELETE = [
+SGVP_GROUPS_DELETE = [
 
 ]

@@ -26,15 +26,15 @@
       "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/compilacao.0baf3580.css.gz",
       "publicPath": "/static/sapl/frontend/css/compilacao.0baf3580.css.gz"
     },
-    "css/global.054f5747.css": {
-      "name": "css/global.054f5747.css",
-      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.054f5747.css",
-      "publicPath": "/static/sapl/frontend/css/global.054f5747.css"
+    "css/global.bbef527c.css": {
+      "name": "css/global.bbef527c.css",
+      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.bbef527c.css",
+      "publicPath": "/static/sapl/frontend/css/global.bbef527c.css"
     },
-    "css/global.054f5747.css.gz": {
-      "name": "css/global.054f5747.css.gz",
-      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.054f5747.css.gz",
-      "publicPath": "/static/sapl/frontend/css/global.054f5747.css.gz"
+    "css/global.bbef527c.css.gz": {
+      "name": "css/global.bbef527c.css.gz",
+      "path": "/home/bruno/sapl/sapl/static/sapl/frontend/css/global.bbef527c.css.gz",
+      "publicPath": "/static/sapl/frontend/css/global.bbef527c.css.gz"
     },
     "css/painel.e2b9504e.css": {
       "name": "css/painel.e2b9504e.css",
@@ -1012,7 +1012,7 @@
     "global": [
       "css/chunk-vendors.045ec640.css",
       "js/chunk-vendors.e8ab4373.js",
-      "css/global.054f5747.css",
+      "css/global.bbef527c.css",
       "js/global.b14eb920.js"
     ],
     "painel": [

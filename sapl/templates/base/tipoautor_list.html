@@ -6,7 +6,7 @@
 <div class="row">
   <div class="col-lg-4">
     <div class="list-group">
-        <span class="list-group-item active">Tipos de Autores do Legisinc</span>
+        <span class="list-group-item active">Tipos de Autores do SGVP</span>
       {% for tipo in tipos_sapl %}
           <a href="{% url tipo|tipoautor_contenttype_list %}" class="list-group-item">{{tipo}}</a>
       {% endfor %}
@@ -18,11 +18,11 @@
     {{block.super}}
     <div class="help-block-danger">
       <strong>Atenção!!!</strong> - Não cadastre tipos de autores semelhantes
-      aos "Tipos de Autores do Legisinc" que estão na tabela ao lado. Esses tipos
-      são fixos no Legisinc pois representam seus cadastros no local apropriado.<br>
+      aos "Tipos de Autores do SGVP" que estão na tabela ao lado. Esses tipos
+      são fixos no SGVP pois representam seus cadastros no local apropriado.<br>
     </div>
     <div class="help-block-danger">
-      Novamente, NÃO cadastre "Tipos de Autor" semelhantes aos tipos do Legisinc.<br>
+      Novamente, NÃO cadastre "Tipos de Autor" semelhantes aos tipos do SGVP.<br>
       <strong>Veja como exemplo:</strong> No Sapl existe o tipo Parlamentar.
       Não use tipos semelhantes, como cadastrar um tipo com a descrição "Vereador",
       ou mesmo cadastrar outro como "Parlamentar".<br>

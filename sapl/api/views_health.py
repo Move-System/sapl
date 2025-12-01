@@ -33,7 +33,7 @@ class HealthzView(APIView):
             payload = {
                 "status": "OK" if ok else "UNHEALTHY",
                 "checks": {"app": {"ok": ok, "latency_ms": round(ms, 1), "error": msg}},
-                "version": settings.Legisinc_VERSION,
+                "version": settings.SGVP_VERSION,
                 "time": timezone.now().isoformat(),
             }
             if request.query_params.get("fmt") == "txt":
@@ -68,7 +68,7 @@ class ReadyzView(APIView):
             payload = {
                 "status": "ok" if ok else "unhealthy",
                 "checks": payload_checks,
-                "version": settings.Legisinc_VERSION,
+                "version": settings.SGVP_VERSION,
                 "time": timezone.now().isoformat(),
             }
             if request.query_params.get("fmt") == "txt":
@@ -90,8 +90,8 @@ class AppzVersionView(APIView):
     def get(self, request):
         try:
             payload = {
-                'name': 'Legisinc',
-                'version': settings.Legisinc_VERSION,
+                'name': 'SGVP',
+                'version': settings.SGVP_VERSION,
             }
             if request.query_params.get("fmt") == "txt":
                 return HttpResponse(f"{payload['version']} {payload['name']}",

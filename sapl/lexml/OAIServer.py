@@ -184,8 +184,8 @@ class OAIServer:
             return ''
 
     def monta_xml(self, urn, norma):
-        BASE_URL_Legisinc = self.config['base_url']
-        BASE_URL_Legisinc = BASE_URL_Legisinc[:BASE_URL_Legisinc.find('/', 8)]
+        BASE_URL_SGVP = self.config['base_url']
+        BASE_URL_SGVP = BASE_URL_SGVP[:BASE_URL_SGVP.find('/', 8)]
 
         publicador = LexmlPublicador.objects.first()
         if norma and publicador:
@@ -201,19 +201,19 @@ class OAIServer:
                           'rtf': 'application/rtf'}
 
             if texto_integral:
-                url_conteudo = BASE_URL_Legisinc + texto_integral.url
+                url_conteudo = BASE_URL_SGVP + texto_integral.url
                 extensao = texto_integral.url.split('.')[-1]
                 formato = mime_types.get(extensao, 'application/octet-stream')
             else:
                 formato = 'text/html'
-                url_conteudo = BASE_URL_Legisinc + reverse('sapl.norma:normajuridica_detail',
+                url_conteudo = BASE_URL_SGVP + reverse('sapl.norma:normajuridica_detail',
                                                                  kwargs={'pk': norma.pk})
             element_maker = ElementMaker()
             id_publicador = str(publicador.id_publicador)
             item_conteudo = element_maker.Item(url_conteudo, formato=formato, idPublicador=id_publicador,
                                                tipo='conteudo')
             oai_lexml.append(item_conteudo)
-            url = BASE_URL_Legisinc + reverse('sapl.norma:normajuridica_detail', kwargs={'pk': norma.pk})
+            url = BASE_URL_SGVP + reverse('sapl.norma:normajuridica_detail', kwargs={'pk': norma.pk})
             item_metadado = element_maker.Item(url, formato='text/html', idPublicador=id_publicador, tipo='metadado')
             oai_lexml.append(item_metadado)
             documento_individual = element_maker.DocumentoIndividual(urn)

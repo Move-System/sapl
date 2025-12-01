@@ -329,6 +329,20 @@ a {
 }
 
 // Navbar customization
+.navbar-dark .navbar-nav .nav-link {
+  color: #FFFFFF !important;
+
+  &:hover,
+  &:focus {
+    color: #3DB8CF !important;
+  }
+}
+
+.navbar-dark small,
+.navbar-dark .navbar-brand small {
+  color: #FFFFFF !important;
+}
+
 .navbar.navbar-dark.bg-dark {
   background-color: $primary-color !important;
   box-shadow: $box-shadow;
@@ -336,6 +350,7 @@ a {
 
   .navbar-brand {
     font-weight: 600;
+    color: #FFFFFF;
     transition: $transition-fast;
 
     &:hover {
@@ -344,6 +359,7 @@ a {
   }
 
   .nav-link {
+    color: #FFFFFF !important;
     transition: $transition-fast;
 
     &:hover {

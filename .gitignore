@@ -116,3 +116,7 @@ restauracoes/*
 docker/
 docker-compose.yml
 docker-compose.yaml
+
+# Claude Code
+.claude/context/*.md
+NOTAS.txt

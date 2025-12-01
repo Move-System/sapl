@@ -71,7 +71,7 @@ def has_iframe(url, request):
     return url
 
 
-class RedirecionaLegisincIndex(RedirectView):
+class RedirecionaSGVPIndex(RedirectView):
     permanent = True
     logger = logging.getLogger(__name__)
 
@@ -473,7 +473,7 @@ class RedirecionaMateriaLegislativaList(RedirectView):
         args += "&o=%s" % (EMPTY_STRING)
         args += "&materiaassunto__assunto=%s" % (EMPTY_STRING)
         args += "&ementa=%s" % (ementa_materia)
-        args += "&salvar=%s" % ('Pesquisar')  # Default in both Legisinc version
+        args += "&salvar=%s" % ('Pesquisar')  # Default in both SGVP version
 
         url = "%s%s" % (url, args)
 
@@ -598,7 +598,7 @@ class RedirecionaNormasJuridicasList(RedirectView):
         args += "&data_publicacao_1=%s" % (periodo_final_publicacao)
         args += "&ementa=%s" % (ementa_norma)
         args += "&assuntos=%s" % (assuntos_norma)
-        args += "&salvar=%s" % ('Pesquisar')  # Default in both Legisinc version
+        args += "&salvar=%s" % ('Pesquisar')  # Default in both SGVP version
 
         url = "%s%s" % (url, args)
 

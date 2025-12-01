@@ -1290,11 +1290,11 @@ class HistoricoProposicaoView(PermissionRequiredMixin, ListView):
     def get_queryset(self):
         qs = super().get_queryset()
 
-        from sapl.rules import Legisinc_GROUP_AUTOR
+        from sapl.rules import SGVP_GROUP_AUTOR
         from django.contrib.auth.models import Group
 
         user = self.request.user
-        grupo_autor = Group.objects.get(name=Legisinc_GROUP_AUTOR)
+        grupo_autor = Group.objects.get(name=SGVP_GROUP_AUTOR)
 
         if not user.is_superuser and grupo_autor.user_set.filter(
                 id=user.id).exists():
@@ -2985,7 +2985,7 @@ def get_zip_docacessorios(request, pk):
     except Exception as e:
         logger.error("user={}. Um erro inesperado ocorreu na criação do pdf de documentos acessorios: {}"
                      .format(username, str(e)))
-        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do Legisinc.')
+        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SGVP.')
         messages.add_message(request, messages.ERROR, msg)
         return redirect(reverse('sapl.materia:documentoacessorio_list',
                                 kwargs={'pk': pk}))
@@ -3056,7 +3056,7 @@ def get_pdf_docacessorios(request, pk):
     except Exception as e:
         logger.error("user= {}.Um erro inesperado ocorreu na criação do pdf de documentos acessorios: {}"
                      .format(username, str(e)))
-        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do Legisinc.')
+        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SGVP.')
         messages.add_message(request, messages.ERROR, msg)
         return redirect(reverse('sapl.materia:documentoacessorio_list',
                                 kwargs={'pk': pk}))

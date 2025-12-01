@@ -1,11 +1,11 @@
 from sapl.compilacao import models as compilacao
 from sapl.materia import models as materia
 from sapl.protocoloadm import models as protocoloadm
-from sapl.rules import Legisinc_GROUP_PROTOCOLO, RP_ADD, __base__, __listdetailchange__, \
+from sapl.rules import SGVP_GROUP_PROTOCOLO, RP_ADD, __base__, __listdetailchange__, \
     __perms_publicas__
 
 rules_group_protocolo = {
-    'group': Legisinc_GROUP_PROTOCOLO,
+    'group': SGVP_GROUP_PROTOCOLO,
     'rules': [
         (protocoloadm.Protocolo, __base__ + ['action_anular_protocolo'], set()),
         (protocoloadm.DocumentoAdministrativo, [RP_ADD] + __listdetailchange__, set()),

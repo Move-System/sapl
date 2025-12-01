@@ -69,7 +69,7 @@ Clonar o projeto do github, ou fazer um fork e depois clonar
 
     git clone -b 3.1.x --single-branch git://github.com/interlegis/sapl
 
-    O comando acima irá clonar a última versão estável do Legisinc (3.1.x)
+    O comando acima irá clonar a última versão estável do SGVP (3.1.x)
     Para clonar todo o repositório utilize o comando abaixo:
 
     git clone git://github.com/interlegis/sapl
@@ -87,7 +87,7 @@ Clonar o projeto do github, ou fazer um fork e depois clonar
 * As configurações e instruções de uso para o git estão espalhadas pela internet e possui muito coisa bacana. As tarefas básicas de git e suas interações com github são tranquilas de se aprender.
 
 
-Criar o ambiente virtual de desenvolvimento para o Legisinc
+Criar o ambiente virtual de desenvolvimento para o SGVP
 -------------------------------------------------------
 ::
 
@@ -119,7 +119,7 @@ Instalação e configuração das dependências do projeto
    sudo -u postgres psql -c "CREATE DATABASE sapl WITH OWNER = sapl ENCODING = 'UTF8' TABLESPACE = pg_default LC_COLLATE = 'pt_BR.UTF-8' LC_CTYPE = 'pt_BR.UTF-8' CONNECTION LIMIT = -1 TEMPLATE template0;"
 
   * Obs: no ambiente de desenvolvimento, a role deve ter permissão para criar outro banco. Isso é usado pelos testes automatizados.
-  * (caso você já possua uma instalação do postrgresql anterior ao processo de instalação do ambiente de desenvolvimento do Legisinc em sua máquina e sábia como fazer, esteja livre para proceder como desejar, porém, ao configurar o arquivo ``.env`` no próximo passo, as mesmas definições deverão ser usadas)
+  * (caso você já possua uma instalação do postrgresql anterior ao processo de instalação do ambiente de desenvolvimento do SGVP em sua máquina e sábia como fazer, esteja livre para proceder como desejar, porém, ao configurar o arquivo ``.env`` no próximo passo, as mesmas definições deverão ser usadas)
 
 
 * **Ajustar as permissões - onde $USER trocar por usuário**::
@@ -181,7 +181,7 @@ Copie a chave que aparecerá, edite o arquivo .env e altere o valor do parâmetr
 
    ./manage.py runserver 0.0.0.0:8001
 
-* Acesse o Legisinc em::
+* Acesse o SGVP em::
 
    http://localhost:8001/
 
@@ -192,11 +192,11 @@ Instruções para criação do super usuário e de usuários de testes
 
    python3 manage.py createsuperuser
 
-* `Os perfis semânticos do Legisinc <https://github.com/interlegis/sapl/blob/master/sapl/rules/__init__.py>`_ são fixos e atualizados a cada execução do comando::
+* `Os perfis semânticos do SGVP <https://github.com/interlegis/sapl/blob/master/sapl/rules/__init__.py>`_ são fixos e atualizados a cada execução do comando::
 
    ./manage.py migrate
 
-* Os perfis fixos não aceitam customização via admin, porém outros grupos podem ser criados. O Legisinc não interferirá no conjunto de permissões definidas em grupos customizados e se comportará diante de usuários segundo seus grupos e suas permissões.
+* Os perfis fixos não aceitam customização via admin, porém outros grupos podem ser criados. O SGVP não interferirá no conjunto de permissões definidas em grupos customizados e se comportará diante de usuários segundo seus grupos e suas permissões.
 
 * Para criar os usuários de teste, deve-se seguir os seguintes passos::
 
@@ -217,7 +217,7 @@ Instruções para criação do super usuário e de usuários de testes
     operador_painel
 
 
-Frontend do Legisinc
+Frontend do SGVP
 =============
 
 * Se seu objetivo é preparar o ambiente de desenvolvimento para colaborar com o backend, você não precisa se preocupar com o tutorial abaixo pois na pasta https://github.com/interlegis/sapl/tree/3.1.x/sapl/static/sapl/frontend já está o código oficial de produção do Frontend

@@ -15,12 +15,12 @@ from .views import (RedirecionaAtasList, RedirecionaComissao,
                     RedirecionaPresencaParlamentares,
                     RedirecionaRelatoriosList,
                     RedirecionaRelatoriosMateriasEmTramitacaoList,
-                    RedirecionaLegisincIndex, RedirecionaSessaoPlenaria)
+                    RedirecionaSGVPIndex, RedirecionaSessaoPlenaria)
 
 app_name = AppConfig.name
 urlpatterns = [
     url(r'^default_index_html$',
-        RedirecionaLegisincIndex.as_view(),
+        RedirecionaSGVPIndex.as_view(),
         name='redireciona_sapl_index'),
     url(r'^consultas/parlamentar/parlamentar_',
         RedirecionaParlamentar.as_view(),

@@ -15,7 +15,7 @@
 
   * Health and Ready endpoints (#3788)
   * Fix read-only mount on k8s
-  * Remove setup.py do projeto Legisinc
+  * Remove setup.py do projeto SGVP
 
 3.1.164-RC2 / 2025-09-08
 ========================
@@ -160,7 +160,7 @@
   * Adiciona controle de visibilidade no módulo de relatorios
   * Adiciona coluna de justificativa de ausência (#3657)
   * Adiciona coluna de justificativa de ausência
-  * Conserta lógica para embutir Legisinc em iframe (#3653)
+  * Conserta lógica para embutir SGVP em iframe (#3653)
   * Move relatorios para app de relatorios (#3656)
   * Remove redirect de URLs (#3652)
   * Hot-fix: endpoint do prometheus endpoint URL

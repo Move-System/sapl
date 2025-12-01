@@ -10,10 +10,10 @@ from django.db import models, router
 from django.db.utils import DEFAULT_DB_ALIAS
 from django.utils.translation import ugettext_lazy as _
 
-from sapl.rules import (Legisinc_GROUP_ADMINISTRATIVO, Legisinc_GROUP_COMISSOES,
-                        Legisinc_GROUP_GERAL, Legisinc_GROUP_MATERIA, Legisinc_GROUP_NORMA,
-                        Legisinc_GROUP_PAINEL, Legisinc_GROUP_PROTOCOLO,
-                        Legisinc_GROUP_SESSAO)
+from sapl.rules import (SGVP_GROUP_ADMINISTRATIVO, SGVP_GROUP_COMISSOES,
+                        SGVP_GROUP_GERAL, SGVP_GROUP_MATERIA, SGVP_GROUP_NORMA,
+                        SGVP_GROUP_PAINEL, SGVP_GROUP_PROTOCOLO,
+                        SGVP_GROUP_SESSAO)
 
 
 class AppConfig(django.apps.AppConfig):
@@ -198,21 +198,21 @@ def get_rules():
 
         def cria_usuarios_padrao(self):
             for group, user in (
-                (Legisinc_GROUP_ADMINISTRATIVO, 'operador_administrativo'),
-                (Legisinc_GROUP_PROTOCOLO, 'operador_protocoloadm'),
-                (Legisinc_GROUP_COMISSOES, 'operador_comissoes'),
-                (Legisinc_GROUP_MATERIA, 'operador_materia'),
-                (Legisinc_GROUP_NORMA, 'operador_norma'),
-                (Legisinc_GROUP_SESSAO, 'operador_sessao'),
-                (Legisinc_GROUP_PAINEL, 'operador_painel'),
-                (Legisinc_GROUP_GERAL, 'operador_geral'),
+                (SGVP_GROUP_ADMINISTRATIVO, 'operador_administrativo'),
+                (SGVP_GROUP_PROTOCOLO, 'operador_protocoloadm'),
+                (SGVP_GROUP_COMISSOES, 'operador_comissoes'),
+                (SGVP_GROUP_MATERIA, 'operador_materia'),
+                (SGVP_GROUP_NORMA, 'operador_norma'),
+                (SGVP_GROUP_SESSAO, 'operador_sessao'),
+                (SGVP_GROUP_PAINEL, 'operador_painel'),
+                (SGVP_GROUP_GERAL, 'operador_geral'),
             ):
                 self.cria_usuario(user, group)
 
         def update_groups(self):
             print('')
             print("\033[93m\033[1m{}\033[0m".format(
-                _('Atualizando grupos do Legisinc:')))
+                _('Atualizando grupos do SGVP:')))
             for rules_group in self.rules_patterns:
                 group_name = rules_group['group']
                 rules_list = rules_group['rules']

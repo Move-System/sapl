@@ -12,13 +12,13 @@ from sapl.compilacao.models import (PerfilEstruturalTextoArticulado,
                                     TipoDispositivoRelationship)
 from sapl.materia.models import AcompanhamentoMateria
 from sapl.protocoloadm.models import AcompanhamentoDocumento
-from sapl.rules import __base__, Legisinc_GROUPS, map_rules, RP_LIST, RP_DETAIL, RP_ADD, RP_CHANGE, RP_DELETE
+from sapl.rules import __base__, SGVP_GROUPS, map_rules, RP_LIST, RP_DETAIL, RP_ADD, RP_CHANGE, RP_DELETE
 from sapl.test_urls import create_perms_post_migrate
 from scripts.lista_permissions_in_decorators import \
     lista_permissions_in_decorators
 from scripts.lista_urls import lista_urls
 
-sapl_appconfs = [apps.get_app_config(n[5:]) for n in settings.Legisinc_APPS]
+sapl_appconfs = [apps.get_app_config(n[5:]) for n in settings.SGVP_APPS]
 
 sapl_models = []
 for app in sapl_appconfs:
@@ -26,7 +26,7 @@ for app in sapl_appconfs:
 sapl_models.reverse()
 
 
-@pytest.mark.parametrize('group_item', Legisinc_GROUPS)
+@pytest.mark.parametrize('group_item', SGVP_GROUPS)
 def test_groups_in_rules_patterns(group_item):
 
     test = False

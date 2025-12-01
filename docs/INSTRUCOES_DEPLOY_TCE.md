@@ -22,7 +22,7 @@ git pull origin 3.1.x
 ### 2. Instalar Dependências Python
 
 ```bash
-# Ativar o virtualenv do Legisinc (ajuste o caminho conforme necessário)
+# Ativar o virtualenv do SGVP (ajuste o caminho conforme necessário)
 source /opt/venv/bin/activate  # ou o caminho do seu venv
 
 # Instalar bibliotecas necessárias
@@ -111,7 +111,7 @@ sudo systemctl restart nginx
 
 ### Arquivos Modificados:
 
-1. `/sapl/templates/admin/base_site.html` - Navbar do Legisinc no admin
+1. `/sapl/templates/admin/base_site.html` - Navbar do SGVP no admin
 
 ## 🔐 Configurações de Segurança
 
@@ -268,5 +268,5 @@ Em caso de dúvidas ou problemas:
 ---
 
 **Data de criação:** 03/10/2025
-**Versão do Legisinc:** 3.1.x
+**Versão do SGVP:** 3.1.x
 **Última atualização:** Após merge com branch principal
