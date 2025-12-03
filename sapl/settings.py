@@ -308,6 +308,14 @@ ONLYOFFICE_URL = config('ONLYOFFICE_URL', default='http://localhost:8002')
 ONLYOFFICE_JWT_SECRET = config('ONLYOFFICE_JWT_SECRET', default='')
 ONLYOFFICE_JWT_ENABLED = config('ONLYOFFICE_JWT_ENABLED', cast=bool, default=False)
 
+# Integração externa de matérias da sessão
+SESSAO_MATERIAS_API_URL = config('SESSAO_MATERIAS_API_URL', default='')
+SESSAO_MATERIAS_API_KEY = config('SESSAO_MATERIAS_API_KEY', default='')
+SESSAO_MATERIAS_API_USERNAME = config('SESSAO_MATERIAS_API_USERNAME', default='')
+SESSAO_MATERIAS_API_PASSWORD = config('SESSAO_MATERIAS_API_PASSWORD', default='')
+# lista separada por vírgula, ex: "ROLE_USER,ROLE_ADMIN"
+SESSAO_MATERIAS_API_AUTHORITIES = config('SESSAO_MATERIAS_API_AUTHORITIES', default='')
+
 # Feature Flag
 WAFFLE_FLAG_DEFAULT = False
 WAFFLE_SWITCH_DEFAULT = False

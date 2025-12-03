@@ -1347,6 +1347,7 @@ class SessaoCrud(Crud):
             return context
 
     class DetailView(Crud.DetailView):
+        template_name = 'sessao/sessaoplenaria_detail.html'
 
         @property
         def layout_key(self):
