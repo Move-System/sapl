@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load i18n crispy_forms_tags %}
+
+{% block base_content %}
+  {% if onlyoffice_edit_url %}
+  <div class="alert alert-info">
+    <strong><i class="fa fa-info-circle"></i> {% trans 'Dica:' %}</strong>
+    {% trans 'Para editar o cabeçalho, rodapé e formatação do template, use o editor OnlyOffice.' %}
+    <a href="{{ onlyoffice_edit_url }}" class="btn btn-primary btn-sm ml-2">
+      <i class="fa fa-file-word-o"></i> {% trans 'Abrir no OnlyOffice' %}
+    </a>
+  </div>
+  {% else %}
+  <div class="alert alert-success">
+    <strong><i class="fa fa-file-word-o"></i> {% trans 'Novo Template' %}</strong><br>
+    {% trans 'Após salvar, você será redirecionado automaticamente para o editor OnlyOffice onde poderá configurar o cabeçalho, rodapé e formatação do template.' %}
+    <br><small class="text-muted">{% trans 'O campo "Arquivo" é opcional. Se não enviar um arquivo, um documento em branco será criado automaticamente.' %}</small>
+  </div>
+  {% endif %}
+
+  {% crispy form %}
+{% endblock base_content %}

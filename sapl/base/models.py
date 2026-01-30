@@ -4,7 +4,7 @@ from django.contrib.postgres.fields.jsonb import JSONField
 from django.core.cache import cache
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
-from django.db.models.deletion import CASCADE
+from django.db.models.deletion import CASCADE, PROTECT
 from django.db.models.signals import post_migrate
 from django.db.utils import DEFAULT_DB_ALIAS
 from django.utils.translation import ugettext_lazy as _
@@ -12,6 +12,14 @@ from django.utils.translation import ugettext_lazy as _
 from sapl.utils import (LISTA_DE_UFS, YES_NO_CHOICES,
                         get_settings_auth_user_model, models_with_gr_for_model)
 
+
+TIPO_CONTEUDO_TEMPLATE = (
+    ('proposicao', _('Proposição')),
+    ('materia', _('Matéria Legislativa')),
+    ('docacessorio', _('Documento Acessório')),
+    ('docadm', _('Documento Administrativo')),
+    ('norma', _('Norma Jurídica')),
+)
 
 DOC_ADM_OSTENSIVO = 'O'
 DOC_ADM_RESTRITIVO = 'R'
@@ -482,3 +490,132 @@ class Metadata(models.Model):
 
     def __str__(self):
         return f'Metadata de {self.content_object}'
+
+
+class DocumentTemplate(models.Model):
+    """
+    Template de documento para ser usado na criação de novos documentos
+    via OnlyOffice. Permite definir cabeçalho, rodapé e formatação padrão.
+    """
+    nome = models.CharField(
+        max_length=100,
+        verbose_name=_('Nome do Template'))
+
+    descricao = models.TextField(
+        blank=True,
+        verbose_name=_('Descrição'))
+
+    tipo_conteudo = models.CharField(
+        max_length=20,
+        choices=TIPO_CONTEUDO_TEMPLATE,
+        verbose_name=_('Tipo de Conteúdo'),
+        help_text=_('Tipo de documento ao qual este template se aplica'))
+
+    # GenericFK para tipo específico (opcional)
+    # Ex: TipoMateriaLegislativa, TipoProposicao, etc.
+    content_type = models.ForeignKey(
+        ContentType,
+        null=True,
+        blank=True,
+        on_delete=PROTECT,
+        verbose_name=_('Tipo Específico'),
+        help_text=_('Tipo específico de documento (ex: Projeto de Lei, Requerimento)'))
+
+    object_id = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_('ID do Tipo Específico'))
+
+    tipo_especifico = GenericForeignKey('content_type', 'object_id')
+
+    arquivo = models.FileField(
+        upload_to='templates/',
+        verbose_name=_('Arquivo do Template'),
+        help_text=_('Arquivo .docx com o template do documento'))
+
+    ativo = models.BooleanField(
+        default=True,
+        verbose_name=_('Ativo'))
+
+    padrao = models.BooleanField(
+        default=False,
+        verbose_name=_('Padrão'),
+        help_text=_('Se marcado, será o template padrão para este tipo de conteúdo'))
+
+    data_criacao = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_('Data de Criação'))
+
+    data_modificacao = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_('Data de Modificação'))
+
+    class Meta:
+        verbose_name = _('Template de Documento')
+        verbose_name_plural = _('Templates de Documentos')
+        ordering = ['tipo_conteudo', 'nome']
+
+    def __str__(self):
+        if self.tipo_especifico:
+            return f'{self.nome} ({self.get_tipo_conteudo_display()} - {self.tipo_especifico})'
+        return f'{self.nome} ({self.get_tipo_conteudo_display()})'
+
+    def save(self, *args, **kwargs):
+        # Se este template está sendo marcado como padrão,
+        # desmarcar outros templates padrão do mesmo tipo
+        if self.padrao:
+            qs = DocumentTemplate.objects.filter(
+                tipo_conteudo=self.tipo_conteudo,
+                padrao=True
+            )
+            if self.pk:
+                qs = qs.exclude(pk=self.pk)
+
+            # Se tem tipo específico, filtrar apenas os do mesmo tipo
+            if self.content_type and self.object_id:
+                qs = qs.filter(
+                    content_type=self.content_type,
+                    object_id=self.object_id
+                )
+            else:
+                # Se não tem tipo específico, desmarcar apenas os genéricos
+                qs = qs.filter(content_type__isnull=True)
+
+            qs.update(padrao=False)
+
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_template_for(cls, tipo_conteudo, tipo_especifico=None):
+        """
+        Busca o template mais adequado para o tipo de conteúdo.
+        Prioridade: específico > genérico > None
+
+        Args:
+            tipo_conteudo: string com o tipo (proposicao, materia, etc.)
+            tipo_especifico: objeto do tipo específico (TipoMateriaLegislativa, etc.)
+
+        Returns:
+            DocumentTemplate ou None
+        """
+        # Primeiro, tenta encontrar template específico
+        if tipo_especifico:
+            ct = ContentType.objects.get_for_model(tipo_especifico)
+            template = cls.objects.filter(
+                tipo_conteudo=tipo_conteudo,
+                content_type=ct,
+                object_id=tipo_especifico.pk,
+                ativo=True
+            ).order_by('-padrao', '-data_modificacao').first()
+
+            if template:
+                return template
+
+        # Se não encontrou específico, busca genérico
+        template = cls.objects.filter(
+            tipo_conteudo=tipo_conteudo,
+            content_type__isnull=True,
+            ativo=True
+        ).order_by('-padrao', '-data_modificacao').first()
+
+        return template

@@ -1293,6 +1293,103 @@ class PartidoForm(FileFieldCheckMixin, ModelForm):
         return cleaned_data
 
 
+class DocumentTemplateForm(FileFieldCheckMixin, ModelForm):
+    class Meta:
+        from .models import DocumentTemplate
+        model = DocumentTemplate
+        fields = ['nome', 'descricao', 'tipo_conteudo', 'content_type',
+                  'object_id', 'arquivo', 'ativo', 'padrao']
+
+    def __init__(self, *args, **kwargs):
+        super(DocumentTemplateForm, self).__init__(*args, **kwargs)
+
+        # Limita os content_types às opções válidas de tipos específicos
+        from django.contrib.contenttypes.models import ContentType
+        from sapl.materia.models import TipoMateriaLegislativa, TipoProposicao, TipoDocumento
+        from sapl.protocoloadm.models import TipoDocumentoAdministrativo
+        from sapl.norma.models import TipoNormaJuridica
+
+        tipos_validos = [
+            ContentType.objects.get_for_model(TipoMateriaLegislativa),
+            ContentType.objects.get_for_model(TipoProposicao),
+            ContentType.objects.get_for_model(TipoDocumento),
+            ContentType.objects.get_for_model(TipoDocumentoAdministrativo),
+            ContentType.objects.get_for_model(TipoNormaJuridica),
+        ]
+        self.fields['content_type'].queryset = ContentType.objects.filter(
+            pk__in=[ct.pk for ct in tipos_validos]
+        )
+        self.fields['content_type'].required = False
+        self.fields['object_id'].required = False
+
+        # Arquivo é opcional - pode criar em branco e editar no OnlyOffice
+        self.fields['arquivo'].required = False
+        self.fields['arquivo'].help_text = _(
+            'Opcional. Se não enviar arquivo, um documento em branco será criado. '
+            'Você poderá editar o template no OnlyOffice após salvar.'
+        )
+
+        row1 = to_row([
+            ('nome', 6),
+            ('tipo_conteudo', 6),
+        ])
+        row2 = to_row([
+            ('content_type', 6),
+            ('object_id', 6),
+        ])
+        row3 = to_row([
+            ('descricao', 12),
+        ])
+        row4 = to_row([
+            ('arquivo', 8),
+            ('ativo', 2),
+            ('padrao', 2),
+        ])
+
+        self.helper = SaplFormHelper()
+        self.helper.layout = Layout(
+            Fieldset(
+                _('Template de Documento'),
+                row1, row2, row3, row4,
+            ),
+            form_actions(label='Salvar'))
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if not self.is_valid():
+            return cleaned_data
+
+        content_type = cleaned_data.get('content_type')
+        object_id = cleaned_data.get('object_id')
+
+        # Se informou content_type, deve informar object_id
+        if content_type and not object_id:
+            raise ValidationError(
+                _('Se informar o tipo específico, deve informar o ID do tipo.'))
+
+        # Se informou object_id, deve informar content_type
+        if object_id and not content_type:
+            raise ValidationError(
+                _('Se informar o ID do tipo, deve informar o tipo específico.'))
+
+        # Valida se o object_id existe para o content_type
+        if content_type and object_id:
+            model_class = content_type.model_class()
+            if not model_class.objects.filter(pk=object_id).exists():
+                raise ValidationError(
+                    _('O tipo específico informado não existe.'))
+
+        # Valida extensão do arquivo
+        arquivo = cleaned_data.get('arquivo')
+        if arquivo and hasattr(arquivo, 'name'):
+            if not arquivo.name.lower().endswith('.docx'):
+                raise ValidationError(
+                    _('O arquivo deve ser um documento .docx'))
+
+        return cleaned_data
+
+
 class SaplSearchForm(ModelSearchForm):
 
     def search(self):
