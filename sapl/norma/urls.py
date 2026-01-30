@@ -7,6 +7,10 @@ from sapl.norma.views import (AnexoNormaJuridicaCrud, AssuntoNormaCrud,
                               TipoVinculoNormaJuridicaCrud, recuperar_norma,
                               recuperar_numero_norma, AutoriaNormaCrud,
                               PesquisarAssuntoNormaView)
+from sapl.norma.onlyoffice_views import (
+    norma_onlyoffice_editor, norma_onlyoffice_config,
+    norma_onlyoffice_download, norma_onlyoffice_callback
+)
 
 
 from .apps import AppConfig
@@ -40,4 +44,14 @@ urlpatterns = [
     url(r'^norma/recuperar-norma$', recuperar_norma, name="recuperar_norma"),
     url(r'^norma/recuperar-numero-norma$', recuperar_numero_norma,
         name="recuperar_numero_norma"),
+
+    # OnlyOffice endpoints para Norma Jurídica
+    url(r'^norma/(?P<pk>\d+)/onlyoffice/editor$', norma_onlyoffice_editor,
+        name='norma_onlyoffice_editor'),
+    url(r'^norma/(?P<pk>\d+)/onlyoffice/config$', norma_onlyoffice_config,
+        name='norma_onlyoffice_config'),
+    url(r'^norma/(?P<pk>\d+)/onlyoffice/download$', norma_onlyoffice_download,
+        name='norma_onlyoffice_download'),
+    url(r'^norma/(?P<pk>\d+)/onlyoffice/callback$', norma_onlyoffice_callback,
+        name='norma_onlyoffice_callback'),
 ]

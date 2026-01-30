@@ -34,6 +34,12 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 PesquisarStatusTramitacaoView, HistoricoProposicaoView)
 from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_download,
                                             onlyoffice_callback, onlyoffice_editor)
+from sapl.materia.onlyoffice_materia_views import (
+    materia_onlyoffice_editor, materia_onlyoffice_config,
+    materia_onlyoffice_download, materia_onlyoffice_callback,
+    docacessorio_onlyoffice_editor, docacessorio_onlyoffice_config,
+    docacessorio_onlyoffice_download, docacessorio_onlyoffice_callback
+)
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
     FichaPesquisaAdmView, FichaSelecionaAdmView
@@ -128,7 +134,27 @@ urlpatterns_materia = [
     url(r'^materia/docacessorio/zip/(?P<pk>\d+)$', get_zip_docacessorios,
         name='compress_docacessorios'),
     url(r'^materia/docacessorio/pdf/(?P<pk>\d+)$', get_pdf_docacessorios,
-        name='merge_docacessorios')
+        name='merge_docacessorios'),
+
+    # OnlyOffice endpoints para Matéria Legislativa
+    url(r'^materia/(?P<pk>\d+)/onlyoffice/editor$', materia_onlyoffice_editor,
+        name='materia_onlyoffice_editor'),
+    url(r'^materia/(?P<pk>\d+)/onlyoffice/config$', materia_onlyoffice_config,
+        name='materia_onlyoffice_config'),
+    url(r'^materia/(?P<pk>\d+)/onlyoffice/download$', materia_onlyoffice_download,
+        name='materia_onlyoffice_download'),
+    url(r'^materia/(?P<pk>\d+)/onlyoffice/callback$', materia_onlyoffice_callback,
+        name='materia_onlyoffice_callback'),
+
+    # OnlyOffice endpoints para Documento Acessório
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/editor$', docacessorio_onlyoffice_editor,
+        name='docacessorio_onlyoffice_editor'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/config$', docacessorio_onlyoffice_config,
+        name='docacessorio_onlyoffice_config'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/download$', docacessorio_onlyoffice_download,
+        name='docacessorio_onlyoffice_download'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/callback$', docacessorio_onlyoffice_callback,
+        name='docacessorio_onlyoffice_callback'),
 ]
 
 

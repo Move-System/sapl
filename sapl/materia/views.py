@@ -1138,6 +1138,12 @@ class ProposicaoCrud(Crud):
                     User={}. Sempre que uma Proposição é inclusa ou alterada e a opção "Texto Articulado" for marcada, \
                     você será redirecionado para a edição do Texto Eletrônico.""".format(username))
                 return reverse('sapl.materia:proposicao_ta', kwargs={'pk': self.object.pk})
+            elif tipo_texto == 'O':
+                messages.info(self.request, _("""\
+                    Você será redirecionado para o Editor OnlyOffice para editar o documento."""))
+                self.logger.debug("""\
+                    User={}. Redirecionando para o editor OnlyOffice.""".format(username))
+                return reverse('sapl.materia:onlyoffice_editor', kwargs={'pk': self.object.pk})
             else:
                 return Crud.UpdateView.get_success_url(self)
 

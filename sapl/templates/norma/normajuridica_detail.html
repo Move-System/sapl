@@ -3,6 +3,17 @@
 {% load waffle_tags %}
 {% load render_bundle from webpack_loader %}
 
+{% block sub_actions %}
+    {{ block.super }}
+    {% if perms.norma.change_normajuridica %}
+        <div class="actions btn-group btn-group-sm" role="group">
+            <a class="btn btn-primary" href="{% url 'sapl.norma:norma_onlyoffice_editor' object.pk %}">
+                <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
+            </a>
+        </div>
+    {% endif %}
+{% endblock sub_actions %}
+
 {% block webpack_loader_css %}
   {{ block.super }}
   {% if object.texto_articulado.exists and object.texto_articulado.first.has_view_permission  %}

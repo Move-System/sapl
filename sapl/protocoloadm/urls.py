@@ -29,6 +29,10 @@ from sapl.protocoloadm.views import (AcompanhamentoDocumentoView,
                                      VinculoDocAdminMateriaCrud,
                                      VinculoDocAdminMateriaEmLoteView,
                                      get_pdf_docacessorios)
+from sapl.protocoloadm.onlyoffice_views import (
+    docadm_onlyoffice_editor, docadm_onlyoffice_config,
+    docadm_onlyoffice_download, docadm_onlyoffice_callback
+)
 
 from .apps import AppConfig
 
@@ -53,7 +57,17 @@ urlpatterns_documento_administrativo = [
     url(r'^docadm/(?P<pk>\d+)/vinculo-em-lote', VinculoDocAdminMateriaEmLoteView.as_view(),
         name='vinculodocadminmateria_em_lote'),
     url(r'^docadm/documentoacessorioadministrativo/pdf/(?P<pk>\d+)$', get_pdf_docacessorios,
-        name='merge_docacessorios')
+        name='merge_docacessorios'),
+
+    # OnlyOffice endpoints para Documento Administrativo
+    url(r'^docadm/(?P<pk>\d+)/onlyoffice/editor$', docadm_onlyoffice_editor,
+        name='docadm_onlyoffice_editor'),
+    url(r'^docadm/(?P<pk>\d+)/onlyoffice/config$', docadm_onlyoffice_config,
+        name='docadm_onlyoffice_config'),
+    url(r'^docadm/(?P<pk>\d+)/onlyoffice/download$', docadm_onlyoffice_download,
+        name='docadm_onlyoffice_download'),
+    url(r'^docadm/(?P<pk>\d+)/onlyoffice/callback$', docadm_onlyoffice_callback,
+        name='docadm_onlyoffice_callback'),
 ]
 
 urlpatterns_protocolo = [
