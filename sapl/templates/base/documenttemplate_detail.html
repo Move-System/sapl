@@ -1,0 +1,18 @@
+{% extends "crud/detail.html" %}
+{% load i18n %}
+
+{% block editions %}
+  <div class="actions btn-group" role="group">
+    {% if onlyoffice_edit_url %}
+      <a href="{{ onlyoffice_edit_url }}" class="btn btn-primary">
+        <i class="fa fa-file-word-o"></i> {% trans 'Editar no OnlyOffice' %}
+      </a>
+    {% endif %}
+    {% if view.update_url %}
+      <a href="{{ view.update_url }}" class="btn btn-outline-primary">{% trans 'Editar Dados' %}</a>
+    {% endif %}
+    {% if view.delete_url %}
+      <a href="{{ view.delete_url }}" class="btn btn-outline-primary btn-outline-danger">{% trans 'Excluir' %}</a>
+    {% endif %}
+  </div>
+{% endblock %}

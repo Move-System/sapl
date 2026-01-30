@@ -121,7 +121,43 @@ def materia_onlyoffice_download(request, pk):
         except Exception as e:
             logger.error(f"Erro ao ler arquivo: {e}")
 
-    # Se não tem arquivo, cria um documento em branco usando python-docx
+    # Tenta criar documento usando template
+    try:
+        from sapl.utils_template import criar_documento_com_template, criar_documento_em_branco
+
+        # Busca tipo específico da matéria (TipoMateriaLegislativa)
+        tipo_especifico = materia.tipo if materia.tipo else None
+
+        file_stream = criar_documento_com_template(
+            'materia',
+            tipo_especifico,
+            {
+                'titulo': f'{materia.tipo} {materia.numero}/{materia.ano}',
+                'descricao': materia.ementa,
+                'tipo_display': 'Matéria Legislativa'
+            }
+        )
+
+        # Se não encontrou template, cria documento em branco
+        if not file_stream:
+            file_stream = criar_documento_em_branco(
+                f'{materia.tipo} {materia.numero}/{materia.ano}',
+                materia.ementa,
+                'Matéria Legislativa'
+            )
+
+        if file_stream:
+            response = HttpResponse(
+                file_stream.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Materia_{pk}.docx"'
+            return response
+
+    except Exception as e:
+        logger.error(f"Erro ao criar documento: {e}")
+
+    # Fallback: Se python-docx não está instalado ou houve erro
     try:
         from docx import Document
         from io import BytesIO
@@ -332,7 +368,45 @@ def docacessorio_onlyoffice_download(request, pk):
         except Exception as e:
             logger.error(f"Erro ao ler arquivo: {e}")
 
-    # Se não tem arquivo, cria um documento em branco usando python-docx
+    # Tenta criar documento usando template
+    try:
+        from sapl.utils_template import criar_documento_com_template, criar_documento_em_branco
+
+        # Busca tipo específico do documento acessório (TipoDocumento)
+        tipo_especifico = documento.tipo if documento.tipo else None
+
+        descricao = documento.ementa if documento.ementa else f'Matéria: {documento.materia}'
+
+        file_stream = criar_documento_com_template(
+            'docacessorio',
+            tipo_especifico,
+            {
+                'titulo': f'{documento.tipo} - {documento.nome}',
+                'descricao': descricao,
+                'tipo_display': 'Documento Acessório'
+            }
+        )
+
+        # Se não encontrou template, cria documento em branco
+        if not file_stream:
+            file_stream = criar_documento_em_branco(
+                f'{documento.tipo} - {documento.nome}',
+                descricao,
+                'Documento Acessório'
+            )
+
+        if file_stream:
+            response = HttpResponse(
+                file_stream.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="DocAcessorio_{pk}.docx"'
+            return response
+
+    except Exception as e:
+        logger.error(f"Erro ao criar documento: {e}")
+
+    # Fallback: Se python-docx não está instalado ou houve erro
     try:
         from docx import Document
         from io import BytesIO

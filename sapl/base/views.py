@@ -52,8 +52,9 @@ from sapl.settings import EMAIL_SEND_USER, RATE_LIMITER_RATE
 from sapl.utils import (gerar_hash_arquivo, intervalos_tem_intersecao, mail_service_configured,
                         SEPARADOR_HASH_PROPOSICAO, show_results_filter_set, google_recaptcha_configured,
                         get_client_ip, sapn_is_enabled, is_weak_password, ratelimit_ip)
-from .forms import (AlterarSenhaForm, CasaLegislativaForm, ConfiguracoesAppForm, EstatisticasAcessoNormasForm)
-from .models import AppConfig, CasaLegislativa
+from .forms import (AlterarSenhaForm, CasaLegislativaForm, ConfiguracoesAppForm,
+                    EstatisticasAcessoNormasForm, DocumentTemplateForm)
+from .models import AppConfig, CasaLegislativa, DocumentTemplate
 
 
 def get_casalegislativa():
@@ -1747,3 +1748,111 @@ class CriarAutorAjaxView(PermissionRequiredMixin, FormView):
                 'success': False,
                 'error': f'Erro ao criar autor: {str(e)}'
             }, status=500)
+
+
+class DocumentTemplateCrud(CrudAux):
+    model = DocumentTemplate
+    help_topic = 'template-documento'
+
+    class BaseMixin(CrudAux.BaseMixin):
+        list_field_names = ['nome', 'tipo_conteudo', 'ativo', 'padrao']
+        form_class = DocumentTemplateForm
+
+    class ListView(CrudAux.ListView):
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            context['title'] = _('Templates de Documentos')
+            return context
+
+    class DetailView(CrudAux.DetailView):
+        template_name = 'base/documenttemplate_detail.html'
+
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            # Sempre adiciona link para editar via OnlyOffice
+            context['onlyoffice_edit_url'] = reverse(
+                'sapl.base:template_onlyoffice_editor',
+                kwargs={'pk': self.object.pk}
+            )
+            return context
+
+        def hook_tipo_especifico(self, obj):
+            if obj.tipo_especifico:
+                return 'Tipo Específico', str(obj.tipo_especifico)
+            return 'Tipo Específico', _('Nenhum (template genérico)')
+
+    class CreateView(CrudAux.CreateView):
+        template_name = 'base/documenttemplate_form.html'
+
+        def form_valid(self, form):
+            # Salva o objeto primeiro
+            response = super().form_valid(form)
+
+            # Se não foi enviado arquivo, cria um documento em branco
+            if not self.object.arquivo:
+                self._criar_arquivo_branco()
+
+            return response
+
+        def _criar_arquivo_branco(self):
+            """Cria um arquivo .docx em branco com cabeçalho e rodapé padrão"""
+            try:
+                from docx import Document
+                from docx.enum.text import WD_ALIGN_PARAGRAPH
+                from django.core.files.base import ContentFile
+                from io import BytesIO
+
+                doc = Document()
+
+                # Configura cabeçalho padrão
+                section = doc.sections[0]
+                header = section.header
+                header_para = header.paragraphs[0]
+                header_para.text = f"[CABEÇALHO - {self.object.nome}]"
+                header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                # Configura rodapé padrão
+                footer = section.footer
+                footer_para = footer.paragraphs[0]
+                footer_para.text = "[RODAPÉ]"
+                footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                # Adiciona conteúdo inicial
+                doc.add_heading(f'Template: {self.object.nome}', 0)
+                doc.add_paragraph(f'Tipo: {self.object.get_tipo_conteudo_display()}')
+                if self.object.descricao:
+                    doc.add_paragraph(f'Descrição: {self.object.descricao}')
+                doc.add_paragraph('')
+                doc.add_paragraph('Edite este documento para configurar o template.')
+                doc.add_paragraph('O cabeçalho e rodapé definidos aqui serão aplicados aos novos documentos.')
+
+                # Salva em memória
+                file_stream = BytesIO()
+                doc.save(file_stream)
+                file_stream.seek(0)
+
+                # Salva no modelo
+                filename = f"template_{self.object.pk}.docx"
+                self.object.arquivo.save(filename, ContentFile(file_stream.getvalue()), save=True)
+
+            except ImportError:
+                pass  # python-docx não instalado, ignora
+
+        def get_success_url(self):
+            # Sempre redireciona para o editor OnlyOffice após criação
+            return reverse(
+                'sapl.base:template_onlyoffice_editor',
+                kwargs={'pk': self.object.pk}
+            )
+
+    class UpdateView(CrudAux.UpdateView):
+        template_name = 'base/documenttemplate_form.html'
+
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            # Sempre adiciona link para editar via OnlyOffice
+            context['onlyoffice_edit_url'] = reverse(
+                'sapl.base:template_onlyoffice_editor',
+                kwargs={'pk': self.object.pk}
+            )
+            return context
