@@ -1,64 +1,56 @@
 """
 Views e utilitários para integração com OnlyOffice Document Server
+para Norma Jurídica
 """
 import hashlib
 import json
 import logging
-import os
 import time
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.contrib import messages
 
-from sapl.materia.models import Proposicao
-from sapl.utils import get_base_url
+from sapl.norma.models import NormaJuridica
 
 logger = logging.getLogger(__name__)
 
 
-def generate_file_key(proposicao_id, user_id):
+def generate_file_key(norma_id, user_id):
     """
     Gera uma chave única para o documento no OnlyOffice
     A chave muda a cada edição para forçar o OnlyOffice a recarregar
     """
     timestamp = str(int(time.time()))
-    string_to_hash = f"proposicao_{proposicao_id}_user_{user_id}_{timestamp}"
+    string_to_hash = f"norma_{norma_id}_user_{user_id}_{timestamp}"
     return hashlib.md5(string_to_hash.encode()).hexdigest()
 
 
 @login_required
 @require_http_methods(["GET"])
-def onlyoffice_config(request, pk):
+def norma_onlyoffice_config(request, pk):
     """
     Retorna a configuração JSON para inicializar o editor OnlyOffice
     """
-    proposicao = get_object_or_404(Proposicao, pk=pk)
+    norma = get_object_or_404(NormaJuridica, pk=pk)
 
-    # Verifica se o usuário tem permissão para editar
-    can_edit = (
-        not proposicao.data_envio and
-        proposicao.autor.operadores.filter(id=request.user.id).exists()
-    )
-
-    base_url = get_base_url(request)
+    # Verifica permissão de edição
+    can_edit = request.user.has_perm('norma.change_normajuridica')
 
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    # OnlyOffice precisa acessar o container SAPL pelo nome do serviço
     download_url = request.build_absolute_uri(
-        reverse('sapl.materia:onlyoffice_download', kwargs={'pk': pk})
+        reverse('sapl.norma:norma_onlyoffice_download', kwargs={'pk': pk})
     )
     callback_url = request.build_absolute_uri(
-        reverse('sapl.materia:onlyoffice_callback', kwargs={'pk': pk})
+        reverse('sapl.norma:norma_onlyoffice_callback', kwargs={'pk': pk})
     )
 
     # Substituir localhost/host externo pelo nome do container na rede Docker
-    # para que o OnlyOffice consiga acessar
     host = request.get_host()
-    # sapl-dev:8000 é o nome do container e porta interna do SAPL
     download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
     download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
     callback_url = callback_url.replace(f'http://{host}', 'http://sapl-dev:8000')
@@ -67,8 +59,8 @@ def onlyoffice_config(request, pk):
     # Configuração do documento
     document_config = {
         "fileType": "docx",
-        "key": generate_file_key(proposicao.pk, request.user.pk),
-        "title": f"Proposicao_{proposicao.pk}.docx",
+        "key": generate_file_key(norma.pk, request.user.pk),
+        "title": f"Norma_{norma.pk}.docx",
         "url": download_url,
     }
 
@@ -107,25 +99,20 @@ def onlyoffice_config(request, pk):
 
 
 @require_http_methods(["GET"])
-def onlyoffice_download(request, pk):
+def norma_onlyoffice_download(request, pk):
     """
     Endpoint para o OnlyOffice baixar o documento
     Se não existe arquivo, retorna um documento em branco
-    NOTA: Sem @login_required pois o OnlyOffice não tem sessão do Django
     """
-    proposicao = get_object_or_404(Proposicao, pk=pk)
-
-    # Verificação de permissão apenas se houver usuário autenticado
-    if request.user.is_authenticated and not proposicao.autor.operadores.filter(id=request.user.id).exists():
-        return HttpResponse("Sem permissão", status=403)
+    norma = get_object_or_404(NormaJuridica, pk=pk)
 
     # Se já tem arquivo, retorna ele
-    if proposicao.texto_original:
+    if norma.texto_integral:
         try:
-            with open(proposicao.texto_original.path, 'rb') as f:
+            with open(norma.texto_integral.path, 'rb') as f:
                 content = f.read()
             response = HttpResponse(content, content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-            response['Content-Disposition'] = f'attachment; filename="Proposicao_{pk}.docx"'
+            response['Content-Disposition'] = f'attachment; filename="Norma_{pk}.docx"'
             return response
         except Exception as e:
             logger.error(f"Erro ao ler arquivo: {e}")
@@ -136,13 +123,12 @@ def onlyoffice_download(request, pk):
         from io import BytesIO
 
         doc = Document()
-        doc.add_heading(f'Proposição {proposicao.tipo}', 0)
-        doc.add_paragraph(f'Ementa: {proposicao.descricao}')
+        doc.add_heading(f'{norma.tipo} {norma.numero}/{norma.ano}', 0)
+        doc.add_paragraph(f'Ementa: {norma.ementa}')
         doc.add_paragraph('')
-        doc.add_paragraph('Digite o texto da proposição abaixo:')
+        doc.add_paragraph('Digite o texto da norma abaixo:')
         doc.add_paragraph('')
 
-        # Salva em memória
         file_stream = BytesIO()
         doc.save(file_stream)
         file_stream.seek(0)
@@ -151,73 +137,54 @@ def onlyoffice_download(request, pk):
             file_stream.getvalue(),
             content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         )
-        response['Content-Disposition'] = f'attachment; filename="Proposicao_{pk}.docx"'
+        response['Content-Disposition'] = f'attachment; filename="Norma_{pk}.docx"'
         return response
 
     except ImportError:
-        # Se python-docx não está instalado, retorna erro
         logger.error("python-docx não está instalado")
         return HttpResponse("Erro: python-docx não instalado", status=500)
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
-def onlyoffice_callback(request, pk):
+def norma_onlyoffice_callback(request, pk):
     """
     Callback chamado pelo OnlyOffice quando o documento é salvo
-
-    Status codes:
-    0 - Nenhum documento com a chave identificada foi encontrado
-    1 - Documento está sendo editado
-    2 - Documento está pronto para salvar
-    3 - Ocorreu erro ao salvar o documento
-    4 - Documento está fechado sem alterações
-    6 - Documento está sendo editado, mas a versão atual do documento foi salva
-    7 - Ocorreu um erro de salvamento forçado ou salvamento automático
     """
     try:
         body = json.loads(request.body.decode('utf-8'))
         status = body.get('status')
         download_url = body.get('url')
 
-        logger.info(f"OnlyOffice callback para proposição {pk}: status={status}, url={download_url}, body={body}")
+        logger.info(f"OnlyOffice callback para norma jurídica {pk}: status={status}, url={download_url}")
 
         # Status 2 ou 6 significa que o documento foi salvo
         if status in [2, 6] and download_url:
-            logger.info(f"URL original recebida: {download_url}")
-
             # Substitui localhost:8001 por onlyoffice:80 para acesso interno Docker
             if 'localhost:8001' in download_url:
                 download_url = download_url.replace('localhost:8001', 'onlyoffice:80')
-                logger.info(f"URL substituída para rede Docker: {download_url}")
 
-            logger.info(f"Iniciando download do documento de: {download_url}")
-            proposicao = get_object_or_404(Proposicao, pk=pk)
+            norma = get_object_or_404(NormaJuridica, pk=pk)
 
             # Baixa o documento do OnlyOffice
             import requests
             try:
                 response = requests.get(download_url, timeout=30)
-                logger.info(f"Download response: status={response.status_code}, size={len(response.content)}")
             except Exception as e:
                 logger.error(f"Erro ao fazer requisição de download: {e}")
                 return JsonResponse({"error": 1})
 
             if response.status_code == 200:
-                # Salva o arquivo
                 from django.core.files.base import ContentFile
 
-                filename = f"proposicao_{pk}_{int(time.time())}.docx"
-                logger.info(f"Salvando arquivo: {filename}")
+                filename = f"norma_{pk}_{int(time.time())}.docx"
 
                 # Remove arquivo antigo se existir
-                if proposicao.texto_original:
-                    old_file = proposicao.texto_original.name
-                    proposicao.texto_original.delete(save=False)
-                    logger.info(f"Arquivo antigo removido: {old_file}")
+                if norma.texto_integral:
+                    norma.texto_integral.delete(save=False)
 
                 try:
-                    proposicao.texto_original.save(
+                    norma.texto_integral.save(
                         filename,
                         ContentFile(response.content),
                         save=True
@@ -231,7 +198,6 @@ def onlyoffice_callback(request, pk):
                 logger.error(f"Erro ao baixar documento: status={response.status_code}")
                 return JsonResponse({"error": 1})
 
-        # Para outros status, apenas retorna sucesso
         return JsonResponse({"error": 0})
 
     except Exception as e:
@@ -240,41 +206,32 @@ def onlyoffice_callback(request, pk):
 
 
 @login_required
-def onlyoffice_editor(request, pk):
+def norma_onlyoffice_editor(request, pk):
     """
     Renderiza a página com o editor OnlyOffice integrado
     """
-    from django.shortcuts import render
-
-    proposicao = get_object_or_404(Proposicao, pk=pk)
+    norma = get_object_or_404(NormaJuridica, pk=pk)
 
     # Verifica se o usuário tem permissão
-    if not proposicao.autor.operadores.filter(id=request.user.id).exists():
-        from django.contrib import messages
-        from django.shortcuts import redirect
-        messages.error(request, 'Você não tem permissão para editar esta proposição.')
-        return redirect('sapl.materia:proposicao_detail', pk=pk)
-
-    # Verifica se já foi enviada
-    if proposicao.data_envio:
-        from django.contrib import messages
-        from django.shortcuts import redirect
-        messages.warning(request, 'Esta proposição já foi enviada e não pode mais ser editada.')
-        return redirect('sapl.materia:proposicao_detail', pk=pk)
+    if not request.user.has_perm('norma.change_normajuridica'):
+        messages.error(request, 'Você não tem permissão para editar esta norma.')
+        return redirect('sapl.norma:normajuridica_detail', pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    # Se ONLYOFFICE_URL contém 'onlyoffice' (nome do container), substitui pelo host da requisição
     onlyoffice_url = settings.ONLYOFFICE_URL
     if 'onlyoffice:' in onlyoffice_url or 'onlyoffice/' in onlyoffice_url:
-        # É a URL interna do Docker, precisa usar a URL externa
         protocol = 'https' if request.is_secure() else 'http'
-        host = request.get_host().split(':')[0]  # Remove porta se existir
+        host = request.get_host().split(':')[0]
         onlyoffice_url = f"{protocol}://{host}:8001"
 
     context = {
-        'proposicao': proposicao,
+        'documento': norma,
+        'documento_tipo': 'Norma Jurídica',
+        'documento_titulo': f'{norma.tipo} {norma.numero}/{norma.ano}',
+        'documento_descricao': norma.ementa,
         'onlyoffice_url': onlyoffice_url,
-        'config_url': reverse('sapl.materia:onlyoffice_config', kwargs={'pk': pk}),
+        'config_url': reverse('sapl.norma:norma_onlyoffice_config', kwargs={'pk': pk}),
+        'voltar_url': reverse('sapl.norma:normajuridica_detail', kwargs={'pk': pk}),
     }
 
-    return render(request, 'materia/onlyoffice_editor.html', context)
+    return render(request, 'onlyoffice/onlyoffice_editor.html', context)

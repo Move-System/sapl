@@ -1978,16 +1978,12 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
         self.texto_articulado_proposicao = app_config.texto_articulado_proposicao if app_config else False
         self.receber_recibo = app_config.receber_recibo_proposicao if app_config else False
 
-        if not self.texto_articulado_proposicao:
-            if 'tipo_texto' in self._meta.fields:
-                self._meta.fields.remove('tipo_texto')
-        else:
-            if 'tipo_texto' not in self._meta.fields:
-                self._meta.fields.append('tipo_texto')
+        # Sempre incluir tipo_texto para permitir escolher entre Arquivo Digital e OnlyOffice
+        if 'tipo_texto' not in self._meta.fields:
+            self._meta.fields.append('tipo_texto')
 
         fields = [
-            to_column((Fieldset(
-                TipoProposicao._meta.verbose_name, Field('tipo')), 12)),
+            to_column(('tipo', 12)),
             to_column(
                 (Alert('teste',
                        css_class="ementa_materia hidden alert-info",
@@ -2003,12 +1999,13 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
             if 'numero_materia_futuro' in self._meta.fields:
                 self._meta.fields.remove('numero_materia_futuro')
 
-        if self.texto_articulado_proposicao:
-            fields.append(
-                to_column((InlineRadios('tipo_texto'), 5)),)
+        # Sempre mostrar opção de tipo de texto (Arquivo Digital, OnlyOffice, e opcionalmente Texto Articulado)
+        # Usar coluna inteira (12) para melhor visualização
+        fields.append(
+            to_column((InlineRadios('tipo_texto'), 12)),)
 
         fields.append(to_column((
-            'texto_original', 7 if self.texto_articulado_proposicao else 12)))
+            'texto_original', 12)))
 
         fields.append(
             to_column(
@@ -2102,6 +2099,14 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
         self.helper.layout = SaplFormLayout(*fields)
 
         super(ProposicaoForm, self).__init__(*args, **kwargs)
+
+        # Ajustar choices do tipo_texto baseado na configuração
+        # Se texto_articulado_proposicao não está habilitado, remover opção 'T' (Texto Articulado)
+        if not self.texto_articulado_proposicao:
+            self.fields['tipo_texto'].choices = [
+                ('D', _('Arquivo Digital')),
+                ('O', _('Criar com OnlyOffice'))
+            ]
 
         if self.instance.pk:
             self.fields['tipo_texto'].initial = ''

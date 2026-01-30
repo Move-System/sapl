@@ -1,6 +1,17 @@
 {% extends "crud/detail.html" %}
 {% load i18n %}
 
+{% block sub_actions %}
+    {{ block.super }}
+    {% if perms.protocoloadm.change_documentoadministrativo %}
+        <div class="actions btn-group btn-group-sm" role="group">
+            <a class="btn btn-primary" href="{% url 'sapl.protocoloadm:docadm_onlyoffice_editor' documentoadministrativo.pk %}">
+                <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
+            </a>
+        </div>
+    {% endif %}
+{% endblock sub_actions %}
+
 {% block detail_content %}
     {{ block.super }}
 

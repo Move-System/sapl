@@ -8,6 +8,13 @@
        <a href="{% url 'sapl.materia:acompanhar_materia' object.id %}" class="btn btn-outline-primary">Acompanhar Matéria</a>
        </div>
     {% endif %}
+    {% if perms.materia.change_materialegislativa %}
+        <div class="actions btn-group btn-group-sm" role="group">
+            <a class="btn btn-primary" href="{% url 'sapl.materia:materia_onlyoffice_editor' object.pk %}">
+                <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
+            </a>
+        </div>
+    {% endif %}
 {% endblock sub_actions %}
 
 {% block editions %}
