@@ -1,68 +1,334 @@
 {% extends "crud/form.html" %}
 {% load i18n %}
 {% load crispy_forms_tags %}
+
 {% block extra_js %}
-   <script type="text/javascript">
+<style>
+    /* =====================================================
+       Estilo para o container do tipo de proposição
+       ===================================================== */
+    #div_id_tipo {
+        position: relative;
+    }
 
-    $(document).ready(function(){
+    #div_id_tipo .tipo-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+    }
 
-    	$("input[name=tipo_texto]").change(function(event) {
-        if (this.value == 'D' && this.checked) {
-          $("#div_id_texto_original").removeClass('hidden');
-          $("#onlyoffice-info").addClass('hidden');
+    #div_id_tipo .btn-novo-tipo {
+        white-space: nowrap;
+        padding: 6px 12px;
+        font-size: 13px;
+    }
+
+    /* =====================================================
+       Estilo para os radio buttons de tipo de texto
+       ===================================================== */
+    #div_id_tipo_texto {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        margin-bottom: 15px;
+    }
+
+    #div_id_tipo_texto > label.col-form-label,
+    #div_id_tipo_texto > label:first-child {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 15px;
+        display: block;
+        font-size: 1em;
+    }
+
+    #div_id_tipo_texto .form-check {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        padding: 0;
+    }
+
+    #div_id_tipo_texto .form-check label,
+    #div_id_tipo_texto .form-check-inline {
+        display: flex;
+        align-items: center;
+        padding: 14px 20px;
+        background: white;
+        border: 2px solid #dee2e6;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin: 0 !important;
+        font-weight: 500;
+        color: #495057;
+    }
+
+    #div_id_tipo_texto .form-check label:hover,
+    #div_id_tipo_texto .form-check-inline:hover {
+        border-color: #007bff;
+        background: #f0f7ff;
+    }
+
+    #div_id_tipo_texto .form-check label.checked,
+    #div_id_tipo_texto .form-check-inline.checked {
+        border-color: #007bff;
+        background: #e7f1ff;
+        box-shadow: 0 0 0 1px #007bff;
+        color: #0056b3;
+    }
+
+    #div_id_tipo_texto input[type="radio"] {
+        margin-right: 10px;
+        width: 18px;
+        height: 18px;
+        accent-color: #007bff;
+    }
+
+    /* =====================================================
+       Estilo para o alerta do OnlyOffice
+       ===================================================== */
+    #onlyoffice-info {
+        border-left: 4px solid #17a2b8;
+        background: linear-gradient(135deg, #e8f4f8 0%, #f8f9fa 100%);
+        border-radius: 8px;
+        padding: 20px;
+        margin-top: 15px;
+    }
+
+    #onlyoffice-info h5 {
+        color: #0c5460;
+        margin-bottom: 12px;
+        font-size: 1.1em;
+    }
+
+    #onlyoffice-info .fa-file-word-o {
+        margin-right: 8px;
+        color: #2b579a;
+    }
+
+    #onlyoffice-info p {
+        color: #495057;
+        margin-bottom: 8px;
+    }
+
+    /* =====================================================
+       Estilo para o campo de upload
+       ===================================================== */
+    #div_id_texto_original {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        border: 2px dashed #dee2e6;
+        transition: all 0.2s ease;
+    }
+
+    #div_id_texto_original:hover {
+        border-color: #007bff;
+        background: #f8f9ff;
+    }
+
+    #div_id_texto_original label {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    /* =====================================================
+       Fieldset de vinculação
+       ===================================================== */
+    fieldset.card {
+        margin-top: 25px;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+    }
+
+    fieldset.card legend {
+        padding: 0 10px;
+        font-size: 1em;
+    }
+
+    /* =====================================================
+       Alerta de ementa da matéria
+       ===================================================== */
+    .ementa_materia {
+        margin-top: 15px;
+        font-size: 0.95em;
+        border-radius: 6px;
+    }
+
+    /* =====================================================
+       Botões do formulário (Cancelar / Salvar)
+       ===================================================== */
+    .form-group.row.justify-content-between {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 0;
+        margin-top: 20px;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .form-group.row.justify-content-between .btn {
+        min-width: 120px;
+    }
+
+    .form-group.row.justify-content-between .btn-dark {
+        background-color: #6c757d;
+        border-color: #6c757d;
+    }
+
+    .form-group.row.justify-content-between .btn-dark:hover {
+        background-color: #5a6268;
+        border-color: #545b62;
+    }
+
+    .form-group.row.justify-content-between .btn-primary {
+        padding: 8px 25px;
+    }
+</style>
+
+<script type="text/javascript">
+$(document).ready(function(){
+
+    // =====================================================
+    // Configuração do botão "Novo Tipo"
+    // =====================================================
+    var $tipoDiv = $('#div_id_tipo');
+    var $tipoLabel = $tipoDiv.find('label').first();
+    var $tipoSelect = $("select[name=tipo]");
+
+    if ($tipoLabel.length > 0 && $tipoSelect.length > 0) {
+        // Criar header com label e botão
+        var $header = $('<div class="tipo-header"></div>');
+        var $btnNovoTipo = $(`
+            <a href="/sistema/proposicao/tipo/create"
+               class="btn btn-success btn-sm btn-novo-tipo"
+               title="Cadastrar novo tipo de proposição"
+               target="_blank">
+                <i class="fa fa-plus"></i> Novo Tipo
+            </a>
+        `);
+
+        // Mover label para o header e adicionar botão
+        $tipoLabel.wrap($header);
+        $tipoLabel.after($btnNovoTipo);
+    }
+
+    // =====================================================
+    // Gerenciamento do tipo de texto
+    // =====================================================
+    function updateTipoTextoDisplay() {
+        var tipoTextoValue = $("input[name=tipo_texto]:checked").val();
+
+        if (tipoTextoValue === 'D') {
+            // Arquivo Digital: mostrar campo de upload
+            $("#div_id_texto_original").slideDown(200);
+            $("#onlyoffice-info").slideUp(200);
+        } else if (tipoTextoValue === 'T') {
+            // Texto Articulado: esconder ambos
+            $("#div_id_texto_original").slideUp(200);
+            $("#onlyoffice-info").slideUp(200);
+        } else if (tipoTextoValue === 'O') {
+            // OnlyOffice: mostrar mensagem informativa
+            $("#div_id_texto_original").slideUp(200);
+            $("#onlyoffice-info").slideDown(200);
         }
-        else if (this.value == 'T' && this.checked) {
-          $("#div_id_texto_original").addClass('hidden');
-          $("#onlyoffice-info").addClass('hidden');
-        }
-        else if (this.value == 'O' && this.checked) {
-          $("#div_id_texto_original").addClass('hidden');
-          $("#onlyoffice-info").removeClass('hidden');
-        }
-      });
 
-      // Adicionar botão ao lado do select de tipo
-      var $tipoSelect = $("select[name=tipo]");
-      if ($tipoSelect.length > 0) {
-        var $btnNovoTipo = $('<a href="/sistema/proposicao/tipo/create" class="btn btn-sm btn-success" style="margin-left: 10px;" title="Cadastrar novo tipo de proposição" target="_blank"><i class="fa fa-plus"></i> Novo Tipo</a>');
-        $tipoSelect.parent().append($btnNovoTipo);
-      }
+        // Atualizar visual dos labels
+        $("#div_id_tipo_texto .form-check label, #div_id_tipo_texto .form-check-inline").removeClass('checked');
+        $("input[name=tipo_texto]:checked").closest('label').addClass('checked');
+    }
 
-      $("select[name=tipo]").change(function(event) {
+    // Event listener para mudança de tipo de texto
+    $("input[name=tipo_texto]").change(function() {
+        updateTipoTextoDisplay();
+    });
 
-        // Sempre mostrar as opções de tipo_texto quando texto_articulado_proposicao está habilitado
-        // Inclui suporte para OnlyOffice além de Arquivo Digital e Texto Articulado
-        $("input[name=tipo_texto]").closest('label').removeClass('disabled');
-        $("input[name=tipo_texto]").closest('.form-group').parent().removeClass('hidden');
+    // =====================================================
+    // Mostrar opções de tipo de texto
+    // =====================================================
+    function showTipoTextoOptions() {
+        var $tipoTextoContainer = $("input[name=tipo_texto]").closest('.form-group').parent();
+        $tipoTextoContainer.removeClass('hidden');
+
         $("input[name=tipo_texto]").prop('disabled', false);
+        $("input[name=tipo_texto]").closest('label').removeClass('disabled');
 
-        if ($("input[name=tipo_texto]:checked").length == 0) {
-          $("input[name=tipo_texto]").first().prop('checked', true);
-          $("input[name=tipo_texto]").first().closest('label').addClass('checked');
+        // Selecionar primeira opção se nenhuma estiver selecionada
+        if ($("input[name=tipo_texto]:checked").length === 0) {
+            $("input[name=tipo_texto]").first().prop('checked', true);
         }
 
-      });
+        updateTipoTextoDisplay();
+    }
 
-      $("select[name=tipo_materia], input[name=numero_materia], input[name=ano_materia]").change(function(event) {
-        var url = '{% url 'sapl.api:materialegislativa-list'%}'
+    // Mostrar opções ao carregar a página
+    showTipoTextoOptions();
 
+    // Atualizar quando tipo de proposição mudar
+    $("select[name=tipo]").change(function() {
+        showTipoTextoOptions();
+    });
+
+    // =====================================================
+    // Busca de matéria legislativa para vinculação
+    // =====================================================
+    function buscarMateria() {
         var formData = {
-              'tipo'   : $("select[name=tipo_materia]").val(),
-              'ano'    : $("input[name=ano_materia]").val(),
-              'numero' : $("input[name=numero_materia]").val(),
+            'tipo': $("select[name=tipo_materia]").val(),
+            'ano': $("input[name=ano_materia]").val(),
+            'numero': $("input[name=numero_materia]").val(),
+        };
+
+        // Validar se todos os campos estão preenchidos
+        if (!formData.tipo || !formData.ano || !formData.numero) {
+            $(".ementa_materia").html('').addClass('hidden');
+            return;
         }
-        if (formData.tipo == '' || formData.ano == '' || formData.numero == '')
-          return;
+
+        var url = '{% url "sapl.api:materialegislativa-list" %}';
+
         $.get(url, formData).done(function(data) {
-          if (data.pagination.total_entries == 1)
-            $(".ementa_materia").html(data.results[0].ementa).removeClass('hidden');
-          else
+            if (data.pagination.total_entries === 1) {
+                $(".ementa_materia")
+                    .html('<strong><i class="fa fa-check-circle text-success"></i> Matéria encontrada:</strong> ' + data.results[0].ementa)
+                    .removeClass('hidden alert-warning')
+                    .addClass('alert-info');
+            } else if (data.pagination.total_entries === 0) {
+                $(".ementa_materia")
+                    .html('<i class="fa fa-exclamation-triangle"></i> <em>Matéria não encontrada</em>')
+                    .removeClass('hidden alert-info')
+                    .addClass('alert-warning');
+            } else {
+                $(".ementa_materia").html('').addClass('hidden');
+            }
+        }).fail(function() {
             $(".ementa_materia").html('').addClass('hidden');
         });
-  		});
+    }
 
-      $("input[name=tipo_texto], select[name=tipo_materia], select[name=tipo]").trigger('change');
+    // Event listeners para busca de matéria
+    $("select[name=tipo_materia], input[name=numero_materia], input[name=ano_materia]")
+        .on('change keyup', function() {
+            buscarMateria();
+        });
 
-    });
-	</script>
+    // =====================================================
+    // Inicialização
+    // =====================================================
+
+    // Disparar eventos iniciais
+    $("select[name=tipo]").trigger('change');
+    buscarMateria();
+
+    // Garantir que o onlyoffice-info comece escondido
+    $("#onlyoffice-info").hide();
+
+    // Atualizar display inicial
+    setTimeout(updateTipoTextoDisplay, 100);
+
+});
+</script>
 {% endblock %}

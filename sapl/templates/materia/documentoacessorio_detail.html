@@ -1,0 +1,13 @@
+{% extends "crud/detail.html" %}
+{% load i18n %}
+
+{% block sub_actions %}
+    {{ block.super }}
+    {% if perms.materia.change_documentoacessorio %}
+        <div class="actions btn-group btn-group-sm" role="group">
+            <a class="btn btn-primary" href="{% url 'sapl.materia:docacessorio_onlyoffice_editor' object.pk %}">
+                <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
+            </a>
+        </div>
+    {% endif %}
+{% endblock sub_actions %}

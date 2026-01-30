@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block base_content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>{% trans "Editor de Texto" %} - {{ documento_tipo }}</h2>
+            <hr>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <strong>{% trans "Documento:" %}</strong> {{ documento_titulo }}<br>
+                <strong>{% trans "Descrição:" %}</strong> {{ documento_descricao|truncatewords:50 }}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div id="onlyoffice-placeholder" style="height: 600px; border: 1px solid #ccc;">
+                <div class="text-center" style="padding-top: 250px;">
+                    <i class="fa fa-spinner fa-spin fa-3x"></i>
+                    <p>{% trans "Carregando editor..." %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-12">
+            <a href="{{ voltar_url }}" class="btn btn-secondary">
+                <i class="fa fa-arrow-left"></i> {% trans "Voltar" %}
+            </a>
+            <div class="alert alert-warning mt-3">
+                <i class="fa fa-info-circle"></i>
+                {% trans "O documento é salvo automaticamente enquanto você edita. Ao terminar, feche o editor e volte para a página do documento." %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript" src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
+
+<script type="text/javascript">
+    // Carrega a configuração do OnlyOffice
+    fetch('{{ config_url }}')
+        .then(response => response.json())
+        .then(config => {
+            console.log('OnlyOffice Config:', config);
+
+            // Inicializa o editor
+            var docEditor = new DocsAPI.DocEditor("onlyoffice-placeholder", config);
+
+            // Eventos do editor
+            docEditor.events = {
+                'onDocumentReady': function() {
+                    console.log('Documento pronto para edição');
+                },
+                'onError': function(event) {
+                    console.error('Erro no OnlyOffice:', event);
+                    alert('Ocorreu um erro ao carregar o editor. Por favor, tente novamente.');
+                },
+                'onWarning': function(event) {
+                    console.warn('Aviso do OnlyOffice:', event);
+                }
+            };
+        })
+        .catch(error => {
+            console.error('Erro ao carregar configuração:', error);
+            document.getElementById('onlyoffice-placeholder').innerHTML =
+                '<div class="alert alert-danger m-5">' +
+                '<strong>Erro:</strong> Não foi possível carregar o editor. ' +
+                'Verifique se o servidor OnlyOffice está rodando.' +
+                '</div>';
+        });
+</script>
+{% endblock %}
