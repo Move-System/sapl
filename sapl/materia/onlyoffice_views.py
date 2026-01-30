@@ -130,7 +130,43 @@ def onlyoffice_download(request, pk):
         except Exception as e:
             logger.error(f"Erro ao ler arquivo: {e}")
 
-    # Se não tem arquivo, cria um documento em branco usando python-docx
+    # Tenta criar documento usando template
+    try:
+        from sapl.utils_template import criar_documento_com_template, criar_documento_em_branco
+
+        # Busca tipo específico da proposição (TipoProposicao)
+        tipo_especifico = proposicao.tipo if proposicao.tipo else None
+
+        file_stream = criar_documento_com_template(
+            'proposicao',
+            tipo_especifico,
+            {
+                'titulo': f'Proposição {proposicao.tipo}',
+                'descricao': proposicao.descricao,
+                'tipo_display': 'Proposição'
+            }
+        )
+
+        # Se não encontrou template, cria documento em branco
+        if not file_stream:
+            file_stream = criar_documento_em_branco(
+                f'Proposição {proposicao.tipo}',
+                proposicao.descricao,
+                'Proposição'
+            )
+
+        if file_stream:
+            response = HttpResponse(
+                file_stream.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            )
+            response['Content-Disposition'] = f'attachment; filename="Proposicao_{pk}.docx"'
+            return response
+
+    except Exception as e:
+        logger.error(f"Erro ao criar documento: {e}")
+
+    # Fallback: Se python-docx não está instalado ou houve erro
     try:
         from docx import Document
         from io import BytesIO
@@ -142,7 +178,6 @@ def onlyoffice_download(request, pk):
         doc.add_paragraph('Digite o texto da proposição abaixo:')
         doc.add_paragraph('')
 
-        # Salva em memória
         file_stream = BytesIO()
         doc.save(file_stream)
         file_stream.seek(0)
@@ -155,7 +190,6 @@ def onlyoffice_download(request, pk):
         return response
 
     except ImportError:
-        # Se python-docx não está instalado, retorna erro
         logger.error("python-docx não está instalado")
         return HttpResponse("Erro: python-docx não instalado", status=500)
 

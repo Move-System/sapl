@@ -8,7 +8,11 @@ from django.views.generic.base import RedirectView, TemplateView
 from sapl.base.views import (AutorCrud, ConfirmarEmailView, TipoAutorCrud, get_estatistica,
                              RecuperarSenhaEmailView, RecuperarSenhaFinalizadoView,
                              RecuperarSenhaConfirmaView, RecuperarSenhaCompletoView, IndexView, UserCrud,
-                             GuiaProjetoView, FluxoProposicoesView, CriarAutorAjaxView)
+                             GuiaProjetoView, FluxoProposicoesView, CriarAutorAjaxView,
+                             DocumentTemplateCrud)
+from sapl.base.onlyoffice_template_views import (
+    template_onlyoffice_editor, template_onlyoffice_config,
+    template_onlyoffice_download, template_onlyoffice_callback)
 from sapl.settings import MEDIA_URL, LOGOUT_REDIRECT_URL
 from .apps import AppConfig
 from .views import (LoginSapl, AlterarSenha, AppConfigCrud, CasaLegislativaCrud,
@@ -52,6 +56,19 @@ urlpatterns = [
     url(r'^sistema/autor/tipo/', include(TipoAutorCrud.get_urls())),
     url(r'^sistema/autor/criar-ajax/$', CriarAutorAjaxView.as_view(), name='criar_autor_ajax'),
     url(r'^sistema/autor/', include(AutorCrud.get_urls())),
+
+    # Template de Documento - CRUD
+    url(r'^sistema/template-documento/', include(DocumentTemplateCrud.get_urls())),
+
+    # Template de Documento - OnlyOffice
+    url(r'^sistema/template-documento/(?P<pk>\d+)/onlyoffice/editor$',
+        template_onlyoffice_editor, name='template_onlyoffice_editor'),
+    url(r'^sistema/template-documento/(?P<pk>\d+)/onlyoffice/config$',
+        template_onlyoffice_config, name='template_onlyoffice_config'),
+    url(r'^sistema/template-documento/(?P<pk>\d+)/onlyoffice/download$',
+        template_onlyoffice_download, name='template_onlyoffice_download'),
+    url(r'^sistema/template-documento/(?P<pk>\d+)/onlyoffice/callback$',
+        template_onlyoffice_callback, name='template_onlyoffice_callback'),
 
     url(r'^sistema/guia-projeto/$', GuiaProjetoView.as_view(),
         name='guia_projeto'),

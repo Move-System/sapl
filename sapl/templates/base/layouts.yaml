@@ -76,3 +76,10 @@ AutorCreate:
 OperadorAutor:
   {% trans 'Operador de Autor' %}:
   - user
+
+DocumentTemplate:
+  {% trans 'Template de Documento' %}:
+  - nome:6 tipo_conteudo:6
+  - content_type:6 object_id:6
+  - descricao
+  - arquivo:8 ativo:2 padrao:2
