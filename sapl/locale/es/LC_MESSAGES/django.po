@@ -6,7 +6,7 @@
 # johnfelipe <ingenierofelipeurrego@gmail.com>, 2015
 msgid ""
 msgstr ""
-"Project-Id-Version: SAPL\n"
+"Project-Id-Version: SGVP\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2015-07-20 15:05-0300\n"
 "PO-Revision-Date: 2015-07-18 21:32+0000\n"
@@ -383,8 +383,8 @@ msgid "Autor"
 msgstr "Autor"
 
 #: materia/forms.py:127
-msgid "Acesso ao SAPL"
-msgstr "Acceso a SAPL"
+msgid "Acesso ao SGVP"
+msgstr "Acceso a SGVP"
 
 #: materia/forms.py:144 materia/models.py:213
 msgid "Autoria"
@@ -1705,7 +1705,7 @@ msgid "Sessão: %(sessao_plen)s Data: %(data)s"
 msgstr ""
 
 #: templates/base.html:7
-msgid "SAPL - Sistema de Apoio ao Processo Legislativo"
+msgid "SGVP"
 msgstr ""
 
 #~ msgid "Add pictures"

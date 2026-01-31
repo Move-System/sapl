@@ -142,7 +142,7 @@ def get_pdf_docacessorios(request, pk):
     except Exception as e:
         logger.error("user= {}.Um erro inesperado ocorreu na criação do pdf de documentos acessorios: {}"
                      .format(username, str(e)))
-        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SAPL.')
+        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SGVP.')
         messages.add_message(request, messages.ERROR, msg)
         return redirect(reverse('sapl.materia:documentoacessorio_list',
                                 kwargs={'pk': pk}))

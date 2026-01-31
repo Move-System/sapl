@@ -1,6 +1,6 @@
-# Configuração do SAPL com Banco de Dados Remoto
+# Configuração do SGVP com Banco de Dados Remoto
 
-Este documento explica como configurar o SAPL para usar um banco de dados PostgreSQL remoto.
+Este documento explica como configurar o SGVP para usar um banco de dados PostgreSQL remoto.
 
 ## Problemas Corrigidos
 
@@ -52,7 +52,7 @@ Adicione a variável `DATABASE_URL` nas variáveis de ambiente do serviço `sapl
       ADMIN_PASSWORD: interlegis
       ADMIN_EMAIL: email@dominio.net
       DEBUG: 'False'
-      DATABASE_URL: postgresql://bruno:Sapl%402025@legisinc.com.br:5432/sapl
+      DATABASE_URL: postgresql://bruno:Sapl%402025@sgvp.com.br:5432/sapl
       # ... outras variáveis
 ```
 
@@ -84,11 +84,11 @@ No mesmo arquivo, remova `sapldb` das dependências:
 
 ### Passo 3: Testar a conexão com o banco remoto
 
-Antes de iniciar o SAPL, teste a conexão:
+Antes de iniciar o SGVP, teste a conexão:
 
 ```bash
 docker run --rm postgres:10.5-alpine psql \
-  "postgresql://bruno:Sapl%402025@legisinc.com.br:5432/sapl" \
+  "postgresql://bruno:Sapl%402025@sgvp.com.br:5432/sapl" \
   -c "\dt"
 ```
 
@@ -145,11 +145,11 @@ Se estiver usando um banco remoto existente, use os usuários já cadastrados ne
 
 ```
 ┌─────────────────┐
-│      SAPL       │ → Porta 8000:80
+│      SGVP       │ → Porta 8000:80
 │  (Aplicação)    │
 └────────┬────────┘
          │
-         ├──→ legisinc.com.br:5432 (PostgreSQL Remoto)
+         ├──→ sgvp.com.br:5432 (PostgreSQL Remoto)
          │
          ├──→ SOLR (Porta 8983)
          │
@@ -196,7 +196,7 @@ docker logs sapl 2>&1 | grep -i error
 # Ver status dos containers
 docker-compose ps
 
-# Reiniciar o SAPL
+# Reiniciar o SGVP
 docker-compose restart sapl
 
 # Ver logs em tempo real
@@ -221,7 +221,7 @@ docker exec -it sapl bash
 sapl/
 ├── docker/
 │   ├── docker-compose.yaml          # Configuração principal
-│   ├── Dockerfile                   # Imagem do SAPL
+│   ├── Dockerfile                   # Imagem do SGVP
 │   └── startup_scripts/
 │       ├── gunicorn.conf.py         # Configuração do gunicorn
 │       ├── start.sh                 # Script de inicialização

@@ -383,7 +383,7 @@ msgid "Autor"
 msgstr ""
 
 #: materia/forms.py:127
-msgid "Acesso ao SAPL"
+msgid "Acesso ao SGVP"
 msgstr ""
 
 #: materia/forms.py:144 materia/models.py:213
@@ -1700,5 +1700,5 @@ msgid "Sessão: %(sessao_plen)s Data: %(data)s"
 msgstr ""
 
 #: templates/base.html:7
-msgid "SAPL - Sistema de Apoio ao Processo Legislativo"
+msgid "SGVP"
 msgstr ""

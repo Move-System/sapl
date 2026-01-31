@@ -125,7 +125,7 @@ Todas as rotas estão disponíveis em `/tce/api/`:
 
 ### 1. Registrar no settings.py
 ```python
-SAPL_APPS = (
+SGVP_APPS = (
     ...
     'sapl.tce',
 )
@@ -278,11 +278,11 @@ Algumas funcionalidades estão com implementação simplificada e devem ser inte
 
 Para contribuir com o módulo TCE:
 
-1. Seguir os padrões de código do SAPL
+1. Seguir os padrões de código do SGVP
 2. Adicionar testes unitários
 3. Documentar novas funcionalidades
 4. Manter compatibilidade com a API REST
 
 ## 📄 Licença
 
-Este módulo segue a mesma licença do projeto SAPL.
+Este módulo segue a mesma licença do projeto SGVP.

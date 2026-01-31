@@ -1,9 +1,9 @@
 
 from sapl.comissoes import models as comissoes
 from sapl.materia import models as materia
-from sapl.rules import SAPL_GROUP_COMISSOES, __base__, __perms_publicas__
+from sapl.rules import SGVP_GROUP_COMISSOES, __base__, __perms_publicas__
 rules_group_comissoes = {
-    'group': SAPL_GROUP_COMISSOES,
+    'group': SGVP_GROUP_COMISSOES,
     'rules': [
         (materia.PautaReuniao, __base__, __perms_publicas__),
         (comissoes.Comissao, __base__, __perms_publicas__),

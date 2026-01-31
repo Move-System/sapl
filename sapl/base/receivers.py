@@ -170,7 +170,7 @@ def cria_models_tipo_autor(app_config=None, verbosity=2, interactive=True,
                            using=DEFAULT_DB_ALIAS, **kwargs):
 
     print("\n\033[93m\033[1m{}\033[0m".format(
-        _('Atualizando registros TipoAutor do SAPL:')))
+        _('Atualizando registros TipoAutor do SGVP:')))
     for model in models_with_gr_for_autor:
         content_type = ContentType.objects.get_for_model(model)
         tipo_autor = TipoAutor.objects.filter(

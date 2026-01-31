@@ -8,12 +8,18 @@
   flex-basis: 100%;
   a {
     white-space: nowrap;
-    color: #93a4aa;
+    color: #FFFFFF;
+    transition: color 0.2s ease-in-out;
   }
   .nav-link {
     padding-top: 0;
     padding-bottom: 0;
     line-height: 4.5rem;
+
+    &:hover,
+    &:focus {
+      color: #3DB8CF;
+    }
   }
   .dropdown-menu {
     background-color: #20282a;
@@ -35,7 +41,7 @@
       min-width: 15rem;
     }
     &:hover {
-      background-color: #364347;
+      background-color: #3DB8CF;
       a {
         color: white;
       }
@@ -51,7 +57,7 @@
     min-width: 20%;;
   }
   a:not([href]):not([tabindex]) {
-    color: #777;
+    color: #FFFFFF;
   }
 
   &.justify-content-end {

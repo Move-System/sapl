@@ -43,15 +43,15 @@ ALLOWED_HOSTS = ['*']
 LOGIN_REDIRECT_URL = '/'
 LOGIN_URL = '/login/?next='
 
-SAPL_VERSION = '3.1.164-RC5'
+SGVP_VERSION = '3.1.164-RC5'
 
 if DEBUG:
     EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 else:
     EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 
-# SAPL business apps in dependency order
-SAPL_APPS = (
+# SGVP business apps in dependency order
+SGVP_APPS = (
     'sapl.audiencia',
     'sapl.base',
     'sapl.crud',
@@ -101,7 +101,7 @@ INSTALLED_APPS = (
 
                      'django_prometheus',
 
-                 ) + SAPL_APPS
+                 ) + SGVP_APPS
 
 # FTS = Full Text Search
 # Desabilita a indexação textual até encontramos uma solução para a issue
@@ -307,6 +307,14 @@ EMAIL_RUNNING = None
 ONLYOFFICE_URL = config('ONLYOFFICE_URL', default='http://localhost:8002')
 ONLYOFFICE_JWT_SECRET = config('ONLYOFFICE_JWT_SECRET', default='')
 ONLYOFFICE_JWT_ENABLED = config('ONLYOFFICE_JWT_ENABLED', cast=bool, default=False)
+
+# Integração externa de matérias da sessão
+SESSAO_MATERIAS_API_URL = config('SESSAO_MATERIAS_API_URL', default='')
+SESSAO_MATERIAS_API_KEY = config('SESSAO_MATERIAS_API_KEY', default='')
+SESSAO_MATERIAS_API_USERNAME = config('SESSAO_MATERIAS_API_USERNAME', default='')
+SESSAO_MATERIAS_API_PASSWORD = config('SESSAO_MATERIAS_API_PASSWORD', default='')
+# lista separada por vírgula, ex: "ROLE_USER,ROLE_ADMIN"
+SESSAO_MATERIAS_API_AUTHORITIES = config('SESSAO_MATERIAS_API_AUTHORITIES', default='')
 
 # Feature Flag
 WAFFLE_FLAG_DEFAULT = False

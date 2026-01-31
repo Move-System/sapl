@@ -18,7 +18,7 @@ from image_cropping.widgets import CropWidget, ImageCropWidget
 from sapl.base.models import Autor, TipoAutor
 from sapl.crispy_layout_mixin import SaplFormHelper
 from sapl.crispy_layout_mixin import form_actions, to_row
-from sapl.rules import SAPL_GROUP_VOTANTE
+from sapl.rules import SGVP_GROUP_VOTANTE
 from sapl.utils import FileFieldCheckMixin
 
 from .models import (Coligacao, ComposicaoColigacao, Filiacao, Frente, Legislatura,
@@ -611,7 +611,7 @@ class VotanteForm(ModelForm):
         # Cria user
         u = User.objects.get(username=self.cleaned_data['username'])
         # Adiciona user ao grupo
-        g = Group.objects.filter(name=SAPL_GROUP_VOTANTE)[0]
+        g = Group.objects.filter(name=SGVP_GROUP_VOTANTE)[0]
         u.groups.add(g)
 
         votante.user = u

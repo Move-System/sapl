@@ -9,13 +9,13 @@ from sapl.materia import models as materia
 from sapl.norma import models as norma
 from sapl.parlamentares import models as parlamentares
 from sapl.protocoloadm import models as protocoloadm
-from sapl.rules import SAPL_GROUP_GERAL, RP_ADD, __base__, __perms_publicas__, \
+from sapl.rules import SGVP_GROUP_GERAL, RP_ADD, __base__, __perms_publicas__, \
     __listdetailchange__
 from sapl.sessao import models as sessao
 
 
 rules_group_geral = {
-    'group': SAPL_GROUP_GERAL,
+    'group': SGVP_GROUP_GERAL,
     'rules': [
         (base.AppConfig, __base__ + [
             'menu_sistemas',

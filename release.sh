@@ -98,7 +98,7 @@ function commit_and_push {
    git add CHANGES.md
    rm latest_changes.md
 
-   if prompt_yes_no "${green_color}Do you want to commit SAPL $FINAL_VERSION release locally?${reset_color}"; then
+   if prompt_yes_no "${green_color}Do you want to commit SGVP $FINAL_VERSION release locally?${reset_color}"; then
        git commit -m "Release: $FINAL_VERSION"
        git tag $FINAL_VERSION
        echo -e "${green_color}Commit and tag created locally!${color_reset}"
@@ -110,7 +110,7 @@ function commit_and_push {
 
    echo -e "${red_color}### BEFORE PROCEEDING, MAKE SURE THE NEW VERSION NUMBER AND CHANGES ARE CORRECT!${color_reset}"
    echo -e "${green_color}Release: $FINAL_VERSION${reset_color}"
-   if prompt_yes_no "${green_color}Do you want to publish SAPL $FINAL_VERSION release on Github?${reset_color}"; then
+   if prompt_yes_no "${green_color}Do you want to publish SGVP $FINAL_VERSION release on Github?${reset_color}"; then
       echo -e "${green_color}Publishing $FINAL_VERSION on Github...${reset_color}"
       current_date=$(date +%Y-%m-%d)
       git push origin 3.1.x

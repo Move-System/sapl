@@ -33,7 +33,7 @@ from sapl.crud.base import (RP_CHANGE, RP_DETAIL, RP_LIST, Crud, CrudAux,
 from sapl.materia.models import Autoria, Proposicao, Relatoria
 from sapl.norma.models import AutoriaNorma, NormaJuridica
 from sapl.parlamentares.apps import AppConfig
-from sapl.rules import SAPL_GROUP_VOTANTE
+from sapl.rules import SGVP_GROUP_VOTANTE
 from sapl.utils import (parlamentares_ativos, show_results_filter_set, ratelimit_ip)
 
 from .forms import (ColigacaoFilterSet, FiliacaoForm, FrenteForm, LegislaturaForm, MandatoForm,
@@ -109,7 +109,7 @@ class VotanteView(MasterDetailCrud):
         def delete(self, *args, **kwargs):
             obj = self.get_object()
 
-            g = Group.objects.filter(name=SAPL_GROUP_VOTANTE)[0]
+            g = Group.objects.filter(name=SGVP_GROUP_VOTANTE)[0]
             obj.user.groups.remove(g)
 
             obj.delete()

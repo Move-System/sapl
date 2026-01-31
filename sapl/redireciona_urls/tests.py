@@ -8,7 +8,7 @@ EMPTY_STRING = ''
 
 class RedirecionaURLsTests(TestCase):
 
-    def test_redireciona_index_SAPL(self):
+    def test_redireciona_index_SGVP(self):
         response = self.client.get(reverse(
             'sapl.redireciona_urls:redireciona_sapl_index')
         )

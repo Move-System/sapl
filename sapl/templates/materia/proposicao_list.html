@@ -1,12 +1,302 @@
-{% extends "crud/list.html" %}
-{% load i18n %}
+{% extends "base.html" %}
+{% load i18n common_tags crispy_forms_tags %}
+
+{% block webpack_loader_chunks_css %}
+{{ block.super }}
+<style>
+  .prop-page {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .prop-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+
+  .prop-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: #333;
+  }
+
+  .prop-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85rem;
+    color: #666;
+  }
+
+  .prop-stats span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .prop-actions {
+    margin-bottom: 20px;
+  }
+
+  .prop-card {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    transition: border-color 0.15s;
+  }
+
+  .prop-card:hover {
+    border-color: #ccc;
+  }
+
+  .prop-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .prop-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .prop-tipo {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .prop-status {
+    font-size: 0.75rem;
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+
+  .prop-status.elaboracao { background: #f0f0f0; color: #666; }
+  .prop-status.aguardando { background: #e3f2fd; color: #1976d2; }
+  .prop-status.incorporada { background: #e8f5e9; color: #388e3c; }
+  .prop-status.devolvida { background: #fff3e0; color: #f57c00; }
+  .prop-status.cancelada { background: #f5f5f5; color: #999; }
+
+  .prop-date {
+    font-size: 0.8rem;
+    color: #999;
+  }
+
+  .prop-ementa {
+    color: #333;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  .prop-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .prop-info {
+    font-size: 0.8rem;
+    color: #999;
+  }
+
+  .prop-info a {
+    color: #1976d2;
+    text-decoration: none;
+  }
+
+  .prop-info a:hover {
+    text-decoration: underline;
+  }
+
+  .prop-card-actions a {
+    font-size: 0.85rem;
+    color: #1976d2;
+    text-decoration: none;
+    margin-left: 16px;
+  }
+
+  .prop-card-actions a:hover {
+    text-decoration: underline;
+  }
+
+  .prop-alert {
+    background: #fff8e1;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    font-size: 0.85rem;
+    color: #8d6e00;
+  }
+
+  .prop-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+  }
+
+  .prop-empty i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+
+  .prop-pagination {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e5e5;
+  }
+
+  .prop-pagination-info {
+    text-align: center;
+    font-size: 0.8rem;
+    color: #999;
+    margin-top: 8px;
+  }
+
+  @media (max-width: 640px) {
+    .prop-card-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .prop-date {
+      order: -1;
+    }
+  }
+</style>
+{% endblock webpack_loader_chunks_css %}
+
 {% block base_content %}
-{% block sub_actions %}
-  <div class="actions btn-group btn-group-sm" role="group">
-    <a href="{% url 'sapl.materia:historico-proposicao' %}" class="btn btn-outline-primary">
-      {% blocktrans with verbose_name=view.verbose_name %} Histórico de {{ verbose_name }} {% endblocktrans %}
+<div class="prop-page">
+  <div class="prop-header">
+    <h2>{% trans "Proposições" %}</h2>
+    <div class="prop-stats">
+      <span><strong>{{ stats.total|default:"0" }}</strong> total</span>
+      <span><strong>{{ stats.elaboracao|default:"0" }}</strong> em elaboração</span>
+      <span><strong>{{ stats.aguardando|default:"0" }}</strong> enviadas</span>
+    </div>
+  </div>
+
+  <div class="prop-actions">
+    {% if view.create_url %}
+    <a href="{{ view.create_url }}" class="btn btn-primary btn-sm">
+      <i class="fa fa-plus"></i> {% trans "Nova Proposição" %}
+    </a>
+    {% endif %}
+    <a href="{% url 'sapl.materia:historico-proposicao' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="fa fa-history"></i> {% trans "Histórico" %}
     </a>
   </div>
-{% endblock sub_actions %}
-  {{ block.super }}
+
+  {% if not proposicoes %}
+    <div class="prop-empty">
+      <i class="fa fa-file-text-o"></i>
+      <p>{% trans "Nenhuma proposição encontrada" %}</p>
+      {% if view.create_url %}
+      <a href="{{ view.create_url }}" class="btn btn-primary">
+        {% trans "Criar primeira proposição" %}
+      </a>
+      {% endif %}
+    </div>
+  {% else %}
+    {% for prop in proposicoes %}
+      <div class="prop-card">
+        <div class="prop-card-header">
+          <div class="prop-card-meta">
+            <span class="prop-tipo">{{ prop.obj.tipo }}</span>
+            <span class="prop-status {{ prop.status }}">{{ prop.status_label }}</span>
+          </div>
+          <span class="prop-date">
+            {% if prop.data_envio_fmt %}
+              {{ prop.data_envio_fmt }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+        </div>
+
+        <div class="prop-ementa">
+          {{ prop.obj.descricao|truncatewords:40 }}
+        </div>
+
+        {% if prop.status == 'devolvida' and prop.obj.justificativa_devolucao %}
+        <div class="prop-alert">
+          <strong>{% trans "Devolvida:" %}</strong> {{ prop.obj.justificativa_devolucao }}
+        </div>
+        {% endif %}
+
+        <div class="prop-card-footer">
+          <div class="prop-info">
+            {% if prop.obj.numero_proposicao %}
+              #{{ prop.obj.numero_proposicao }}/{{ prop.obj.ano }}
+            {% endif %}
+            {% if prop.obj.conteudo_gerado_related %}
+              <a href="{% url prop.obj|urldetail_content_type:prop.obj.conteudo_gerado_related prop.obj.conteudo_gerado_related.id %}">
+                {{ prop.obj.conteudo_gerado_related }}
+              </a>
+            {% endif %}
+          </div>
+          <div class="prop-card-actions">
+            <a href="{% url 'sapl.materia:proposicao_detail' prop.obj.pk %}">
+              {% trans "Abrir" %}
+            </a>
+            {% if prop.status == 'elaboracao' %}
+            <a href="{% url 'sapl.materia:proposicao_update' prop.obj.pk %}">
+              {% trans "Editar" %}
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+
+{% if is_paginated %}
+  <div class="prop-pagination">
+    <nav>
+      <ul class="pagination pagination-sm justify-content-center">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a>
+          </li>
+        {% endif %}
+
+        {% for page in page_range %}
+          {% if page == None or page == 'None' %}
+            <li class="page-item disabled"><span class="page-link">...</span></li>
+          {% else %}
+            <li class="page-item {% if page == page_obj.number %}active{% endif %}">
+              <a class="page-link" href="?page={{ page }}">{{ page }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}">Próxima</a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+    <p class="prop-pagination-info">
+      Página {{ page_obj.number }} de {{ paginator.num_pages }}
+    </p>
+  </div>
+{% endif %}
+
 {% endblock %}

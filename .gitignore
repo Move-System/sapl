@@ -15,6 +15,7 @@ node_modules/
 # Distribution / packaging
 .Python
 env/
+.venv/
 build/
 develop-eggs/
 dist/
@@ -115,3 +116,7 @@ restauracoes/*
 docker/
 docker-compose.yml
 docker-compose.yaml
+
+# Claude Code
+.claude/context/*.md
+NOTAS.txt

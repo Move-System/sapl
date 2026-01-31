@@ -20,8 +20,6 @@ def cabecalho(dic_cabecalho, imagem):
     tmp_data += '\t\t\t\t<setFont name="Helvetica-Bold" size="15"/>\n'
     tmp_data += '\t\t\t\t<drawString x="5cm" y="27.2cm">' + \
         dic_cabecalho['nom_casa'] + '</drawString>\n'
-    tmp_data += '\t\t\t\t<setFont name="Helvetica" size="12"/>\n'
-    tmp_data += '\t\t\t\t<drawString x="5cm" y="26.6cm">Sistema de Apoio ao Processo Legislativo</drawString>\n'
     tmp_data += '\t\t\t\t<setFont name="Helvetica-Bold" size="13"/>\n'
     tmp_data += '\t\t\t\t<drawString x="2.2cm" y="24.6cm">Relatório de Controle do Protocolo</drawString>\n'
 

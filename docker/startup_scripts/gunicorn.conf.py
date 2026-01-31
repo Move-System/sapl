@@ -4,8 +4,8 @@ import os
 import pathlib
 import multiprocessing
 
-# ---- SAPL app configuration ----
-NAME = "SAPL"
+# ---- Legisinc app configuration ----
+NAME = "Legisinc"
 DJANGODIR = "/var/interlegis/sapl"
 SOCKFILE = f"{DJANGODIR}/run/gunicorn.sock"
 USER = "sapl"

@@ -1,4 +1,4 @@
-# Integração OnlyOffice Document Server no SAPL
+# Integração OnlyOffice Document Server no SGVP
 
 ## Visão Geral
 
@@ -115,7 +115,7 @@ Após criar/editar o texto com OnlyOffice:
        │ 1. Acessa editor
        ▼
 ┌──────────────────┐
-│  SAPL (Django)   │
+│  SGVP (Django)   │
 └──────┬───────────┘
        │ 2. Retorna HTML com script do OnlyOffice
        ▼
@@ -125,7 +125,7 @@ Após criar/editar o texto com OnlyOffice:
        │ 3. Carrega config via /onlyoffice/config
        ▼
 ┌──────────────────┐
-│  SAPL (Django)   │
+│  SGVP (Django)   │
 └──────┬───────────┘
        │ 4. Retorna configuração JSON
        ▼
@@ -143,7 +143,7 @@ Após criar/editar o texto com OnlyOffice:
        │                         │
        ▼                         │
 ┌──────────────────┐             │
-│  SAPL (Django)   │─────────────┘
+│  SGVP (Django)   │─────────────┘
 └──────┬───────────┘
        │ 7. Retorna documento (ou documento em branco)
        ▼
@@ -154,7 +154,7 @@ Após criar/editar o texto com OnlyOffice:
        │ 9. AutoSave
        ▼
 ┌──────────────────┐
-│  SAPL (Django)   │
+│  SGVP (Django)   │
 │  /callback       │
 └──────┬───────────┘
        │ 10. Salva documento no banco

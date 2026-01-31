@@ -2,12 +2,12 @@
 Instruções para instalar o Solr
 ================================
 
-**O servidor do Solr NÃO DEVE SER EXPOSTO NA INTERNET. Assim como o servidor de bancos de dados Postgres ele deve estar acessível pelo SAPL na rede interna (atrás de NATs/firewalls/proxies/etc).**
+**O servidor do Solr NÃO DEVE SER EXPOSTO NA INTERNET. Assim como o servidor de bancos de dados Postgres ele deve estar acessível pelo SGVP na rede interna (atrás de NATs/firewalls/proxies/etc).**
 
-Solr é uma plataforma open source de indexação e busca textual utilizada pelo SAPL 3.1 para indexar documentos (normas jurídicas, matérias legislativas e documentos acessórios). 
+Solr é uma plataforma open source de indexação e busca textual utilizada pelo SGVP 3.1 para indexar documentos (normas jurídicas, matérias legislativas e documentos acessórios). 
 
-Observação: Se a execução do SAPL for mediante containers Docker então use o arquivo *docker-compose.yml* disponível em
-*https://github.com/interlegis/sapl/blob/3.1.x/dist/docker-compose.yml* (verifique os mapeamentos de volume estão corretos, a verso do SAPL referenciada no arquivo docker-compose.yml, e realize o backup de seu BD **antes** de qualquer tentativa de substituição do arquivo *docker-compose.yml* em uso corrente);
+Observação: Se a execução do SGVP for mediante containers Docker então use o arquivo *docker-compose.yml* disponível em
+*https://github.com/interlegis/sapl/blob/3.1.x/dist/docker-compose.yml* (verifique os mapeamentos de volume estão corretos, a verso do SGVP referenciada no arquivo docker-compose.yml, e realize o backup de seu BD **antes** de qualquer tentativa de substituição do arquivo *docker-compose.yml* em uso corrente);
 
 1) Faça o download da distribuição *binária* do Apache Solr do site oficial do projeto **http://lucene.apache.org/solr**
 
@@ -25,7 +25,7 @@ Observação: Se a execução do SAPL for mediante containers Docker então use 
 
 4) Por meio do browser, acesse a URL **http://localhost:8983** (ou informe o endereço da máquina onde o Solr foi instalado)
 
-5) Pare o servidor do SAPL;
+5) Pare o servidor do SGVP;
 
 6) Edite o arquivo .env adicionando as seguintes linhas:
 
@@ -40,11 +40,11 @@ Observação: Se a execução do SAPL for mediante containers Docker então use 
 
  (o valor do campo SOLR_URL deve corresponder à URL acessada no item 3)
 
-7) Entre no diretório raiz do SAPL e digite o comando: **python3 solr_api.py -c sapl -u http://localhost:8983`**
+7) Entre no diretório raiz do SGVP e digite o comando: **python3 solr_api.py -c sapl -u http://localhost:8983`**
 
     (a URL informada acima deve ser a mesma dos itens 3 e 6)
 
-8) Enquanto o Solr realiza a indexação da base de dados do SAPL, inicie em uma outra tela o SAPL;
+8) Enquanto o Solr realiza a indexação da base de dados do SGVP, inicie em uma outra tela o SGVP;
 
 9) Após realizados os passos com sucesso, nas telas de busca de Matéria Legislativa e Normas deverá aparecer um botão
 de 'Pesquisa Textual' na tela de busca tradicional.
@@ -73,7 +73,7 @@ de 'Pesquisa Textual' na tela de busca tradicional.
 
 1. Uma dúvida quanto a indexação do Solr, pelo que entendi de tempos e tempos tenho que rodar o comando para poder indexar novos arquivos certo?
 
-   Errado. Cada novo documento inserido, atualizado, ou removido do SAPL dispara uma nova indexação somente daquele documento no Solr automaticamente.
+   Errado. Cada novo documento inserido, atualizado, ou removido do SGVP dispara uma nova indexação somente daquele documento no Solr automaticamente.
 
 2. O comando **python3 solr_api.py -c sapl -u http://localhost:8983** indexa os novos arquivos?
 
@@ -81,7 +81,7 @@ de 'Pesquisa Textual' na tela de busca tradicional.
 
 3. Ou teria que reindexar do zero com *rebuild_index*?
 
-   Pode acontecer do Postgres e o Solr se dessincronizarem (ex: o Solr ficou fora do ar por um dia e foram inseridos registros no SAPL). Ou por algum motivo se deseja refazer o índice do Solr. Neste caso pode-se refazer a indexação no Solr com o comando : **python3 manage.py rebuild_index** (direto na linha de comando, a partir da pasta raiz do SAPL). Mas existem maneiras de atualizar somente os documentos inseridos/alterados a partir de uma determinada data ao invés de atualizar tudo do zero de novo.
+   Pode acontecer do Postgres e o Solr se dessincronizarem (ex: o Solr ficou fora do ar por um dia e foram inseridos registros no SGVP). Ou por algum motivo se deseja refazer o índice do Solr. Neste caso pode-se refazer a indexação no Solr com o comando : **python3 manage.py rebuild_index** (direto na linha de comando, a partir da pasta raiz do SGVP). Mas existem maneiras de atualizar somente os documentos inseridos/alterados a partir de uma determinada data ao invés de atualizar tudo do zero de novo.
 
 4. Pergunto isso pois estou querendo criar um script para crontab para indexar esses novos arquivos
 

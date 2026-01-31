@@ -1,4 +1,4 @@
-# Contribuindo com SAPL
+# Contribuindo com SGVP
 
 Caso queira contribuir com o projeto, talvez seja uma boa ideia começar pelo [README](https://github.com/interlegis/sapl) para conhecer melhor sobre nós.
 Outro documento importante e que deve ser lido é o [Código de Conduta](https://github.com/interlegis/sapl/blob/3.1.x/docs/CODE_OF_CONDUCT.md).

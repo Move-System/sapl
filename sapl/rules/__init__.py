@@ -20,7 +20,7 @@ três permissões registadas na classe Permission:
         # o radical .view_ não existia no django quando a app rules foi criada
         # e portanto não é utilizada
 
-No SAPL foram acrescidas em todos os models as duas regras abaixo, adicionadas
+No SGVP foram acrescidas em todos os models as duas regras abaixo, adicionadas
 com o Signal post_migrate `create_proxy_permissions`
 localizado em sapl.rules.apps.py.
 
@@ -43,7 +43,7 @@ com permissões, sempre é analisado se é apenas um radical ou permissão
 completa, sendo apenas um radical, a permissão completa é montada com base
 no model associado.
 
-NESTE ARQUIVO ESTÃO DEFINIDOS OS RADICAIS E OS GRUPOS DEFAULT DO SAPL
+NESTE ARQUIVO ESTÃO DEFINIDOS OS RADICAIS E OS GRUPOS DEFAULT DO SGVP
 
 """
 
@@ -55,41 +55,41 @@ __listdetailchange__ = [RP_LIST, RP_DETAIL, RP_CHANGE]
 
 __perms_publicas__ = {RP_LIST, RP_DETAIL}
 
-SAPL_GROUP_ADMINISTRATIVO = _("Operador Administrativo")
-SAPL_GROUP_AUDIENCIA = _("Operador de Audiência")
-SAPL_GROUP_PROTOCOLO = _("Operador de Protocolo Administrativo")
-SAPL_GROUP_COMISSOES = _("Operador de Comissões")
-SAPL_GROUP_MATERIA = _("Operador de Matéria")
-SAPL_GROUP_NORMA = _("Operador de Norma Jurídica")
-SAPL_GROUP_SESSAO = _("Operador de Sessão Plenária")
-SAPL_GROUP_PAINEL = _("Operador de Painel Eletrônico")
-SAPL_GROUP_GERAL = _("Operador Geral")
-SAPL_GROUP_AUTOR = _("Autor")
-SAPL_GROUP_VOTANTE = _("Votante")
+SGVP_GROUP_ADMINISTRATIVO = _("Operador Administrativo")
+SGVP_GROUP_AUDIENCIA = _("Operador de Audiência")
+SGVP_GROUP_PROTOCOLO = _("Operador de Protocolo Administrativo")
+SGVP_GROUP_COMISSOES = _("Operador de Comissões")
+SGVP_GROUP_MATERIA = _("Operador de Matéria")
+SGVP_GROUP_NORMA = _("Operador de Norma Jurídica")
+SGVP_GROUP_SESSAO = _("Operador de Sessão Plenária")
+SGVP_GROUP_PAINEL = _("Operador de Painel Eletrônico")
+SGVP_GROUP_GERAL = _("Operador Geral")
+SGVP_GROUP_AUTOR = _("Autor")
+SGVP_GROUP_VOTANTE = _("Votante")
 
 # TODO - funcionalidade ainda não existe mas está aqui para efeito de anotação
-SAPL_GROUP_LOGIN_SOCIAL = _("Usuários com Login Social")
+SGVP_GROUP_LOGIN_SOCIAL = _("Usuários com Login Social")
 
 # ANONYMOUS não é um grupo mas é uma variável usadas nas rules para anotar
 # explicitamente models que podem ter ação de usuários anônimos
 # como por exemplo AcompanhamentoMateria
-SAPL_GROUP_ANONYMOUS = ''
+SGVP_GROUP_ANONYMOUS = ''
 
-SAPL_GROUPS = [
-    SAPL_GROUP_ADMINISTRATIVO,
-    SAPL_GROUP_PROTOCOLO,
-    SAPL_GROUP_COMISSOES,
-    SAPL_GROUP_MATERIA,
-    SAPL_GROUP_NORMA,
-    SAPL_GROUP_SESSAO,
-    SAPL_GROUP_PAINEL,
-    SAPL_GROUP_GERAL,
-    SAPL_GROUP_AUTOR,
-    SAPL_GROUP_VOTANTE,
-    SAPL_GROUP_LOGIN_SOCIAL,
-    SAPL_GROUP_ANONYMOUS,
+SGVP_GROUPS = [
+    SGVP_GROUP_ADMINISTRATIVO,
+    SGVP_GROUP_PROTOCOLO,
+    SGVP_GROUP_COMISSOES,
+    SGVP_GROUP_MATERIA,
+    SGVP_GROUP_NORMA,
+    SGVP_GROUP_SESSAO,
+    SGVP_GROUP_PAINEL,
+    SGVP_GROUP_GERAL,
+    SGVP_GROUP_AUTOR,
+    SGVP_GROUP_VOTANTE,
+    SGVP_GROUP_LOGIN_SOCIAL,
+    SGVP_GROUP_ANONYMOUS,
 ]
 
-SAPL_GROUPS_DELETE = [
+SGVP_GROUPS_DELETE = [
 
 ]

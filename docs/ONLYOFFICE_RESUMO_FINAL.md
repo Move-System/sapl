@@ -5,7 +5,7 @@
 **IMPLEMENTAÇÃO 100% COMPLETA E FUNCIONAL**
 
 Os containers estão rodando com sucesso:
-- ✅ SAPL (Python 3.9) na porta 8000
+- ✅ SGVP (Python 3.9) na porta 8000
 - ✅ OnlyOffice Document Server na porta 8002
 
 ## 📦 O que Foi Implementado
@@ -113,7 +113,7 @@ DATABASE_URL: postgresql://seu_usuario:sua_senha@seu_host:5432/seu_database
        │
        ▼
 ┌──────────────────┐
-│  SAPL (Django)   │ :8000
+│  SGVP (Django)   │ :8000
 │  Python 3.9      │
 └──────┬───────────┘
        │
@@ -156,7 +156,7 @@ ONLYOFFICE_JWT_ENABLED=False
 
 ### Portas:
 
-- **8000**: SAPL Django
+- **8000**: SGVP Django
 - **8002**: OnlyOffice Document Server
 
 ## ⚠️ Próximos Passos
@@ -177,7 +177,7 @@ Para usar em produção:
    ONLYOFFICE_JWT_SECRET="sua-chave-secreta-forte-aqui"
    ```
 
-2. **Use HTTPS** para OnlyOffice e SAPL
+2. **Use HTTPS** para OnlyOffice e SGVP
 
 3. **Configure recursos adequados**:
    - OnlyOffice recomenda mínimo 4GB RAM
@@ -198,7 +198,7 @@ Para usar em produção:
 - JavaScript (OnlyOffice API)
 
 **Containers:**
-- SAPL: Python 3.9 + Django
+- SGVP: Python 3.9 + Django
 - OnlyOffice: Document Server (latest)
 
 **Bibliotecas Adicionadas:**

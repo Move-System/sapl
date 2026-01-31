@@ -75,7 +75,7 @@ class CasaLegislativaSerializer(SaplSerializerMixin):
     version = serializers.SerializerMethodField()
 
     def get_version(self, obj):
-        return settings.SAPL_VERSION
+        return settings.SGVP_VERSION
 
     class Meta:
         model = CasaLegislativa

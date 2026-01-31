@@ -36,7 +36,7 @@ docker-compose -f docker-compose-dev-py39.yml up -d
 ```
 
 ### Portas Utilizadas:
-- **8000**: SAPL
+- **8000**: SGVP
 - **8002**: OnlyOffice Document Server (alterado de 8001 para evitar conflito)
 
 ### Configurar Banco de Dados:
@@ -79,7 +79,7 @@ Após os containers subirem com sucesso:
 
    Ou abra no navegador: http://localhost:8001/welcome/
 
-2. **Acesse o SAPL**:
+2. **Acesse o SGVP**:
    ```bash
    # Abra no navegador
    http://localhost:8000
@@ -123,7 +123,7 @@ Se encontrar problemas:
 2. Consulte a documentação completa em `ONLYOFFICE_INTEGRATION.md`
 
 3. Verifique se todas as portas estão disponíveis:
-   - 8000: SAPL
+   - 8000: SGVP
    - 8001: OnlyOffice
 
 ## Próximos Passos

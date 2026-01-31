@@ -2,13 +2,13 @@
 Instruções para fazer o Deploy
 ==============================
 
-Para efeitos deste doc, foram consideradas as tecnologias NGINX + GUNICORN para servir a aplicação Django SAPL.
+Para efeitos deste doc, foram consideradas as tecnologias NGINX + GUNICORN para servir a aplicação Django SGVP.
 
 O NGINX é o servidor WEB, e o GUNICORN é o servidor da aplicação para o servidor WEB.
 
 
 
-É altamente recomendável que para produção o SAPL não seja executado em modo debug.
+É altamente recomendável que para produção o SGVP não seja executado em modo debug.
 Para isso edite o arquivo ``.env`` criado anteriormente em::
 
    sudo nano /var/interlegis/sapl/sapl/.env
