@@ -843,12 +843,11 @@ class ProposicaoCrud(Crud):
 
     class BaseMixin(Crud.BaseMixin):
         list_field_names = [
-            'data_envio',
-            'data_recebimento',
-            'descricao',
+            'status_proposicao',
             'tipo',
+            'descricao',
+            'data_envio',
             'conteudo_gerado_related',
-            'cancelado'
         ]
 
     class BaseLocalMixin:
@@ -916,7 +915,8 @@ class ProposicaoCrud(Crud):
                         msg_error = _('Proposição já foi enviada.')
                     elif not p.texto_original and not p.texto_articulado.exists():
                         msg_error = _(
-                            'Proposição não possui nenhum tipo de Texto associado.')
+                            'Proposição não possui texto. Use o botão "Editar com OnlyOffice" para criar o documento, '
+                            'e depois clique em "Salvar e Voltar" para garantir que o texto seja salvo antes de enviar.')
                     else:
                         if p.texto_articulado.exists():
                             ta = p.texto_articulado.first()
@@ -1199,24 +1199,112 @@ class ProposicaoCrud(Crud):
             '-data_envio',
             'descricao'
         ]
+        paginate_by = 10
+
+        def hook_header_status_proposicao(self):
+            return 'Status'
+
+        def get_context_data(self, **kwargs):
+            # Primeiro, buscar os dados antes de chamar super()
+            # pois get_rows modifica os objetos
+            qs = self.get_queryset()
+            stats = {
+                'total': qs.count(),
+                'elaboracao': qs.filter(data_envio__isnull=True, cancelado=False).count(),
+                'aguardando': qs.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False).count(),
+                'incorporada': qs.filter(data_recebimento__isnull=False, cancelado=False).count(),
+                'devolvida': qs.filter(data_devolucao__isnull=False, cancelado=False).count(),
+            }
+
+            # Processar proposições ANTES de chamar super() que chama get_rows
+            # Usar uma nova query para não conflitar
+            page_qs = self.get_queryset()
+            paginator = self.get_paginator(page_qs, self.paginate_by)
+            page = self.request.GET.get('page', 1)
+            try:
+                page_obj = paginator.page(page)
+            except:
+                page_obj = paginator.page(1)
+
+            proposicoes = []
+            for obj in page_obj.object_list:
+                # Determina o status
+                if obj.cancelado:
+                    status = 'cancelada'
+                    status_label = 'Cancelada'
+                    status_icon = 'fa-ban'
+                elif obj.data_devolucao:
+                    status = 'devolvida'
+                    status_label = 'Devolvida'
+                    status_icon = 'fa-undo'
+                elif obj.data_recebimento:
+                    status = 'incorporada'
+                    status_label = 'Incorporada'
+                    status_icon = 'fa-check'
+                elif obj.data_envio:
+                    status = 'aguardando'
+                    status_label = 'Aguardando Recebimento'
+                    status_icon = 'fa-clock-o'
+                else:
+                    status = 'elaboracao'
+                    status_label = 'Em Elaboração'
+                    status_icon = 'fa-edit'
+
+                data_envio_fmt = None
+                if obj.data_envio:
+                    data_envio_fmt = formats.date_format(
+                        timezone.localtime(obj.data_envio), "SHORT_DATETIME_FORMAT"
+                    )
+
+                data_devolucao_fmt = None
+                if obj.data_devolucao:
+                    data_devolucao_fmt = formats.date_format(
+                        timezone.localtime(obj.data_devolucao), "SHORT_DATETIME_FORMAT"
+                    )
+
+                proposicoes.append({
+                    'obj': obj,
+                    'status': status,
+                    'status_label': status_label,
+                    'status_icon': status_icon,
+                    'data_envio_fmt': data_envio_fmt,
+                    'data_devolucao_fmt': data_devolucao_fmt,
+                })
+
+            context = super().get_context_data(**kwargs)
+            context['stats'] = stats
+            context['proposicoes'] = proposicoes
+
+            # Paginação
+            context['is_paginated'] = paginator.num_pages > 1
+            context['page_obj'] = page_obj
+            context['paginator'] = paginator
+            context['page_range'] = make_pagination(page_obj.number, paginator.num_pages)
+
+            return context
 
         def get_rows(self, object_list):
 
             for obj in object_list:
-                if obj.data_recebimento is None:
-                    obj.data_recebimento = 'Não recebida' if obj.data_envio else 'Não enviada'
+                # Determina o status da proposição
+                if obj.cancelado:
+                    obj.status_proposicao = '<span class="badge badge-dark"><i class="fa fa-ban"></i> Cancelada</span>'
+                elif obj.data_devolucao:
+                    obj.status_proposicao = '<span class="badge badge-warning"><i class="fa fa-undo"></i> Devolvida</span>'
+                elif obj.data_recebimento:
+                    obj.status_proposicao = '<span class="badge badge-success"><i class="fa fa-check"></i> Incorporada</span>'
+                elif obj.data_envio:
+                    obj.status_proposicao = '<span class="badge badge-info"><i class="fa fa-clock-o"></i> Aguardando</span>'
                 else:
-                    obj.data_recebimento = timezone.localtime(
-                        obj.data_recebimento)
-                    obj.data_recebimento = formats.date_format(
-                        obj.data_recebimento, "DATETIME_FORMAT")
-                if obj.data_envio is None:
-                    obj.data_envio = 'Em elaboração...'
-                else:
+                    obj.status_proposicao = '<span class="badge badge-secondary"><i class="fa fa-edit"></i> Em Elaboração</span>'
 
+                # Formata a data de envio
+                if obj.data_envio is None:
+                    obj.data_envio = '-'
+                else:
                     obj.data_envio = timezone.localtime(obj.data_envio)
                     obj.data_envio = formats.date_format(
-                        obj.data_envio, "DATETIME_FORMAT")
+                        obj.data_envio, "SHORT_DATETIME_FORMAT")
 
             return [self._as_row(obj) for obj in object_list]
 

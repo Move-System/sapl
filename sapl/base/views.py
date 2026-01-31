@@ -71,9 +71,12 @@ class IndexView(TemplateView):
         context = super().get_context_data(**kwargs)
         # Verifica se o usuário é operador de algum Autor (Parlamentar)
         if self.request.user.is_authenticated:
-            context['is_parlamentar'] = self.request.user.autor_set.exists()
+            autor = self.request.user.autor_set.first()
+            context['is_parlamentar'] = autor is not None
+            context['autor_id'] = autor.id if autor else None
         else:
             context['is_parlamentar'] = False
+            context['autor_id'] = None
         return context
 
 
