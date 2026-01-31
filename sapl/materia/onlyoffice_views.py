@@ -220,10 +220,16 @@ def onlyoffice_callback(request, pk):
         if status in [2, 6] and download_url:
             logger.info(f"URL original recebida: {download_url}")
 
-            # Substitui localhost:8001 por onlyoffice:80 para acesso interno Docker
-            if 'localhost:8001' in download_url:
-                download_url = download_url.replace('localhost:8001', 'onlyoffice:80')
-                logger.info(f"URL substituída para rede Docker: {download_url}")
+            # Substitui URLs externas por URLs internas da rede Docker
+            # O OnlyOffice pode retornar localhost:8001 ou o host externo
+            import re
+            # Padrão para capturar qualquer host:porta antes do path
+            download_url = re.sub(
+                r'https?://[^/]+',
+                'http://onlyoffice:80',
+                download_url
+            )
+            logger.info(f"URL substituída para rede Docker: {download_url}")
 
             logger.info(f"Iniciando download do documento de: {download_url}")
             proposicao = get_object_or_404(Proposicao, pk=pk)

@@ -23,6 +23,19 @@
           </a>
         </div>
       </div>
+      <!-- Matérias Legislativas (Vereador) -->
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        <h3 class="card-title">Matérias Legislativas</h3>
+        <p class="card-description">Pesquise projetos de lei e proposições</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn-action" title="Pesquisar Matérias">
+            <i class="fas fa-search"></i> Pesquisar
+          </a>
+        </div>
+      </div>
       {% endif %}
 
       <!-- Mesa Diretora -->
@@ -153,17 +166,17 @@
       </div>
       {% endif %}
 
-      <!-- Fluxo de Proposições -->
-      {% if is_parlamentar %}
+      <!-- Minhas Matérias (Documentos de autoria do Vereador) -->
+      {% if is_parlamentar and autor_id %}
       <div class="homeBlock">
         <div class="card-icon">
-          <i class="fas fa-paper-plane"></i>
+          <i class="fas fa-folder-open"></i>
         </div>
-        <h3 class="card-title">Fluxo de Proposições</h3>
-        <p class="card-description">Como parlamentares criam e enviam proposições</p>
+        <h3 class="card-title">Minhas Matérias</h3>
+        <p class="card-description">Visualize e assine seus documentos de autoria</p>
         <div class="card-actions">
-          <a href="{% url 'sapl.base:fluxo_proposicoes' %}" class="btn-action" title="Ver Fluxo de Proposições">
-            <i class="fas fa-route"></i> Visualizar
+          <a href="{% url 'sapl.materia:pesquisar_materia' %}?autoria__autor={{ autor_id }}" class="btn-action" title="Ver Minhas Matérias">
+            <i class="fas fa-eye"></i> Visualizar
           </a>
         </div>
       </div>

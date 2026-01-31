@@ -1,239 +1,471 @@
-{% extends "crud/detail.html" %}
+{% extends "base.html" %}
 {% load i18n common_tags %}
 {% load tz %}
-{% block sub_actions %}
-  {{block.super}}
-  {% if user in object.autor.operadores.all  %}
-    <div class="actions btn-group btn-group-sm {%block sub_actions_pull%}{% endblock%}" role="group">
-      {% if object.texto_articulado.exists %}
-        <a class="btn btn-success" href="{% url 'sapl.materia:proposicao_ta' object.pk%}">{% trans "Texto Eletrônico" %}</a>
-      {% endif %}
-      {% if object.texto_original %}
-        <a class="btn btn-success" href="{% url 'sapl.materia:proposicao_texto' object.pk %}">{% trans "Texto Original" %}</a>
-      {% endif %}
+
+{% block webpack_loader_chunks_css %}
+{{ block.super }}
+<style>
+  .prop-detail {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px 0;
+  }
+
+  .prop-detail-header {
+    margin-bottom: 24px;
+  }
+
+  .prop-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #666;
+    text-decoration: none;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+  }
+
+  .prop-back:hover {
+    color: #333;
+  }
+
+  .prop-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .prop-title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #333;
+    margin: 0;
+  }
+
+  .prop-title-tipo {
+    color: #666;
+    font-weight: 400;
+  }
+
+  .prop-status-badge {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .prop-status-badge.elaboracao { background: #f0f0f0; color: #666; }
+  .prop-status-badge.aguardando { background: #e3f2fd; color: #1976d2; }
+  .prop-status-badge.incorporada { background: #e8f5e9; color: #388e3c; }
+  .prop-status-badge.devolvida { background: #fff3e0; color: #f57c00; }
+  .prop-status-badge.cancelada { background: #f5f5f5; color: #999; }
+
+  .prop-alert {
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-size: 0.9rem;
+  }
+
+  .prop-alert.warning {
+    background: #fff8e1;
+    border: 1px solid #ffe082;
+    color: #8d6e00;
+  }
+
+  .prop-alert.info {
+    background: #e3f2fd;
+    border: 1px solid #90caf9;
+    color: #1565c0;
+  }
+
+  .prop-alert.danger {
+    background: #ffebee;
+    border: 1px solid #ef9a9a;
+    color: #c62828;
+  }
+
+  .prop-alert strong {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .prop-section {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .prop-section-title {
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #999;
+    margin-bottom: 8px;
+  }
+
+  .prop-ementa {
+    font-size: 1rem;
+    line-height: 1.7;
+    color: #333;
+  }
+
+  .prop-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 16px;
+  }
+
+  .prop-meta-item label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #999;
+    margin-bottom: 4px;
+  }
+
+  .prop-meta-item span {
+    font-size: 0.95rem;
+    color: #333;
+  }
+
+  .prop-meta-item a {
+    color: #1976d2;
+    text-decoration: none;
+  }
+
+  .prop-meta-item a:hover {
+    text-decoration: underline;
+  }
+
+  .prop-actions-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    background: #fafafa;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    margin-bottom: 16px;
+  }
+
+  .prop-actions-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .prop-document-section {
+    background: #f8f9fa;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 30px;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+
+  .prop-document-section.has-document {
+    background: #fff;
+    border: 1px solid #e5e5e5;
+    border-style: solid;
+  }
+
+  .prop-document-section i {
+    font-size: 2.5rem;
+    color: #adb5bd;
+    margin-bottom: 12px;
+  }
+
+  .prop-document-section.has-document i {
+    color: #28a745;
+  }
+
+  .prop-document-section h4 {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #333;
+    margin-bottom: 8px;
+  }
+
+  .prop-document-section p {
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 16px;
+  }
+
+  .prop-document-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .prop-vinculo {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 12px 16px;
+  }
+
+  .prop-vinculo a {
+    color: #1976d2;
+    text-decoration: none;
+    font-weight: 500;
+  }
+
+  .prop-vinculo a:hover {
+    text-decoration: underline;
+  }
+
+  .prop-no-access {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+  }
+
+  .prop-no-access i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+  }
+
+  .prop-observacao {
+    font-size: 0.9rem;
+    color: #666;
+    font-style: italic;
+  }
+
+  @media (max-width: 640px) {
+    .prop-title-row {
+      flex-direction: column;
+    }
+
+    .prop-actions-bar {
+      flex-direction: column;
+    }
+
+    .prop-actions-bar .btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+</style>
+{% endblock webpack_loader_chunks_css %}
+
+{% block base_content %}
+<div class="prop-detail">
+  {% if user in object.autor.operadores.all %}
+    <!-- Header -->
+    <div class="prop-detail-header">
+      <a href="{% url 'sapl.materia:proposicao_list' %}" class="prop-back">
+        <i class="fa fa-arrow-left"></i> {% trans "Voltar para lista" %}
+      </a>
+
+      <div class="prop-title-row">
+        <h1 class="prop-title">
+          <span class="prop-title-tipo">{{ object.tipo }} —</span>
+          {% if object.numero_proposicao %}#{{ object.numero_proposicao }}/{{ object.ano }}{% else %}{% trans "Rascunho" %}{% endif %}
+        </h1>
+
+        {% if object.cancelado %}
+          <span class="prop-status-badge cancelada">Cancelada</span>
+        {% elif object.data_devolucao %}
+          <span class="prop-status-badge devolvida">Devolvida</span>
+        {% elif object.data_recebimento %}
+          <span class="prop-status-badge incorporada">Incorporada</span>
+        {% elif object.data_envio %}
+          <span class="prop-status-badge aguardando">Aguardando Recebimento</span>
+        {% else %}
+          <span class="prop-status-badge elaboracao">Em Elaboração</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Alertas -->
+    {% if object.data_devolucao %}
+      <div class="prop-alert danger">
+        <strong><i class="fa fa-exclamation-circle"></i> {% trans "Proposição Devolvida" %}</strong>
+        {{ object.justificativa_devolucao }}
+      </div>
+    {% elif object.data_envio and not object.data_recebimento %}
+      <div class="prop-alert info">
+        <i class="fa fa-clock-o"></i> {% trans "Proposição enviada e aguardando recebimento pela Mesa Diretora." %}
+      </div>
+    {% elif not object.data_envio and not object.texto_original and not object.texto_articulado.exists %}
+      <div class="prop-alert warning">
+        <strong><i class="fa fa-file-text-o"></i> {% trans "Documento não criado" %}</strong>
+        {% trans "Use o botão 'Editar Documento' abaixo para criar o texto da proposição." %}
+      </div>
+    {% endif %}
+
+    <!-- Ações principais -->
+    <div class="prop-actions-bar">
       {% if not object.data_envio %}
-        <a class="btn btn-primary" href="{% url 'sapl.materia:onlyoffice_editor' object.pk %}">
-          <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
+        <a href="{% url 'sapl.materia:onlyoffice_editor' object.pk %}" class="btn btn-primary">
+          <i class="fa fa-edit"></i> {% trans "Editar Documento" %}
+        </a>
+        {% if object.texto_original or object.texto_articulado.exists %}
+          <a href="{{ view.detail_url }}?action=send" class="btn btn-success">
+            <i class="fa fa-paper-plane"></i> {% trans "Enviar Proposição" %}
+          </a>
+        {% endif %}
+        <a href="{{ view.update_url }}" class="btn btn-outline-secondary">
+          <i class="fa fa-pencil"></i> {% trans "Editar Dados" %}
+        </a>
+        <a href="{{ view.delete_url }}" class="btn btn-outline-danger">
+          <i class="fa fa-trash"></i> {% trans "Excluir" %}
+        </a>
+      {% else %}
+        <a href="#" onclick="window.open('{% url 'sapl.materia:recibo-proposicao' object.pk %}','Recibo','width=1100, height=600, scrollbars=yes'); return false;" class="btn btn-outline-primary">
+          <i class="fa fa-file-text-o"></i> {% trans "Ver Recibo" %}
+        </a>
+        {% if not object.data_recebimento %}
+          <a href="{% url 'sapl.materia:retornar-proposicao' object.pk %}" class="btn btn-outline-warning">
+            <i class="fa fa-undo"></i> {% trans "Retornar Proposição" %}
+          </a>
+        {% endif %}
+      {% endif %}
+
+      {% if object.texto_original %}
+        <a href="{% url 'sapl.materia:proposicao_texto' object.pk %}" class="btn btn-outline-secondary" target="_blank">
+          <i class="fa fa-download"></i> {% trans "Baixar Documento" %}
         </a>
       {% endif %}
     </div>
-  {% endif %}
-{% endblock sub_actions%}
-{% block editions %}
-  {% if user in object.autor.operadores.all  %}
-    {% if object.data_envio %}
-        {% block editions_actions_return %}
-          <div class="actions btn-group" role="group">
-            <a class="btn btn-outline-primary" onclick="window.open('{% url 'sapl.materia:recibo-proposicao' object.pk %}','Recibo','width=1100, height=600, scrollbars=yes')">{% trans "Recibo de Envio" %}</a>
-            {% if not object.data_recebimento %}
-              <a href="{% url 'sapl.materia:retornar-proposicao' object.pk %}" class="btn btn-outline-primary btn-outline-danger">{% trans 'Retornar Proposição Enviada' %}</a>
-            {% endif %}
-          </div>
-      {% endblock %}
-    {% else %}
-      {% block editions_actions_send %}
-        <div class="actions btn-group" role="group">
-          <a href="{{ view.detail_url }}?action=send" class="btn btn-primary">{% trans 'Enviar' %}</a>
+
+    <!-- Ementa -->
+    <div class="prop-section">
+      <div class="prop-section-title">{% trans "Ementa" %}</div>
+      <div class="prop-ementa">{{ object.descricao }}</div>
+    </div>
+
+    <!-- Informações -->
+    <div class="prop-section">
+      <div class="prop-section-title">{% trans "Informações" %}</div>
+      <div class="prop-meta">
+        <div class="prop-meta-item">
+          <label>{% trans "Tipo" %}</label>
+          <span>{{ object.tipo }}</span>
         </div>
-        <div class="actions btn-group" role="group">
-          <a href="{{ view.update_url }}" class="btn btn-outline-primary">{% trans 'Editar' %}</a>
-          <a href="{{ view.delete_url }}" class="btn btn-outline-primary btn-outline-danger">{% trans 'Excluir' %}</a>
+        {% if object.numero_proposicao %}
+        <div class="prop-meta-item">
+          <label>{% trans "Número" %}</label>
+          <span>{{ object.numero_proposicao }}/{{ object.ano }}</span>
         </div>
-      {% endblock %}
-    {% endif %}
-  {% endif %}
-{% endblock editions %}
-{% block detail_content %}
-  {% if user in object.autor.operadores.all  %}
-    <h2 class="legend">{% model_verbose_name 'sapl.materia.models.Proposicao' %}</h2>
-    <div class="row">
-      <div class="col-sm-3">
-        <div id="div_id_tipo" class="form-group">
-          <p class="control-label">{%field_verbose_name object 'tipo'%}</p>
-          <div class="controls">
-            <div class="form-control-static">{{object.tipo}}</div>
-          </div>
-        </div>
-      </div>
-      {% if object.data_devolucao %}
-        <div class="col-sm-9">
-          <div class="alert alert-danger alert-dismissible " role="alert">
-            <strong>{% trans "Proposição devolvida em:" %} {{ object.data_devolucao}}</strong>
-            <div >{% trans "Justificativa:" %} {{object.justificativa_devolucao}}</div>
-          </div>
-        </div>
-      {% else %}
+        {% endif %}
         {% if object.data_envio %}
-          <div class="col-sm-3">
-            <div id="div_id_data_envio" class="form-group">
-              <p class="control-label">{%field_verbose_name object 'data_envio' %}</p>
-              <div class="controls">
-                <div class="form-control-static">{{object.data_envio}}</div>
-              </div>
-            </div>
-          </div>
+        <div class="prop-meta-item">
+          <label>{% trans "Data de Envio" %}</label>
+          <span>{{ object.data_envio|date:"d/m/Y H:i" }}</span>
+        </div>
         {% endif %}
         {% if object.data_recebimento %}
-          <div class="col-sm-3">
-            <div id="div_id_data_envio" class="form-group">
-              <p class="control-label">{%field_verbose_name object 'data_recebimento'%}</p>
-              <div class="controls">
-                <div class="form-control-static">{{object.data_recebimento}}</div>
-              </div>
-            </div>
-          </div>
-        {% elif object.data_envio %}
-          <div class="col-sm-6">
-            <div class="alert alert-info alert-dismissible " role="alert">
-              <div >{% trans "Proposição aguardando recebimento" %}</div>
-            </div>
-          </div>
+        <div class="prop-meta-item">
+          <label>{% trans "Data de Recebimento" %}</label>
+          <span>{{ object.data_recebimento|date:"d/m/Y H:i" }}</span>
+        </div>
         {% endif %}
-      {% endif %}
-    </div>
-    <div class="row">
-      <div class="col-sm-12">
-        <div id="div_id_descricao" class="form-group">
-          <p class="control-label">{%field_verbose_name object 'descricao'%}</p>
-          <div class="controls">
-            <div class="form-control-static">{{object.descricao}}</div>
-          </div>
+        {% if object.data_devolucao %}
+        <div class="prop-meta-item">
+          <label>{% trans "Data de Devolução" %}</label>
+          <span>{{ object.data_devolucao|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+        <div class="prop-meta-item">
+          <label>{% trans "Documento" %}</label>
+          <span>
+            {% if object.texto_original %}
+              <i class="fa fa-check-circle" style="color: #28a745;"></i> {% trans "Criado" %}
+            {% elif object.texto_articulado.exists %}
+              <i class="fa fa-check-circle" style="color: #28a745;"></i> {% trans "Texto Eletrônico" %}
+            {% else %}
+              <i class="fa fa-times-circle" style="color: #dc3545;"></i> {% trans "Não criado" %}
+            {% endif %}
+          </span>
         </div>
       </div>
     </div>
+
+    <!-- Observação -->
     {% if object.observacao %}
-      <div class="row">
-        <div class="col-sm-12">
-          <div id="div_id_obseracao" class="form-group">
-            <p class="control-label">{%field_verbose_name object 'observacao'%}</p>
-            <div class="controls">
-              <div class="form-control-static">{{object.observacao}}</div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div class="prop-section">
+      <div class="prop-section-title">{% trans "Observação" %}</div>
+      <div class="prop-observacao">{{ object.observacao }}</div>
+    </div>
     {% endif %}
-    {% if object.data_envio %}
-        <div class="row">
-          <div class="col-sm-12">
-            <div id="div_id_obseracao" class="form-group">
-              <p class="control-label">Enviada por</p>
-              <div class="controls">
-                <div class="form-control-static">
-                    {# TODO remover condicional apos migrar as acoes para os devidos campos#}
-                    {% if proposicao.usuario_envio %}
-                        {{ proposicao.usuario_envio|format_user }}
-                    {% else %}
-                        {{ proposicao.user|format_user }}
-                    {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-    {% endif %}
-    <div class="row">
+
+    <!-- Conteúdo Gerado / Vínculo -->
+    {% if object.conteudo_gerado_related or object.materia_de_vinculo %}
+    <div class="prop-section">
+      <div class="prop-section-title">{% trans "Vínculos" %}</div>
       {% if object.conteudo_gerado_related %}
-        <div class="col-sm-6">
-          <h2 class="legend">{% trans "Conteúdo Gerado" %}</h2>
-          <div id="div_id_conteudo_gerado_related" class="form-group">
-            <div class="controls">
-              <a href="{% url object|urldetail_content_type:object.conteudo_gerado_related object.conteudo_gerado_related.id%}">
-                {{object.conteudo_gerado_related}}
-              </a>
-            </div>
-          </div>
+        <div class="prop-vinculo" style="margin-bottom: 10px;">
+          <label style="font-size: 0.8rem; color: #666;">{% trans "Matéria Gerada:" %}</label>
+          <a href="{% url object|urldetail_content_type:object.conteudo_gerado_related object.conteudo_gerado_related.id %}">
+            {{ object.conteudo_gerado_related }}
+          </a>
         </div>
       {% endif %}
       {% if object.materia_de_vinculo %}
-        <div class="col-sm-6">
-          <h2 class="legend">{% trans "Vínculo com a Matéria Legislativa" %}</h2>
-          <div id="div_id_materia_de_vinculo" class="form-group">
-            <div class="controls">
-              Matéria</br>
-              &nbsp;&nbsp;&nbsp;&nbsp;
-              <a href="{% url object.materia_de_vinculo|urldetail object.materia_de_vinculo.id%}">
-                {{object.materia_de_vinculo}}
-              </a>
-              </br>
-              {% if object.materia_de_vinculo.autoria_set.all %}
-                Autores
-                {% for a in object.materia_de_vinculo.autoria_set.all %}
-                  </br>&nbsp;&nbsp;&nbsp;&nbsp;{{a.autor}}
-                {% endfor %}
-              {% endif %}
-              </br>
-              Texto Original
-              </br>
-              {% if object.materia_de_vinculo.texto_original %}
-                <a href="{{object.materia_de_vinculo.texto_original.url}}">
-                  {{object.materia_de_vinculo.texto_original| to_str | split:"/" | get_last_item_from_list:-1}}
-                </a>
-              {% endif %}
-              </br>
-            </div>
-          </div>
+        <div class="prop-vinculo">
+          <label style="font-size: 0.8rem; color: #666;">{% trans "Matéria Anexadora:" %}</label>
+          <a href="{% url object.materia_de_vinculo|urldetail object.materia_de_vinculo.id %}">
+            {{ object.materia_de_vinculo }}
+          </a>
         </div>
       {% endif %}
-      {% if not AppConfig.receber_recibo_proposicao %}
-        {% if object.hash_code %}
-          <div class="col-sm-12">
-            <div id="div_id_hash_code" class="form-group">
-              <p class="control-label">{%field_verbose_name object 'hash_code'%}</p>
-              <div class="controls">
-                <div class="form-control-static">{{object.hash_code}}</div>
-              </div>
-            </div>
-          </div>
-        {% endif %}
-      {% endif %}
     </div>
+    {% endif %}
+
+    <!-- Info para superusuário -->
     {% if user.is_superuser %}
-      <div class="row">
+    <div class="prop-section" style="background: #f8f9fa;">
+      <div class="prop-section-title">{% trans "Informações do Sistema" %}</div>
+      <div class="prop-meta">
         {% if proposicao.user %}
-          <div class="col-sm-4">
-            <div id="div_id_user" class="form-group">
-              <p class="control-label">Usuário</p>
-              <div class="controls">
-                <div class="form-control-static">
-                  <div class="dont-break-out">
-                    <a href="{% url 'sapl.base:user_update' proposicao.user.pk %}">{{ proposicao.user }}</a>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="prop-meta-item">
+          <label>{% trans "Usuário" %}</label>
+          <span><a href="{% url 'sapl.base:user_update' proposicao.user.pk %}">{{ proposicao.user }}</a></span>
+        </div>
         {% endif %}
         {% if proposicao.ip %}
-          <div class="col-sm-4">
-            <div id="div_ip_user" class="form-group">
-              <p class="control-label">IP</p>
-              <div class="controls">
-                <div class="form-control-static">
-                  <div class="dont-break-out">{{ proposicao.ip }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="prop-meta-item">
+          <label>{% trans "IP" %}</label>
+          <span>{{ proposicao.ip }}</span>
+        </div>
         {% endif %}
         {% if proposicao.ultima_edicao %}
-          <div class="col-sm-4">
-            <div id="div_ud_user" class="form-group">
-              <p class="control-label">Data e Hora da Edição</p>
-              <div class="controls">
-                <div class="form-control-static">
-                  <div class="dont-break-out">{{ proposicao.ultima_edicao }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div class="prop-meta-item">
+          <label>{% trans "Última Edição" %}</label>
+          <span>{{ proposicao.ultima_edicao }}</span>
+        </div>
+        {% endif %}
+        {% if object.hash_code %}
+        <div class="prop-meta-item">
+          <label>{% trans "Hash" %}</label>
+          <span style="font-size: 0.75rem; word-break: break-all;">{{ object.hash_code }}</span>
+        </div>
         {% endif %}
       </div>
+    </div>
     {% endif %}
+
   {% else %}
-    <br><br>
-    <div class="alert alert-danger alert-dismissible" role="alert">
-      <h3>Você não tem acesso a essa Proposição porque não é de sua autoria.</h3>
+    <!-- Sem acesso -->
+    <div class="prop-no-access">
+      <i class="fa fa-lock"></i>
+      <h3>{% trans "Acesso Negado" %}</h3>
+      <p>{% trans "Você não tem permissão para visualizar esta proposição." %}</p>
+      <a href="{% url 'sapl.materia:proposicao_list' %}" class="btn btn-outline-primary">
+        {% trans "Voltar para lista" %}
+      </a>
     </div>
   {% endif %}
-{% endblock detail_content %}
+</div>
+{% endblock base_content %}
