@@ -2260,11 +2260,11 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
         if materia_assunto_null:
             qs = qs.filter(materiaassunto__isnull=True)
 
-        if 'o' in self.request.GET and not self.request.GET['o']:
-            args = ['-ano', 'tipo__sequencia_regimental', '-numero'] if BaseAppConfig.attr(
-                'ordenacao_pesquisa_materia') == 'R' else ['-ano', 'tipo__sigla', '-numero']
-
-            qs = qs.order_by(*args)
+        # Ordenação: do mais novo para o mais antigo (por data de apresentação ou ID)
+        # Só aplica ordenação padrão se não houver ordenação explícita na URL
+        if 'o' not in self.request.GET or not self.request.GET['o']:
+            # Ordena por data de apresentação (mais recente primeiro), depois por ID
+            qs = qs.order_by('-data_apresentacao', '-id')
 
         kwargs.update({
             'queryset': qs,

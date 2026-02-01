@@ -120,3 +120,7 @@ docker-compose.yaml
 # Claude Code
 .claude/context/*.md
 NOTAS.txt
+
+# Database dumps
+*.sql
+dump_*.sql

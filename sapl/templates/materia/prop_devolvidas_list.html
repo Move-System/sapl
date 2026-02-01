@@ -1,9 +1,12 @@
-{% extends "base.html" %}
+{% extends "materia/proposicao_base.html" %}
 {% load i18n %}
 {% load tz %}
 {% block base_content %}
-  <fieldset>
-  <legend>Proposições Não Incorporadas</legend>
+  <div class="proposicao-content">
+    <div class="proposicao-header">
+      <h2>Proposicoes Devolvidas</h2>
+      <p class="text-muted">Proposicoes nao incorporadas e devolvidas ao autor</p>
+    </div>
     {% if not object_list %}
       <p>{{ NO_ENTRIES_MSG }}</p>
     {% else %}
@@ -31,6 +34,7 @@
         </tbody>
       </table>
     {% endif %}
-  </fieldset>
+  </div>
+
   {% include 'paginacao.html'%}
 {% endblock %}

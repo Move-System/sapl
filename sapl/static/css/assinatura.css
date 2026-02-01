@@ -1,0 +1,327 @@
+/**
+ * Estilos para o Modal de Assinatura Digital
+ * SAPL - Sistema de Apoio ao Processo Legislativo
+ */
+
+/* Modal de Assinatura */
+#assinaturaModal .modal-header {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    border-bottom: none;
+    border-radius: 0.3rem 0.3rem 0 0;
+}
+
+#assinaturaModal .modal-header .modal-title {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#assinaturaModal .modal-header .close {
+    color: white;
+    opacity: 0.8;
+    text-shadow: none;
+}
+
+#assinaturaModal .modal-header .close:hover {
+    opacity: 1;
+}
+
+#assinaturaModal .modal-footer {
+    border-top: 1px solid #e9ecef;
+    background-color: #f8f9fa;
+}
+
+/* Cards de Tipo de Certificado */
+.tipo-certificado-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid #dee2e6;
+    border-radius: 0.5rem;
+}
+
+.tipo-certificado-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 15px rgba(0, 123, 255, 0.2);
+    transform: translateY(-2px);
+}
+
+.tipo-certificado-card.selected {
+    border-color: #28a745;
+    background-color: #f8fff8;
+}
+
+.tipo-certificado-card .card-body {
+    padding: 2rem 1.5rem;
+}
+
+.tipo-certificado-card .fa {
+    transition: transform 0.3s ease;
+}
+
+.tipo-certificado-card:hover .fa {
+    transform: scale(1.1);
+}
+
+.tipo-certificado-card .card-title {
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+}
+
+.tipo-certificado-card .card-text {
+    font-size: 0.9rem;
+    min-height: 2.5rem;
+}
+
+/* Formulário A1 */
+#formulario-a1 .form-group label {
+    font-weight: 600;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+#formulario-a1 .custom-file-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#formulario-a1 .custom-file-label::after {
+    content: "Procurar";
+    background-color: #007bff;
+    color: white;
+    border-left: 1px solid #007bff;
+}
+
+#formulario-a1 .custom-file-input:focus ~ .custom-file-label {
+    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+/* Formulário A3 */
+#a3-detectando {
+    padding: 2rem;
+}
+
+#a3-detectando .fa-spinner {
+    color: #007bff;
+}
+
+#a3-nao-detectado ul {
+    margin-top: 1rem;
+    padding-left: 1.5rem;
+}
+
+#a3-nao-detectado ul li {
+    margin-bottom: 0.5rem;
+}
+
+#a3-nao-detectado ul a {
+    font-weight: 600;
+}
+
+#a3-cert-info {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+}
+
+#a3-cert-info .card-title {
+    font-size: 0.9rem;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Status da Assinatura */
+#status-assinatura {
+    min-height: 200px;
+}
+
+#status-processando {
+    padding: 2rem;
+}
+
+#status-processando .fa-spinner {
+    animation: fa-spin 1s infinite linear;
+}
+
+#status-processando .progress {
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: #e9ecef;
+}
+
+#status-processando .progress-bar {
+    background: linear-gradient(90deg, #007bff 0%, #00d4ff 100%);
+    transition: width 0.5s ease;
+}
+
+#status-sucesso {
+    padding: 2rem;
+}
+
+#status-sucesso .fa-check-circle {
+    color: #28a745;
+}
+
+#status-sucesso h5 {
+    color: #28a745;
+    font-weight: 600;
+}
+
+#status-erro {
+    padding: 1rem;
+}
+
+#status-erro .alert {
+    margin-bottom: 0;
+}
+
+/* Alertas customizados */
+#assinaturaModal .alert-info {
+    background-color: #e7f3ff;
+    border-color: #b8daff;
+    color: #004085;
+}
+
+#assinaturaModal .alert-warning {
+    background-color: #fff3cd;
+    border-color: #ffeeba;
+    color: #856404;
+}
+
+#assinaturaModal .alert-success {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+#assinaturaModal .alert-danger {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+/* Botões */
+#assinaturaModal .btn-voltar-selecao {
+    padding: 0;
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+#assinaturaModal .btn-voltar-selecao:hover {
+    color: #007bff;
+    text-decoration: none;
+}
+
+#assinaturaModal .btn-assinar {
+    min-width: 160px;
+}
+
+/* Card de Assinatura no Detail */
+.card.border-success .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.card.border-success .badge-success {
+    background-color: #28a745;
+    font-size: 0.85rem;
+    padding: 0.35em 0.65em;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .tipo-certificado-card .card-body {
+        padding: 1.5rem 1rem;
+    }
+
+    .tipo-certificado-card .fa {
+        font-size: 2rem !important;
+    }
+
+    #assinaturaModal .modal-body {
+        padding: 1rem;
+    }
+
+    #assinaturaModal .row.mb-4 > .col-md-6 {
+        margin-bottom: 1rem;
+    }
+}
+
+/* Animação de entrada */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#assinaturaModal.show .modal-content {
+    animation: fadeInUp 0.3s ease;
+}
+
+/* Estados de loading */
+.btn-assinar.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-assinar.loading::after {
+    content: '';
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    margin-left: 0.5rem;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: fa-spin 0.75s linear infinite;
+}
+
+/* Tooltip para informações adicionais */
+.info-tooltip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background-color: #6c757d;
+    color: white;
+    font-size: 0.7rem;
+    cursor: help;
+    margin-left: 0.25rem;
+}
+
+.info-tooltip:hover {
+    background-color: #007bff;
+}
+
+/* Estilo para certificados expirados */
+.certificado-expirado {
+    color: #dc3545;
+    font-weight: 600;
+}
+
+.certificado-valido {
+    color: #28a745;
+    font-weight: 600;
+}
+
+/* Estilo para lista de certificados A3 */
+#certificado-a3-select {
+    font-size: 0.95rem;
+}
+
+#certificado-a3-select option {
+    padding: 0.5rem;
+}

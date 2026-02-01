@@ -1,9 +1,12 @@
-{% extends "base.html" %}
+{% extends "materia/proposicao_base.html" %}
 {% load i18n %}
 {% load tz %}
 {% block base_content %}
-  <fieldset>
-  <legend>Histórico de Proposições</legend>
+  <div class="proposicao-content">
+    <div class="proposicao-header">
+      <h2>Historico de Proposicoes</h2>
+      <p class="text-muted">Registro de todas as movimentacoes de proposicoes</p>
+    </div>
     {% if not object_list %}
       <p>{{ NO_ENTRIES_MSG }}</p>
     {% else %}
@@ -38,7 +41,8 @@
         </tbody>
       </table>
     {% endif %}
-  </fieldset>
+  </div>
+
   {% include 'paginacao.html'%}
 {% endblock %}
 
