@@ -175,9 +175,6 @@ def template_onlyoffice_callback(request, pk):
 
         # Status 2 ou 6 significa que o documento foi salvo
         if status in [2, 6] and download_url:
-            # Substitui localhost:8001 por onlyoffice:80 para acesso interno Docker
-            if 'localhost:8001' in download_url:
-                download_url = download_url.replace('localhost:8001', 'onlyoffice:80')
 
             template = get_object_or_404(DocumentTemplate, pk=pk)
 

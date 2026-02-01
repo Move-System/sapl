@@ -194,9 +194,6 @@ def materia_onlyoffice_callback(request, pk):
 
         # Status 2 ou 6 significa que o documento foi salvo
         if status in [2, 6] and download_url:
-            # Substitui localhost:8001 por onlyoffice:80 para acesso interno Docker
-            if 'localhost:8001' in download_url:
-                download_url = download_url.replace('localhost:8001', 'onlyoffice:80')
 
             materia = get_object_or_404(MateriaLegislativa, pk=pk)
 
@@ -435,9 +432,6 @@ def docacessorio_onlyoffice_callback(request, pk):
 
         # Status 2 ou 6 significa que o documento foi salvo
         if status in [2, 6] and download_url:
-            # Substitui localhost:8001 por onlyoffice:80 para acesso interno Docker
-            if 'localhost:8001' in download_url:
-                download_url = download_url.replace('localhost:8001', 'onlyoffice:80')
 
             documento = get_object_or_404(DocumentoAcessorio, pk=pk)
 
@@ -623,12 +617,6 @@ def materia_gerar_pdf_assinatura(request, pk):
             return redirect('sapl.materia:materialegislativa_detail', pk=pk)
 
         pdf_url = file_url_elem.text
-
-        # Substitui 'onlyoffice' pelo endereço correto na rede Docker
-        # A URL retornada usa 'onlyoffice' como host
-        if 'onlyoffice/' in pdf_url and not pdf_url.startswith('http://onlyoffice:'):
-            pdf_url = pdf_url.replace('http://onlyoffice/', 'http://onlyoffice:80/')
-
         logger.info(f"URL do PDF para download: {pdf_url}")
 
         # Baixa o PDF convertido

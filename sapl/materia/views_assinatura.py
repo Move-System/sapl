@@ -103,10 +103,6 @@ def _gerar_pdf_da_materia(materia, request):
             return None, "URL do PDF não retornada pelo OnlyOffice"
 
         pdf_url = file_url_elem.text
-
-        if 'onlyoffice/' in pdf_url and not pdf_url.startswith('http://onlyoffice:'):
-            pdf_url = pdf_url.replace('http://onlyoffice/', 'http://onlyoffice:80/')
-
         pdf_response = http_requests.get(pdf_url, timeout=60)
 
         if pdf_response.status_code != 200:
