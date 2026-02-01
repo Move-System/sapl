@@ -53,12 +53,6 @@ def materia_onlyoffice_config(request, pk):
         reverse('sapl.materia:materia_onlyoffice_callback', kwargs={'pk': pk})
     )
 
-    # Substituir localhost/host externo pelo nome do container na rede Docker
-    host = request.get_host()
-    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'https://{host}', 'http://sapl-dev:8000')
 
     # Configuração do documento
     document_config = {
@@ -296,12 +290,6 @@ def docacessorio_onlyoffice_config(request, pk):
         reverse('sapl.materia:docacessorio_onlyoffice_callback', kwargs={'pk': pk})
     )
 
-    # Substituir localhost/host externo pelo nome do container na rede Docker
-    host = request.get_host()
-    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'https://{host}', 'http://sapl-dev:8000')
 
     # Configuração do documento
     document_config = {
@@ -568,13 +556,8 @@ def materia_gerar_pdf_assinatura(request, pk):
         reverse('sapl.materia:materia_onlyoffice_download', kwargs={'pk': pk})
     )
 
-    # Substituir pelo nome do container na rede Docker
-    host = request.get_host()
-    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-
-    # URL da API de conversão do OnlyOffice (dentro da rede Docker)
-    conversion_url = 'http://onlyoffice:80/ConvertService.ashx'
+    # URL da API de conversão do OnlyOffice
+    conversion_url = f'{settings.ONLYOFFICE_URL}/ConvertService.ashx'
 
     # Configuração da conversão
     conversion_data = {

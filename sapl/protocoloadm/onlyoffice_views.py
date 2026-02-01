@@ -49,12 +49,6 @@ def docadm_onlyoffice_config(request, pk):
         reverse('sapl.protocoloadm:docadm_onlyoffice_callback', kwargs={'pk': pk})
     )
 
-    # Substituir localhost/host externo pelo nome do container na rede Docker
-    host = request.get_host()
-    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'https://{host}', 'http://sapl-dev:8000')
 
     # Configuração do documento
     document_config = {

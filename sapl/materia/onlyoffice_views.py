@@ -46,23 +46,13 @@ def onlyoffice_config(request, pk):
 
     base_url = get_base_url(request)
 
-    # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    # OnlyOffice precisa acessar o container SGVP pelo nome do serviço
+    # URLs para o OnlyOffice acessar o documento
     download_url = request.build_absolute_uri(
         reverse('sapl.materia:onlyoffice_download', kwargs={'pk': pk})
     )
     callback_url = request.build_absolute_uri(
         reverse('sapl.materia:onlyoffice_callback', kwargs={'pk': pk})
     )
-
-    # Substituir localhost/host externo pelo nome do container na rede Docker
-    # para que o OnlyOffice consiga acessar
-    host = request.get_host()
-    # sapl-dev:8000 é o nome do container e porta interna do SAPL
-    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'https://{host}', 'http://sapl-dev:8000')
 
     # Configuração do documento
     document_config = {

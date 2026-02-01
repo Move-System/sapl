@@ -56,12 +56,8 @@ def _gerar_pdf_da_materia(materia, request):
         reverse('sapl.materia:materia_onlyoffice_download', kwargs={'pk': materia.pk})
     )
 
-    # Substituir pelo nome do container na rede Docker
-    host = request.get_host()
-    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-
-    conversion_url = 'http://onlyoffice:80/ConvertService.ashx'
+    # URL da API de conversão do OnlyOffice
+    conversion_url = f'{settings.ONLYOFFICE_URL}/ConvertService.ashx'
 
     conversion_data = {
         "async": False,
