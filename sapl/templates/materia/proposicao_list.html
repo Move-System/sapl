@@ -1,11 +1,13 @@
 {% extends "base.html" %}
 {% load i18n common_tags crispy_forms_tags %}
 
+{% block title %}{% endblock title %}
+
 {% block webpack_loader_chunks_css %}
 {{ block.super }}
 <style>
   .prop-page {
-    max-width: 900px;
+    max-width: 1200px;
     margin: 0 auto;
   }
 
@@ -27,15 +29,35 @@
 
   .prop-stats {
     display: flex;
-    gap: 16px;
+    gap: 8px;
     font-size: 0.85rem;
-    color: #666;
   }
 
-  .prop-stats span {
+  .prop-stats a {
     display: flex;
     align-items: center;
     gap: 4px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    text-decoration: none;
+    color: #666;
+    background: #f5f5f5;
+    transition: all 0.15s;
+  }
+
+  .prop-stats a:hover {
+    background: #e8e8e8;
+    color: #333;
+    text-decoration: none;
+  }
+
+  .prop-stats a.active {
+    background: #1976d2;
+    color: #fff;
+  }
+
+  .prop-stats a.active:hover {
+    background: #1565c0;
   }
 
   .prop-actions {
@@ -185,9 +207,21 @@
   <div class="prop-header">
     <h2>{% trans "Proposições" %}</h2>
     <div class="prop-stats">
-      <span><strong>{{ stats.total|default:"0" }}</strong> total</span>
-      <span><strong>{{ stats.elaboracao|default:"0" }}</strong> em elaboração</span>
-      <span><strong>{{ stats.aguardando|default:"0" }}</strong> enviadas</span>
+      <a href="?" class="{% if not status_filter %}active{% endif %}">
+        <strong>{{ stats.total|default:"0" }}</strong> total
+      </a>
+      <a href="?status=elaboracao" class="{% if status_filter == 'elaboracao' %}active{% endif %}">
+        <strong>{{ stats.elaboracao|default:"0" }}</strong> em elaboração
+      </a>
+      <a href="?status=aguardando" class="{% if status_filter == 'aguardando' %}active{% endif %}">
+        <strong>{{ stats.aguardando|default:"0" }}</strong> enviadas
+      </a>
+      <a href="?status=incorporada" class="{% if status_filter == 'incorporada' %}active{% endif %}">
+        <strong>{{ stats.incorporada|default:"0" }}</strong> incorporadas
+      </a>
+      <a href="?status=devolvida" class="{% if status_filter == 'devolvida' %}active{% endif %}">
+        <strong>{{ stats.devolvida|default:"0" }}</strong> devolvidas
+      </a>
     </div>
   </div>
 
