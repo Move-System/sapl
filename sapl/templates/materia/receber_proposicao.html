@@ -1,0 +1,15 @@
+{% extends "materia/proposicao_base.html" %}
+{% load i18n crispy_forms_tags %}
+
+{% block base_content %}
+  <div class="proposicao-content">
+    <div class="proposicao-header">
+      <h2>Receber Proposicao</h2>
+      <p class="text-muted">Informe o codigo do recibo para validar e receber a proposicao</p>
+    </div>
+
+    <div class="receber-form-container">
+      {% crispy form %}
+    </div>
+  </div>
+{% endblock base_content %}

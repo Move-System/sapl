@@ -1,10 +1,13 @@
-{% extends "base.html" %}
+{% extends "materia/proposicao_base.html" %}
 {% load i18n %}
 {% load tz %}
 {% load common_tags %}
 {% block base_content %}
-  <fieldset>
-    <legend>Proposições Não Recebidas</legend>
+  <div class="proposicao-content">
+    <div class="proposicao-header">
+      <h2>Proposicoes Pendentes</h2>
+      <p class="text-muted">Proposicoes enviadas aguardando recebimento</p>
+    </div>
     {% if not object_list %}
       <p>{{ NO_ENTRIES_MSG }}</p>
     {% else %}
@@ -29,6 +32,7 @@
             {% if not AppConfig.receber_recibo_proposicao %}
                 <th>Código do Documento</th>
             {% endif %}
+            <th>Ações</th>
             {% endwith %}
           </tr>
         </thead>
@@ -64,13 +68,22 @@
                     {% endif %}
                   {% endif %}
                 </td>
+                <td>
+                  {% if prop.hash_code %}
+                    <a href="{% url 'sapl.materia:proposicao-confirmar' prop.hash_code|strip_hash prop.pk %}" class="btn btn-sm btn-primary" title="Receber Proposição">
+                      <i class="fas fa-check"></i> Receber
+                    </a>
+                  {% else %}
+                    <span class="text-muted">Sem hash</span>
+                  {% endif %}
+                </td>
                </tr>
              {% endif %}
           {% endfor %}
         </tbody>
       </table>
     {% endif %}
-  </fieldset>
+  </div>
 
   {% include 'paginacao.html'%}
 {% endblock %}

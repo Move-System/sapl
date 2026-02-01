@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block sections_nav %}{% endblock sections_nav %}
+
+{% block content_subnav %}
+<div class="proposicao-subnav">
+  <div class="container">
+    <nav class="proposicao-nav">
+      <a href="{% url 'sapl.materia:receber-proposicao' %}"
+         class="proposicao-nav-item{% if request.path == '/proposicao/receber/' %} active{% endif %}">
+        <i class="fas fa-inbox"></i>
+        <span>Receber</span>
+      </a>
+      <a href="{% url 'sapl.materia:proposicao-pendente' %}"
+         class="proposicao-nav-item{% if request.path == '/proposicao/pendente/' %} active{% endif %}">
+        <i class="fas fa-clock"></i>
+        <span>Pendentes</span>
+      </a>
+      <a href="{% url 'sapl.materia:proposicao-devolvida' %}"
+         class="proposicao-nav-item{% if request.path == '/proposicao/devolvida/' %} active{% endif %}">
+        <i class="fas fa-undo"></i>
+        <span>Devolvidas</span>
+      </a>
+      <a href="{% url 'sapl.materia:proposicao-recebida' %}"
+         class="proposicao-nav-item{% if request.path == '/proposicao/recebida/' %} active{% endif %}">
+        <i class="fas fa-check-circle"></i>
+        <span>Incorporadas</span>
+      </a>
+      <a href="{% url 'sapl.materia:historico-proposicao' %}"
+         class="proposicao-nav-item{% if request.path == '/proposicao/historico' %} active{% endif %}">
+        <i class="fas fa-history"></i>
+        <span>Historico</span>
+      </a>
+    </nav>
+  </div>
+</div>
+
+<style>
+.proposicao-subnav {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  padding: 0;
+}
+
+.proposicao-nav {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.proposicao-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.proposicao-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.25rem;
+  color: #6c757d;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.proposicao-nav-item:hover {
+  color: #495057;
+  background: rgba(0,0,0,0.02);
+  text-decoration: none;
+}
+
+.proposicao-nav-item.active {
+  color: #0d6efd;
+  border-bottom-color: #0d6efd;
+  background: #fff;
+}
+
+.proposicao-nav-item i {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.proposicao-nav-item.active i {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .proposicao-nav-item {
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+  }
+
+  .proposicao-nav-item span {
+    display: none;
+  }
+
+  .proposicao-nav-item i {
+    font-size: 1.1rem;
+  }
+}
+
+/* Estilos de conteudo */
+.proposicao-content {
+  padding-top: 1.5rem;
+}
+
+.proposicao-header {
+  margin-bottom: 1.5rem;
+}
+
+.proposicao-header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  color: #000 !important;
+}
+
+.proposicao-header p {
+  font-size: 0.875rem;
+  margin-bottom: 0;
+}
+
+/* Tabelas */
+.proposicao-content .table {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.proposicao-content .table thead th {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #000 !important;
+  padding: 0.875rem 1rem;
+}
+
+.proposicao-content .table thead th a {
+  color: #000 !important;
+  text-decoration: none;
+}
+
+.proposicao-content .table thead th a:hover {
+  color: #0d6efd !important;
+  text-decoration: underline;
+}
+
+.proposicao-content .table tbody td {
+  padding: 0.875rem 1rem;
+  vertical-align: middle;
+  font-size: 0.875rem;
+}
+
+.proposicao-content .table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(0,0,0,0.015);
+}
+
+.proposicao-content .table-hover tbody tr:hover {
+  background-color: rgba(13,110,253,0.04);
+}
+
+/* Formulario de receber */
+.receber-form-container {
+  width: 100%;
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.receber-form-container fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.receber-form-container legend {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e9ecef;
+}
+
+/* Mensagem vazia */
+.proposicao-content > p {
+  color: #6c757d;
+  font-style: italic;
+}
+</style>
+{% endblock content_subnav %}
+
+{% block title %}{% endblock title %}
