@@ -553,7 +553,6 @@ class ProposicaoDevolvida(PermissionRequiredMixin, ListView):
         context['page_range'] = make_pagination(
             page_obj.number, paginator.num_pages)
         context['NO_ENTRIES_MSG'] = 'Nenhuma proposição devolvida.'
-        context['subnav_template_name'] = 'materia/subnav_prop.yaml'
         return context
 
 
@@ -582,8 +581,6 @@ class ProposicaoPendente(PermissionRequiredMixin, ListView):
         context['page_range'] = make_pagination(
             page_obj.number, paginator.num_pages)
         context['NO_ENTRIES_MSG'] = 'Nenhuma proposição pendente.'
-
-        context['subnav_template_name'] = 'materia/subnav_prop.yaml'
         qr = self.request.GET.copy()
         context['filter_url'] = ('&o=' + qr['o']) if 'o' in qr.keys() else ''
         return context
@@ -610,13 +607,12 @@ class ProposicaoRecebida(PermissionRequiredMixin, ListView):
         context['page_range'] = make_pagination(
             page_obj.number, paginator.num_pages)
         context['NO_ENTRIES_MSG'] = 'Nenhuma proposição recebida.'
-        context['subnav_template_name'] = 'materia/subnav_prop.yaml'
         return context
 
 
 class ReceberProposicao(PermissionRequiredForAppCrudMixin, FormView):
     app_label = sapl.protocoloadm.apps.AppConfig.label
-    template_name = "crud/form.html"
+    template_name = "materia/receber_proposicao.html"
     form_class = ReceberProposicaoForm
 
     def post(self, request, *args, **kwargs):
@@ -662,7 +658,6 @@ class ReceberProposicao(PermissionRequiredForAppCrudMixin, FormView):
 
     def get_context_data(self, **kwargs):
         context = super(ReceberProposicao, self).get_context_data(**kwargs)
-        context['subnav_template_name'] = 'materia/subnav_prop.yaml'
         return context
 
 
@@ -918,18 +913,22 @@ class ProposicaoCrud(Crud):
                             'Proposição não possui texto. Use o botão "Editar com OnlyOffice" para criar o documento, '
                             'e depois clique em "Salvar e Voltar" para garantir que o texto seja salvo antes de enviar.')
                     else:
+                        receber_recibo = BaseAppConfig.attr(
+                            'receber_recibo_proposicao')
+
                         if p.texto_articulado.exists():
                             ta = p.texto_articulado.first()
                             ta.privacidade = STATUS_TA_IMMUTABLE_RESTRICT
                             ta.editing_locked = True
                             ta.save()
 
-                            receber_recibo = BaseAppConfig.attr(
-                                'receber_recibo_proposicao')
-
                             if not receber_recibo:
-                                ta = p.texto_articulado.first()
                                 p.hash_code = 'P' + ta.hash() + SEPARADOR_HASH_PROPOSICAO + str(p.pk)
+                        elif p.texto_original and not receber_recibo:
+                            # Gerar hash para arquivos PDF/documentos
+                            p.hash_code = gerar_hash_arquivo(
+                                p.texto_original.path,
+                                str(p.pk))
 
                         p.data_devolucao = None
                         p.data_envio = timezone.now()
@@ -1204,16 +1203,32 @@ class ProposicaoCrud(Crud):
         def hook_header_status_proposicao(self):
             return 'Status'
 
+        def get_queryset(self):
+            qs = super().get_queryset()
+            status_filter = self.request.GET.get('status', '')
+
+            if status_filter == 'elaboracao':
+                qs = qs.filter(data_envio__isnull=True, cancelado=False)
+            elif status_filter == 'aguardando':
+                qs = qs.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False)
+            elif status_filter == 'incorporada':
+                qs = qs.filter(data_recebimento__isnull=False, cancelado=False)
+            elif status_filter == 'devolvida':
+                qs = qs.filter(data_devolucao__isnull=False, cancelado=False)
+
+            return qs
+
         def get_context_data(self, **kwargs):
             # Primeiro, buscar os dados antes de chamar super()
             # pois get_rows modifica os objetos
-            qs = self.get_queryset()
+            # Usar queryset base (sem filtro) para as estatísticas
+            qs_base = super().get_queryset()
             stats = {
-                'total': qs.count(),
-                'elaboracao': qs.filter(data_envio__isnull=True, cancelado=False).count(),
-                'aguardando': qs.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False).count(),
-                'incorporada': qs.filter(data_recebimento__isnull=False, cancelado=False).count(),
-                'devolvida': qs.filter(data_devolucao__isnull=False, cancelado=False).count(),
+                'total': qs_base.count(),
+                'elaboracao': qs_base.filter(data_envio__isnull=True, cancelado=False).count(),
+                'aguardando': qs_base.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False).count(),
+                'incorporada': qs_base.filter(data_recebimento__isnull=False, cancelado=False).count(),
+                'devolvida': qs_base.filter(data_devolucao__isnull=False, cancelado=False).count(),
             }
 
             # Processar proposições ANTES de chamar super() que chama get_rows
@@ -1274,6 +1289,7 @@ class ProposicaoCrud(Crud):
             context = super().get_context_data(**kwargs)
             context['stats'] = stats
             context['proposicoes'] = proposicoes
+            context['status_filter'] = self.request.GET.get('status', '')
 
             # Paginação
             context['is_paginated'] = paginator.num_pages > 1
@@ -1328,10 +1344,15 @@ class ReciboProposicaoView(TemplateView):
             **kwargs)
         proposicao = Proposicao.objects.get(pk=self.kwargs['pk'])
 
+        _hash = None
         if proposicao.texto_original:
-            _hash = gerar_hash_arquivo(
-                proposicao.texto_original.path,
-                self.kwargs['pk'])
+            import os
+            if os.path.exists(proposicao.texto_original.path):
+                _hash = gerar_hash_arquivo(
+                    proposicao.texto_original.path,
+                    self.kwargs['pk'])
+            else:
+                _hash = proposicao.hash_code if proposicao.hash_code else 'ARQUIVO_NAO_ENCONTRADO'
         elif proposicao.texto_articulado.exists():
             ta = proposicao.texto_articulado.first()
             # FIXME hash para textos articulados
@@ -1404,8 +1425,6 @@ class HistoricoProposicaoView(PermissionRequiredMixin, ListView):
         context['page_range'] = make_pagination(
             page_obj.number, paginator.num_pages)
         context['NO_ENTRIES_MSG'] = 'Nenhuma proposição'
-        if self.request.user.is_superuser:
-            context['subnav_template_name'] = 'materia/subnav_prop.yaml'
         return context
 
 
