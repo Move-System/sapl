@@ -1,0 +1,551 @@
+{% load i18n %}
+
+<!-- Modal de Assinatura Digital -->
+<div class="modal fade" id="assinaturaModal" tabindex="-1" role="dialog" aria-labelledby="assinaturaModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="assinaturaModalLabel">
+                    <i class="fa fa-certificate"></i> {% trans "Assinatura Digital de PDF" %}
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Seleção do tipo de certificado -->
+                <div id="selecao-tipo-certificado">
+                    <div class="alert alert-info">
+                        <i class="fa fa-info-circle"></i>
+                        {% trans "Selecione o tipo de certificado digital que você possui:" %}
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card h-100 tipo-certificado-card" data-tipo="A1">
+                                <div class="card-body text-center">
+                                    <i class="fa fa-file-archive-o fa-3x text-primary mb-3"></i>
+                                    <h5 class="card-title">{% trans "Certificado A1" %}</h5>
+                                    <p class="card-text text-muted">
+                                        {% trans "Arquivo .pfx ou .p12 armazenado no computador" %}
+                                    </p>
+                                    <button type="button" class="btn btn-primary btn-selecionar-tipo" data-tipo="A1">
+                                        <i class="fa fa-check"></i> {% trans "Selecionar" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card h-100 tipo-certificado-card" data-tipo="A3">
+                                <div class="card-body text-center">
+                                    <i class="fa fa-usb fa-3x text-success mb-3"></i>
+                                    <h5 class="card-title">{% trans "Certificado A3" %}</h5>
+                                    <p class="card-text text-muted">
+                                        {% trans "Token USB ou Smartcard" %}
+                                    </p>
+                                    <button type="button" class="btn btn-success btn-selecionar-tipo" data-tipo="A3">
+                                        <i class="fa fa-check"></i> {% trans "Selecionar" %}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulário A1 -->
+                <div id="formulario-a1" style="display: none;">
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-link btn-voltar-selecao">
+                            <i class="fa fa-arrow-left"></i> {% trans "Voltar" %}
+                        </button>
+                    </div>
+
+                    <form id="form-assinatura-a1" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="certificado-a1">
+                                <i class="fa fa-file"></i> {% trans "Arquivo do Certificado (.pfx ou .p12)" %}
+                            </label>
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="certificado-a1" name="certificado" accept=".pfx,.p12" required>
+                                <label class="custom-file-label" for="certificado-a1" data-browse="{% trans 'Procurar' %}">
+                                    {% trans "Selecione o arquivo do certificado..." %}
+                                </label>
+                            </div>
+                            <small class="form-text text-muted">
+                                {% trans "Selecione o arquivo .pfx ou .p12 do seu certificado A1" %}
+                            </small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="senha-a1">
+                                <i class="fa fa-lock"></i> {% trans "Senha do Certificado" %}
+                            </label>
+                            <input type="password" class="form-control" id="senha-a1" name="senha" required
+                                   placeholder="{% trans 'Digite a senha do certificado' %}">
+                            <small class="form-text text-muted">
+                                {% trans "A senha é usada apenas para esta operação e não é armazenada" %}
+                            </small>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fa fa-exclamation-triangle"></i>
+                            {% trans "Atenção: A assinatura digital tem validade jurídica. Certifique-se de que o documento está correto antes de assinar." %}
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Formulário A3 -->
+                <div id="formulario-a3" style="display: none;">
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-link btn-voltar-selecao">
+                            <i class="fa fa-arrow-left"></i> {% trans "Voltar" %}
+                        </button>
+                    </div>
+
+                    <div id="a3-detectando" class="text-center py-4">
+                        <i class="fa fa-spinner fa-spin fa-3x text-primary mb-3"></i>
+                        <h5>{% trans "Detectando aplicação de assinatura..." %}</h5>
+                        <p class="text-muted">
+                            {% trans "Procurando por aplicações de assinatura A3 instaladas no computador..." %}
+                        </p>
+                    </div>
+
+                    <div id="a3-nao-detectado" style="display: none;">
+                        <div class="alert alert-warning">
+                            <i class="fa fa-exclamation-triangle"></i>
+                            <strong>{% trans "Aplicação não detectada" %}</strong>
+                        </div>
+                        <p>
+                            {% trans "Para usar certificado A3, você precisa ter uma aplicação de assinatura instalada e em execução." %}
+                        </p>
+                        <h6>{% trans "Opções disponíveis:" %}</h6>
+                        <ul>
+                            <li>
+                                <a href="https://www.serpro.gov.br/links-fixos-superiores/assinador-digital/assinador-serpro" target="_blank">
+                                    {% trans "Assinador SERPRO" %}
+                                </a>
+                                - {% trans "Gratuito, desenvolvido pelo governo brasileiro" %}
+                            </li>
+                            <li>
+                                <a href="https://www.lacunasoftware.com/pt/pki-express" target="_blank">
+                                    {% trans "Lacuna Web PKI" %}
+                                </a>
+                                - {% trans "Solução comercial com versão gratuita limitada" %}
+                            </li>
+                        </ul>
+                        <p class="text-muted">
+                            {% trans "Após instalar e iniciar a aplicação, clique em 'Tentar novamente'." %}
+                        </p>
+                        <button type="button" class="btn btn-primary btn-tentar-novamente-a3">
+                            <i class="fa fa-refresh"></i> {% trans "Tentar novamente" %}
+                        </button>
+                    </div>
+
+                    <div id="a3-detectado" style="display: none;">
+                        <div class="alert alert-success">
+                            <i class="fa fa-check-circle"></i>
+                            <strong>{% trans "Aplicação detectada!" %}</strong>
+                            <span id="a3-app-nome"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="certificado-a3-select">
+                                <i class="fa fa-certificate"></i> {% trans "Selecione o certificado:" %}
+                            </label>
+                            <select class="form-control" id="certificado-a3-select">
+                                <option value="">{% trans "Carregando certificados..." %}</option>
+                            </select>
+                        </div>
+
+                        <div id="a3-cert-info" class="card mb-3" style="display: none;">
+                            <div class="card-body">
+                                <h6 class="card-title">{% trans "Informações do Certificado" %}</h6>
+                                <p class="mb-1"><strong>{% trans "Titular:" %}</strong> <span id="a3-cert-subject"></span></p>
+                                <p class="mb-1"><strong>{% trans "Emissor:" %}</strong> <span id="a3-cert-issuer"></span></p>
+                                <p class="mb-0"><strong>{% trans "Validade:" %}</strong> <span id="a3-cert-validade"></span></p>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="fa fa-exclamation-triangle"></i>
+                            {% trans "Atenção: A assinatura digital tem validade jurídica. Certifique-se de que o documento está correto antes de assinar." %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Status da assinatura -->
+                <div id="status-assinatura" style="display: none;">
+                    <div id="status-processando" class="text-center py-4">
+                        <i class="fa fa-spinner fa-spin fa-3x text-primary mb-3"></i>
+                        <h5>{% trans "Assinando documento..." %}</h5>
+                        <p class="text-muted" id="status-mensagem">
+                            {% trans "Aguarde enquanto o documento é assinado digitalmente." %}
+                        </p>
+                        <div class="progress mt-3" style="max-width: 400px; margin: 0 auto;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div id="status-sucesso" style="display: none;">
+                        <div class="text-center py-4">
+                            <i class="fa fa-check-circle fa-3x text-success mb-3"></i>
+                            <h5>{% trans "Documento assinado com sucesso!" %}</h5>
+                            <p id="sucesso-certificado-info"></p>
+                        </div>
+                    </div>
+
+                    <div id="status-erro" style="display: none;">
+                        <div class="alert alert-danger">
+                            <i class="fa fa-exclamation-circle"></i>
+                            <strong>{% trans "Erro ao assinar documento" %}</strong>
+                            <p id="erro-mensagem" class="mb-0 mt-2"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" id="btn-fechar-modal">
+                    <i class="fa fa-times"></i> {% trans "Fechar" %}
+                </button>
+                <button type="button" class="btn btn-primary" id="btn-assinar" style="display: none;">
+                    <i class="fa fa-pencil"></i> {% trans "Assinar Documento" %}
+                </button>
+                <a href="#" class="btn btn-success" id="btn-baixar-assinado" style="display: none;" target="_blank">
+                    <i class="fa fa-download"></i> {% trans "Baixar PDF Assinado" %}
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Script do Modal -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Função auxiliar para obter CSRF token
+    function getCSRFToken() {
+        // Primeiro tenta do formulário
+        var tokenInput = document.querySelector('#form-assinatura-a1 [name=csrfmiddlewaretoken]');
+        if (tokenInput) {
+            return tokenInput.value;
+        }
+        // Fallback: busca do cookie
+        var name = 'csrftoken';
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    var AssinaturaModal = {
+        tipoSelecionado: null,
+        materiaId: null,
+        a3AppInfo: null,
+
+        init: function(materiaId) {
+            this.materiaId = materiaId;
+            this.bindEvents();
+        },
+
+        bindEvents: function() {
+            var self = this;
+
+            // Seleção de tipo de certificado
+            document.querySelectorAll('.btn-selecionar-tipo').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    self.selecionarTipo(this.dataset.tipo);
+                });
+            });
+
+            // Voltar para seleção
+            document.querySelectorAll('.btn-voltar-selecao').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    self.voltarSelecao();
+                });
+            });
+
+            // Botão assinar
+            document.getElementById('btn-assinar').addEventListener('click', function() {
+                self.assinar();
+            });
+
+            // Tentar novamente A3
+            var btnTentarNovamente = document.querySelector('.btn-tentar-novamente-a3');
+            if (btnTentarNovamente) {
+                btnTentarNovamente.addEventListener('click', function() {
+                    self.detectarA3();
+                });
+            }
+
+            // Atualizar label do arquivo
+            document.getElementById('certificado-a1').addEventListener('change', function() {
+                var fileName = this.files[0] ? this.files[0].name : 'Selecione o arquivo do certificado...';
+                this.nextElementSibling.textContent = fileName;
+            });
+
+            // Reset ao fechar modal
+            $('#assinaturaModal').on('hidden.bs.modal', function() {
+                self.resetModal();
+            });
+        },
+
+        selecionarTipo: function(tipo) {
+            this.tipoSelecionado = tipo;
+
+            document.getElementById('selecao-tipo-certificado').style.display = 'none';
+
+            if (tipo === 'A1') {
+                document.getElementById('formulario-a1').style.display = 'block';
+                document.getElementById('btn-assinar').style.display = 'inline-block';
+            } else if (tipo === 'A3') {
+                document.getElementById('formulario-a3').style.display = 'block';
+                this.detectarA3();
+            }
+        },
+
+        voltarSelecao: function() {
+            this.tipoSelecionado = null;
+            document.getElementById('formulario-a1').style.display = 'none';
+            document.getElementById('formulario-a3').style.display = 'none';
+            document.getElementById('btn-assinar').style.display = 'none';
+            document.getElementById('selecao-tipo-certificado').style.display = 'block';
+        },
+
+        detectarA3: function() {
+            var self = this;
+
+            document.getElementById('a3-detectando').style.display = 'block';
+            document.getElementById('a3-nao-detectado').style.display = 'none';
+            document.getElementById('a3-detectado').style.display = 'none';
+
+            // Tentar detectar aplicações conhecidas
+            var portasParaTestar = [
+                { nome: 'Assinador SERPRO', porta: 10443, url: 'https://localhost:10443/certificados' },
+                { nome: 'Web PKI Local', porta: 5000, url: 'http://localhost:5000/api/certificates' }
+            ];
+
+            var tentativas = 0;
+            var detectado = false;
+
+            portasParaTestar.forEach(function(app) {
+                fetch(app.url, { method: 'GET', mode: 'no-cors' })
+                    .then(function() {
+                        if (!detectado) {
+                            detectado = true;
+                            self.a3AppInfo = app;
+                            self.mostrarA3Detectado(app);
+                        }
+                    })
+                    .catch(function() {
+                        tentativas++;
+                        if (tentativas >= portasParaTestar.length && !detectado) {
+                            self.mostrarA3NaoDetectado();
+                        }
+                    });
+            });
+
+            // Timeout para mostrar não detectado
+            setTimeout(function() {
+                if (!detectado) {
+                    self.mostrarA3NaoDetectado();
+                }
+            }, 5000);
+        },
+
+        mostrarA3Detectado: function(app) {
+            document.getElementById('a3-detectando').style.display = 'none';
+            document.getElementById('a3-detectado').style.display = 'block';
+            document.getElementById('a3-app-nome').textContent = ' - ' + app.nome;
+            document.getElementById('btn-assinar').style.display = 'inline-block';
+
+            // Aqui carregaria os certificados da aplicação
+            // Por enquanto, mostra mensagem informativa
+            var select = document.getElementById('certificado-a3-select');
+            select.innerHTML = '<option value="">A integração com ' + app.nome + ' requer configuração adicional</option>';
+        },
+
+        mostrarA3NaoDetectado: function() {
+            document.getElementById('a3-detectando').style.display = 'none';
+            document.getElementById('a3-nao-detectado').style.display = 'block';
+        },
+
+        assinar: function() {
+            if (this.tipoSelecionado === 'A1') {
+                this.assinarA1();
+            } else if (this.tipoSelecionado === 'A3') {
+                this.assinarA3();
+            }
+        },
+
+        assinarA1: function() {
+            var self = this;
+            var form = document.getElementById('form-assinatura-a1');
+            var certificado = document.getElementById('certificado-a1').files[0];
+            var senha = document.getElementById('senha-a1').value;
+
+            if (!certificado) {
+                alert('Selecione o arquivo do certificado.');
+                return;
+            }
+
+            if (!senha) {
+                alert('Digite a senha do certificado.');
+                return;
+            }
+
+            this.mostrarStatus('processando');
+            this.atualizarProgresso(10, 'Enviando certificado...');
+
+            var formData = new FormData();
+            formData.append('certificado', certificado);
+            formData.append('senha', senha);
+
+            fetch('/materia/' + this.materiaId + '/assinar/a1/', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCSRFToken()
+                }
+            })
+            .then(function(response) {
+                self.atualizarProgresso(60, 'Processando assinatura...');
+                return response.json();
+            })
+            .then(function(data) {
+                self.atualizarProgresso(100, 'Finalizando...');
+
+                if (data.success) {
+                    self.mostrarSucesso(data);
+                } else {
+                    self.mostrarErro(data.error);
+                }
+            })
+            .catch(function(error) {
+                self.mostrarErro('Erro de comunicação: ' + error.message);
+            });
+        },
+
+        assinarA3: function() {
+            // A assinatura A3 requer integração com aplicação local
+            this.mostrarErro('A assinatura A3 requer uma aplicação local em execução. Por favor, use o Assinador SERPRO ou similar.');
+        },
+
+        mostrarStatus: function(tipo) {
+            document.getElementById('formulario-a1').style.display = 'none';
+            document.getElementById('formulario-a3').style.display = 'none';
+            document.getElementById('selecao-tipo-certificado').style.display = 'none';
+            document.getElementById('btn-assinar').style.display = 'none';
+
+            document.getElementById('status-assinatura').style.display = 'block';
+            document.getElementById('status-processando').style.display = tipo === 'processando' ? 'block' : 'none';
+            document.getElementById('status-sucesso').style.display = tipo === 'sucesso' ? 'block' : 'none';
+            document.getElementById('status-erro').style.display = tipo === 'erro' ? 'block' : 'none';
+        },
+
+        atualizarProgresso: function(porcentagem, mensagem) {
+            var progressBar = document.querySelector('#status-processando .progress-bar');
+            progressBar.style.width = porcentagem + '%';
+            if (mensagem) {
+                document.getElementById('status-mensagem').textContent = mensagem;
+            }
+        },
+
+        mostrarSucesso: function(data) {
+            this.mostrarStatus('sucesso');
+
+            var info = '';
+            if (data.certificado) {
+                info = 'Assinado por: ' + data.certificado.nome + '<br>Válido até: ' + data.certificado.validade;
+            }
+            document.getElementById('sucesso-certificado-info').innerHTML = info;
+
+            var btnBaixar = document.getElementById('btn-baixar-assinado');
+            btnBaixar.href = '/materia/' + this.materiaId + '/pdf-assinado/';
+            btnBaixar.style.display = 'inline-block';
+
+            document.getElementById('btn-fechar-modal').textContent = 'Fechar';
+        },
+
+        mostrarErro: function(mensagem) {
+            this.mostrarStatus('erro');
+            document.getElementById('erro-mensagem').textContent = mensagem;
+        },
+
+        resetModal: function() {
+            this.tipoSelecionado = null;
+            this.a3AppInfo = null;
+
+            document.getElementById('selecao-tipo-certificado').style.display = 'block';
+            document.getElementById('formulario-a1').style.display = 'none';
+            document.getElementById('formulario-a3').style.display = 'none';
+            document.getElementById('status-assinatura').style.display = 'none';
+            document.getElementById('btn-assinar').style.display = 'none';
+            document.getElementById('btn-baixar-assinado').style.display = 'none';
+
+            // Limpar formulário A1
+            document.getElementById('form-assinatura-a1').reset();
+            document.querySelector('#certificado-a1 + label').textContent = 'Selecione o arquivo do certificado...';
+
+            // Reset A3
+            document.getElementById('a3-detectando').style.display = 'block';
+            document.getElementById('a3-nao-detectado').style.display = 'none';
+            document.getElementById('a3-detectado').style.display = 'none';
+
+            // Reset status
+            document.getElementById('status-processando').style.display = 'block';
+            document.getElementById('status-sucesso').style.display = 'none';
+            document.getElementById('status-erro').style.display = 'none';
+            document.querySelector('#status-processando .progress-bar').style.width = '0%';
+        }
+    };
+
+    // Expor globalmente
+    window.AssinaturaModal = AssinaturaModal;
+});
+</script>
+
+<style>
+.tipo-certificado-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.tipo-certificado-card:hover {
+    border-color: #007bff;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.tipo-certificado-card.selected {
+    border-color: #28a745;
+    background-color: #f8fff8;
+}
+
+#assinaturaModal .modal-header {
+    border-bottom: none;
+}
+
+#assinaturaModal .modal-footer {
+    border-top: none;
+}
+
+#assinaturaModal .custom-file-label::after {
+    content: "Procurar";
+}
+
+#status-processando .progress {
+    height: 8px;
+}
+
+#a3-cert-info {
+    background-color: #f8f9fa;
+}
+</style>

@@ -1,0 +1,73 @@
+/* Subnav - Tabs de navegação abaixo do menu principal */
+
+.subnav-wrapper {
+  background: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  padding: 0;
+}
+
+.subnav-wrapper .nav-pills {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  justify-content: flex-start;
+}
+
+.subnav-wrapper .nav-item {
+  margin: 0;
+}
+
+.subnav-wrapper .nav-link {
+  display: block;
+  padding: 10px 16px;
+  color: #495057;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+  background: transparent;
+}
+
+.subnav-wrapper .nav-link:hover {
+  color: #007bff;
+  background: rgba(0,123,255,0.05);
+  text-decoration: none;
+}
+
+.subnav-wrapper .nav-link.active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+  background: #fff;
+}
+
+/* Dropdown */
+.subnav-wrapper .dropdown-menu {
+  margin-top: 0;
+  border-radius: 0 0 4px 4px;
+  border-top: none;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+  .subnav-wrapper .nav-pills {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .subnav-wrapper .nav-pills::-webkit-scrollbar {
+    display: none;
+  }
+
+  .subnav-wrapper .nav-link {
+    padding: 8px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+}

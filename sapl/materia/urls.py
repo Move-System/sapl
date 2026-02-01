@@ -41,6 +41,11 @@ from sapl.materia.onlyoffice_materia_views import (
     docacessorio_onlyoffice_download, docacessorio_onlyoffice_callback,
     materia_gerar_pdf_assinatura
 )
+from sapl.materia.views_assinatura import (
+    materia_assinar_a1, materia_assinar_a3_preparar, materia_assinar_a3_finalizar,
+    materia_pdf_assinado, materia_verificar_assinatura, materia_remover_assinatura,
+    detectar_aplicacao_a3
+)
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
     FichaPesquisaAdmView, FichaSelecionaAdmView
@@ -148,6 +153,22 @@ urlpatterns_materia = [
         name='materia_onlyoffice_callback'),
     url(r'^materia/(?P<pk>\d+)/pdf-assinatura$', materia_gerar_pdf_assinatura,
         name='materia_pdf_assinatura'),
+
+    # Assinatura Digital de Matéria Legislativa
+    url(r'^materia/(?P<pk>\d+)/assinar/a1/$', materia_assinar_a1,
+        name='materia_assinar_a1'),
+    url(r'^materia/(?P<pk>\d+)/assinar/a3/preparar/$', materia_assinar_a3_preparar,
+        name='materia_assinar_a3_preparar'),
+    url(r'^materia/(?P<pk>\d+)/assinar/a3/finalizar/$', materia_assinar_a3_finalizar,
+        name='materia_assinar_a3_finalizar'),
+    url(r'^materia/(?P<pk>\d+)/pdf-assinado/$', materia_pdf_assinado,
+        name='materia_pdf_assinado'),
+    url(r'^materia/(?P<pk>\d+)/verificar-assinatura/$', materia_verificar_assinatura,
+        name='materia_verificar_assinatura'),
+    url(r'^materia/(?P<pk>\d+)/remover-assinatura/$', materia_remover_assinatura,
+        name='materia_remover_assinatura'),
+    url(r'^materia/assinatura/detectar-a3/$', detectar_aplicacao_a3,
+        name='detectar_aplicacao_a3'),
 
     # OnlyOffice endpoints para Documento Acessório
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/editor$', docacessorio_onlyoffice_editor,

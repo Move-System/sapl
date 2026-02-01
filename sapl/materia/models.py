@@ -3,6 +3,7 @@ from datetime import datetime
 from django.contrib.auth.models import Group
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import JSONField
 from django.db import models
 from django.db.models.functions import Concat
 from django.template import defaultfilters
@@ -302,6 +303,35 @@ class MateriaLegislativa(models.Model):
     ultima_edicao = models.DateTimeField(
         verbose_name=_('Data e Hora da Edição'),
         blank=True, null=True
+    )
+
+    # Campos para assinatura digital
+    pdf_assinado = models.FileField(
+        max_length=300,
+        upload_to=materia_upload_path,
+        blank=True,
+        null=True,
+        verbose_name=_('PDF Assinado'),
+        storage=OverwriteStorage()
+    )
+    assinatura_info = JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_('Informações da Assinatura'),
+        help_text=_('Metadados do certificado digital usado na assinatura')
+    )
+    assinado_em = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_('Data/Hora da Assinatura')
+    )
+    assinado_por = models.ForeignKey(
+        get_settings_auth_user_model(),
+        verbose_name=_('Assinado por'),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='materias_assinadas'
     )
 
     class Meta:

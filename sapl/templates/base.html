@@ -35,6 +35,7 @@
       {% block webpack_loader_chunks_css %}
       {% endblock webpack_loader_chunks_css %}
 
+      <link rel="stylesheet" href="{% static 'sapl/css/subnav.css' %}">
     {% endblock %}
   </head>
 
@@ -55,9 +56,6 @@
                   <span class="vcenter">{% if nome %}{{ nome }}{% else %}{% trans 'Câmara/Assembléia não configurada'%}{% endif %}
                   </span>
                 </a>
-              </div>
-              <div class="hidden-print">
-                {% block sections_nav %} {% subnav %} {% endblock sections_nav %}
               </div>
             </div>
           </header>
@@ -105,6 +103,16 @@
               </div>
             </nav>
           {% endblock navigation %}
+
+          {# Subnav de conteúdo - aparece abaixo da navbar principal #}
+          {% block content_subnav %}
+          <div class="subnav-wrapper hidden-print">
+            <div class="container">
+              {% subnav %}
+            </div>
+          </div>
+          {% endblock content_subnav %}
+
         {% else %}
                 <div class="btn-cancel-iframe">
                   <a href="?iframe=0" target="_blank"><i class="fa fa-2x fa-arrows-alt"></i></a>
