@@ -526,3 +526,162 @@ def docacessorio_onlyoffice_editor(request, pk):
     }
 
     return render(request, 'onlyoffice/onlyoffice_editor.html', context)
+
+
+# ============================================================
+# Views para Geração de PDF para Assinatura
+# ============================================================
+
+@login_required
+@require_http_methods(["GET"])
+def materia_gerar_pdf_assinatura(request, pk):
+    """
+    Gera o PDF do documento da matéria para assinatura digital.
+    Usa a API de conversão do OnlyOffice para converter DOCX para PDF.
+    """
+    import requests as http_requests
+    import xml.etree.ElementTree as ET
+
+    materia = get_object_or_404(MateriaLegislativa, pk=pk)
+
+    # Verifica se a matéria tem número de protocolo
+    if not materia.numero_protocolo:
+        messages.error(request, 'Esta matéria ainda não possui número de protocolo.')
+        return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+    # Verifica se existe documento
+    if not materia.texto_original:
+        messages.error(request, 'Esta matéria não possui documento de texto original.')
+        return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+    # Verifica a extensão do arquivo
+    file_path = materia.texto_original.path
+    file_name = materia.texto_original.name.lower()
+
+    # Se já é PDF, retorna diretamente
+    if file_name.endswith('.pdf'):
+        try:
+            with open(file_path, 'rb') as f:
+                content = f.read()
+            response = HttpResponse(content, content_type='application/pdf')
+            response['Content-Disposition'] = f'inline; filename="Materia_{materia.tipo}_{materia.numero}_{materia.ano}.pdf"'
+            return response
+        except Exception as e:
+            logger.error(f"Erro ao ler arquivo PDF: {e}")
+            messages.error(request, 'Erro ao ler o arquivo PDF.')
+            return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+    # URL do documento para o OnlyOffice (dentro da rede Docker)
+    download_url = request.build_absolute_uri(
+        reverse('sapl.materia:materia_onlyoffice_download', kwargs={'pk': pk})
+    )
+
+    # Substituir pelo nome do container na rede Docker
+    host = request.get_host()
+    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
+    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
+
+    # URL da API de conversão do OnlyOffice (dentro da rede Docker)
+    conversion_url = 'http://onlyoffice:80/ConvertService.ashx'
+
+    # Configuração da conversão
+    conversion_data = {
+        "async": False,
+        "filetype": "docx",
+        "key": generate_file_key("materia_pdf", materia.pk, request.user.pk),
+        "outputtype": "pdf",
+        "title": f"Materia_{materia.tipo}_{materia.numero}_{materia.ano}.pdf",
+        "url": download_url,
+    }
+
+    # Adiciona JWT se estiver habilitado
+    if settings.ONLYOFFICE_JWT_ENABLED and settings.ONLYOFFICE_JWT_SECRET:
+        import jwt
+        token = jwt.encode(conversion_data, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+        conversion_data['token'] = token
+
+    try:
+        # Solicita a conversão
+        headers = {'Content-Type': 'application/json'}
+
+        # Adiciona header de autorização JWT se habilitado
+        if settings.ONLYOFFICE_JWT_ENABLED and settings.ONLYOFFICE_JWT_SECRET:
+            import jwt
+            header_token = jwt.encode({"payload": conversion_data}, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+            headers['Authorization'] = f'Bearer {header_token}'
+
+        conversion_response = http_requests.post(
+            conversion_url,
+            json=conversion_data,
+            headers=headers,
+            timeout=60
+        )
+
+        if conversion_response.status_code != 200:
+            logger.error(f"Erro na conversão OnlyOffice: status={conversion_response.status_code}")
+            messages.error(request, 'Erro ao converter o documento para PDF.')
+            return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+        # A API do OnlyOffice retorna XML
+        try:
+            root = ET.fromstring(conversion_response.text)
+        except ET.ParseError as e:
+            logger.error(f"Erro ao parsear resposta XML do OnlyOffice: {e}")
+            logger.error(f"Resposta recebida: {conversion_response.text[:500]}")
+            messages.error(request, 'Erro ao processar resposta do serviço de conversão.')
+            return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+        # Verifica se houve erro
+        error_elem = root.find('Error')
+        if error_elem is not None:
+            error_code = error_elem.text
+            logger.error(f"Erro na conversão OnlyOffice: error={error_code}")
+            messages.error(request, f'Erro na conversão do documento: código {error_code}')
+            return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+        # Obtém a URL do PDF convertido
+        file_url_elem = root.find('FileUrl')
+        if file_url_elem is None or not file_url_elem.text:
+            logger.error("URL do PDF não retornada pelo OnlyOffice")
+            logger.error(f"Resposta XML: {conversion_response.text}")
+            messages.error(request, 'Erro ao obter o documento PDF convertido.')
+            return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+        pdf_url = file_url_elem.text
+
+        # Substitui 'onlyoffice' pelo endereço correto na rede Docker
+        # A URL retornada usa 'onlyoffice' como host
+        if 'onlyoffice/' in pdf_url and not pdf_url.startswith('http://onlyoffice:'):
+            pdf_url = pdf_url.replace('http://onlyoffice/', 'http://onlyoffice:80/')
+
+        logger.info(f"URL do PDF para download: {pdf_url}")
+
+        # Baixa o PDF convertido
+        pdf_response = http_requests.get(pdf_url, timeout=60)
+
+        if pdf_response.status_code != 200:
+            logger.error(f"Erro ao baixar PDF convertido: status={pdf_response.status_code}")
+            messages.error(request, 'Erro ao baixar o documento PDF convertido.')
+            return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+        # Retorna o PDF
+        filename = f"Materia_{materia.tipo}_{materia.numero}_{materia.ano}.pdf"
+        # Remove caracteres especiais do nome do arquivo
+        filename = filename.replace(' ', '_').replace('/', '-')
+
+        response = HttpResponse(pdf_response.content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+
+    except http_requests.exceptions.Timeout:
+        logger.error("Timeout na conversão OnlyOffice")
+        messages.error(request, 'Tempo limite excedido ao converter o documento.')
+        return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+    except http_requests.exceptions.ConnectionError:
+        logger.error("Erro de conexão com OnlyOffice")
+        messages.error(request, 'Não foi possível conectar ao serviço de conversão de documentos.')
+        return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+    except Exception as e:
+        logger.error(f"Erro inesperado na geração de PDF: {e}")
+        messages.error(request, 'Erro inesperado ao gerar o PDF.')
+        return redirect('sapl.materia:materialegislativa_detail', pk=pk)

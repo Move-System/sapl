@@ -38,7 +38,8 @@ from sapl.materia.onlyoffice_materia_views import (
     materia_onlyoffice_editor, materia_onlyoffice_config,
     materia_onlyoffice_download, materia_onlyoffice_callback,
     docacessorio_onlyoffice_editor, docacessorio_onlyoffice_config,
-    docacessorio_onlyoffice_download, docacessorio_onlyoffice_callback
+    docacessorio_onlyoffice_download, docacessorio_onlyoffice_callback,
+    materia_gerar_pdf_assinatura
 )
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
@@ -145,6 +146,8 @@ urlpatterns_materia = [
         name='materia_onlyoffice_download'),
     url(r'^materia/(?P<pk>\d+)/onlyoffice/callback$', materia_onlyoffice_callback,
         name='materia_onlyoffice_callback'),
+    url(r'^materia/(?P<pk>\d+)/pdf-assinatura$', materia_gerar_pdf_assinatura,
+        name='materia_pdf_assinatura'),
 
     # OnlyOffice endpoints para Documento Acessório
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/editor$', docacessorio_onlyoffice_editor,

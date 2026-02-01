@@ -15,6 +15,13 @@
             </a>
         </div>
     {% endif %}
+    {% if object.numero_protocolo and object.texto_original %}
+        <div class="actions btn-group btn-group-sm" role="group">
+            <a class="btn btn-success" href="{% url 'sapl.materia:materia_pdf_assinatura' object.pk %}" target="_blank">
+                <i class="fa fa-file-pdf-o"></i> {% trans "Gerar PDF para Assinatura" %}
+            </a>
+        </div>
+    {% endif %}
 {% endblock sub_actions %}
 
 {% block editions %}
