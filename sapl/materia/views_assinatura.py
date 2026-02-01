@@ -228,14 +228,20 @@ def materia_assinar_a1(request, pk):
                 'error': 'Certificado expirado ou ainda não válido.'
             }, status=400)
 
-        # Cria arquivo temporário para o PDF assinado
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_signed:
-            temp_signed_path = temp_signed.name
+        # Cria arquivo temporário para o PDF com carimbo
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_stamped:
+            temp_stamped_path = temp_stamped.name
 
         try:
             from pyhanko.sign.fields import SigSeedSubFilter
             from pyhanko.pdf_utils import text
             from pyhanko.sign.general import SigningError
+            from PyPDF4 import PdfFileReader, PdfFileWriter
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.units import mm
+            from reportlab.lib.utils import ImageReader
+            import re
 
             # Informações do assinante
             nome_assinante = request.user.get_full_name() or request.user.username
@@ -263,35 +269,6 @@ def materia_assinar_a1(request, pk):
             else:
                 tipo_cert = "Certificado Digital"
 
-            # Assina o PDF com assinatura invisível (sem campo visual do pyhanko)
-            with io.BytesIO(pdf_bytes) as inf:
-                w = IncrementalPdfFileWriter(inf)
-
-                # Metadados da assinatura (sem campo visível)
-                meta = signers.PdfSignatureMetadata(
-                    field_name='AssinaturaDigital',
-                    location='Câmara Municipal',
-                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    name=nome_assinante
-                )
-
-                # Executa assinatura invisível
-                with open(temp_signed_path, 'wb') as outf:
-                    signers.sign_pdf(
-                        w,
-                        meta,
-                        signer=signer,
-                        output=outf
-                    )
-
-            # Adiciona carimbo de texto visível ao PDF assinado
-            # Usando reportlab para adicionar o texto
-            from PyPDF4 import PdfFileReader, PdfFileWriter
-            from reportlab.pdfgen import canvas
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.units import mm
-            from reportlab.lib.utils import ImageReader
-
             # Tenta obter CPF do parlamentar ou do certificado
             cpf = ""
             try:
@@ -303,13 +280,14 @@ def materia_assinar_a1(request, pk):
             # Se não encontrou CPF no parlamentar, tenta extrair do certificado
             if not cpf:
                 subject_str = str(cert_info.subject)
-                import re
                 cpf_match = re.search(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}', subject_str)
                 if cpf_match:
                     cpf = cpf_match.group()
 
             # Formata data
             data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+
+            # ===== PASSO 1: Criar carimbo visual e adicionar ao PDF ANTES de assinar =====
 
             # Cria PDF com o carimbo de assinatura
             stamp_buffer = io.BytesIO()
@@ -318,7 +296,7 @@ def materia_assinar_a1(request, pk):
             # Posição do carimbo (canto inferior esquerdo)
             y_pos = 15 * mm
             x_pos = 10 * mm
-            largura_carimbo = 70 * mm  # Aumentado para caber texto + logo
+            largura_carimbo = 70 * mm
             altura_carimbo = 22 * mm
             logo_width = 18 * mm
 
@@ -334,7 +312,6 @@ def materia_assinar_a1(request, pk):
 
             c.setFont("Helvetica-Bold", 7)
             c.setFillColorRGB(0, 0, 0)
-            # Nome em maiúsculas, quebra se muito longo
             nome_upper = nome_assinante.upper()
             if len(nome_upper) > 28:
                 nome_upper = nome_upper[:28] + "..."
@@ -350,21 +327,17 @@ def materia_assinar_a1(request, pk):
 
             # Logo da câmara (lado direito)
             try:
-                # Procura o logotipo da câmara em vários locais possíveis
                 logo_path = None
                 base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
                 possible_paths = [
-                    # Logo padrão do sistema
                     os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
                     os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
                     os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
-                    # Media folder
                     os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
                     os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
                 ]
 
-                # Procura qualquer imagem na pasta de logotipo do media
                 logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
                 if os.path.exists(logo_dir):
                     for f in os.listdir(logo_dir):
@@ -377,7 +350,6 @@ def materia_assinar_a1(request, pk):
                         break
 
                 if logo_path:
-                    # Desenha logo no lado direito do carimbo
                     logo = ImageReader(logo_path)
                     logo_x = x_pos + largura_carimbo - logo_width - 2*mm
                     logo_y = y_pos + 2*mm
@@ -390,23 +362,48 @@ def materia_assinar_a1(request, pk):
             c.save()
             stamp_buffer.seek(0)
 
-            # Mescla o carimbo com o PDF assinado
+            # Mescla o carimbo com o PDF original (ANTES de assinar)
             stamp_pdf = PdfFileReader(stamp_buffer)
-            signed_pdf = PdfFileReader(open(temp_signed_path, 'rb'))
+            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
             output_pdf = PdfFileWriter()
 
-            # Adiciona o carimbo em todas as páginas
-            for page_num in range(signed_pdf.getNumPages()):
-                page = signed_pdf.getPage(page_num)
-                if page_num == signed_pdf.getNumPages() - 1:  # Última página
+            for page_num in range(original_pdf.getNumPages()):
+                page = original_pdf.getPage(page_num)
+                if page_num == original_pdf.getNumPages() - 1:  # Última página
                     page.mergePage(stamp_pdf.getPage(0))
                 output_pdf.addPage(page)
 
-            # Salva o PDF final com carimbo
-            final_buffer = io.BytesIO()
-            output_pdf.write(final_buffer)
-            final_buffer.seek(0)
-            signed_pdf_content = final_buffer.read()
+            # Salva o PDF com carimbo em arquivo temporário
+            with open(temp_stamped_path, 'wb') as f:
+                output_pdf.write(f)
+
+            # ===== PASSO 2: Assinar o PDF que já contém o carimbo =====
+
+            with open(temp_stamped_path, 'rb') as stamped_file:
+                stamped_bytes = stamped_file.read()
+
+            signed_buffer = io.BytesIO()
+            with io.BytesIO(stamped_bytes) as inf:
+                w = IncrementalPdfFileWriter(inf)
+
+                # Metadados da assinatura
+                meta = signers.PdfSignatureMetadata(
+                    field_name='AssinaturaDigital',
+                    location='Câmara Municipal',
+                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                    name=nome_assinante
+                )
+
+                # Executa assinatura
+                signers.sign_pdf(
+                    w,
+                    meta,
+                    signer=signer,
+                    output=signed_buffer
+                )
+
+            signed_buffer.seek(0)
+            signed_pdf_content = signed_buffer.read()
 
             # Salva o PDF assinado no modelo
             filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
@@ -444,8 +441,8 @@ def materia_assinar_a1(request, pk):
 
         finally:
             # Remove arquivo temporário
-            if os.path.exists(temp_signed_path):
-                os.unlink(temp_signed_path)
+            if os.path.exists(temp_stamped_path):
+                os.unlink(temp_stamped_path)
 
     except ImportError:
         logger.error("pyhanko não está instalado")
