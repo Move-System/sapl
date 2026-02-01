@@ -29,25 +29,9 @@ services:
       DEBUG: 'True'
       DATABASE_URL: postgresql://sapl:sapl@sapldb-dev:5432/sapl
       TZ: America/Sao_Paulo
-      ONLYOFFICE_URL: 'http://onlyoffice:80'
-    depends_on:
-      - onlyoffice
-    networks:
-      - sapl-net-dev
-
-  onlyoffice:
-    container_name: onlyoffice-documentserver
-    image: onlyoffice/documentserver:latest
-    ports:
-      - "8001:80"
-    environment:
-      - JWT_ENABLED=false
-      - ALLOW_PRIVATE_IP_ADDRESS=true
-      - ALLOW_META_IP_ADDRESS=true
-    volumes:
-      - onlyoffice_data:/var/www/onlyoffice/Data
-      - onlyoffice_log:/var/log/onlyoffice
-    restart: unless-stopped
+      ONLYOFFICE_URL: 'https://onlyoffice.legisinc.com.br'
+      ONLYOFFICE_JWT_ENABLED: 'True'
+      ONLYOFFICE_JWT_SECRET: 'sapl_onlyoffice_super_secret'
     networks:
       - sapl-net-dev
 
@@ -55,7 +39,3 @@ networks:
   sapl-net-dev:
     name: sapl-net-dev
     driver: bridge
-
-volumes:
-  onlyoffice_data:
-  onlyoffice_log:
