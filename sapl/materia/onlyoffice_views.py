@@ -303,13 +303,7 @@ def onlyoffice_editor(request, pk):
         return redirect('sapl.materia:proposicao_detail', pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    # Se ONLYOFFICE_URL contém 'onlyoffice' (nome do container), substitui pelo host da requisição
     onlyoffice_url = settings.ONLYOFFICE_URL
-    if 'onlyoffice:' in onlyoffice_url or 'onlyoffice/' in onlyoffice_url:
-        # É a URL interna do Docker, precisa usar a URL externa
-        protocol = 'https' if request.is_secure() else 'http'
-        host = request.get_host().split(':')[0]  # Remove porta se existir
-        onlyoffice_url = f"{protocol}://{host}:8001"
 
     context = {
         'proposicao': proposicao,

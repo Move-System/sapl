@@ -256,10 +256,6 @@ def docadm_onlyoffice_editor(request, pk):
 
     # URL do OnlyOffice acessível pelo navegador do usuário
     onlyoffice_url = settings.ONLYOFFICE_URL
-    if 'onlyoffice:' in onlyoffice_url or 'onlyoffice/' in onlyoffice_url:
-        protocol = 'https' if request.is_secure() else 'http'
-        host = request.get_host().split(':')[0]
-        onlyoffice_url = f"{protocol}://{host}:8001"
 
     context = {
         'documento': documento,
