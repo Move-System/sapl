@@ -2050,6 +2050,16 @@ class MateriaLegislativaCrud(Crud):
             context['user'] = self.request.user
             context['materia'] = MateriaLegislativa.objects.get(
                 pk=self.kwargs['pk'])
+
+            # Verifica se o usuário é operador de algum autor da matéria
+            is_autor = False
+            if self.request.user.is_authenticated:
+                for autoria in self.object.autoria_set.all():
+                    if autoria.autor.operadores.filter(id=self.request.user.id).exists():
+                        is_autor = True
+                        break
+            context['is_autor'] = is_autor
+
             return context
 
     class ListView(Crud.ListView, RedirectView):
