@@ -264,8 +264,17 @@ def onlyoffice_callback(request, pk):
                     proposicao.texto_original.save(
                         filename,
                         ContentFile(response.content),
-                        save=True
+                        save=False
                     )
+
+                    # Regenera o hash_code se a proposição está em confirmação
+                    if proposicao.data_envio and not proposicao.data_recebimento:
+                        from sapl.utils import gerar_hash_arquivo
+                        proposicao.hash_code = gerar_hash_arquivo(
+                            proposicao.texto_original.path, str(proposicao.pk))
+                        logger.info(f"Hash code atualizado: {proposicao.hash_code}")
+
+                    proposicao.save()
                     logger.info(f"Documento salvo com sucesso: {filename}")
                     return JsonResponse({"error": 0})
                 except Exception as e:
