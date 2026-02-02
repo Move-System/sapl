@@ -33,7 +33,8 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 configEtiquetaMateriaLegislativaCrud,
                                 PesquisarStatusTramitacaoView, HistoricoProposicaoView)
 from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_download,
-                                            onlyoffice_callback, onlyoffice_editor)
+                                            onlyoffice_callback, onlyoffice_editor,
+                                            onlyoffice_confirmar_config, onlyoffice_confirmar_editor)
 from sapl.materia.onlyoffice_materia_views import (
     materia_onlyoffice_editor, materia_onlyoffice_config,
     materia_onlyoffice_download, materia_onlyoffice_callback,
@@ -173,6 +174,11 @@ urlpatterns_proposicao = [
         name='proposicao-recebida'),
     url(r'^proposicao/devolvida/', ProposicaoDevolvida.as_view(),
         name='proposicao-devolvida'),
+    # OnlyOffice endpoints para confirmação de proposição (DEVE vir antes de proposicao-confirmar)
+    url(r'^proposicao/confirmar/P(?P<hash>[0-9A-Fa-f]+)/(?P<pk>\d+)/onlyoffice/editor$',
+        onlyoffice_confirmar_editor,
+        name='onlyoffice_confirmar_editor'),
+
     url(r'^proposicao/confirmar/P(?P<hash>[0-9A-Fa-f]+)/'
         r'(?P<pk>\d+)', ConfirmarProposicao.as_view(),
         name='proposicao-confirmar'),
@@ -199,6 +205,10 @@ urlpatterns_proposicao = [
         name='onlyoffice_download'),
     url(r'^proposicao/(?P<pk>\d+)/onlyoffice/callback$', onlyoffice_callback,
         name='onlyoffice_callback'),
+
+    url(r'^proposicao/(?P<pk>\d+)/onlyoffice/confirmar/config$',
+        onlyoffice_confirmar_config,
+        name='onlyoffice_confirmar_config'),
 
 ]
 
