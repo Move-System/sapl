@@ -46,13 +46,23 @@ def onlyoffice_config(request, pk):
 
     base_url = get_base_url(request)
 
-    # URLs para o OnlyOffice acessar o documento
+    # URLs para o OnlyOffice acessar (dentro da rede Docker)
+    # OnlyOffice precisa acessar o container SGVP pelo nome do serviço
     download_url = request.build_absolute_uri(
         reverse('sapl.materia:onlyoffice_download', kwargs={'pk': pk})
     )
     callback_url = request.build_absolute_uri(
         reverse('sapl.materia:onlyoffice_callback', kwargs={'pk': pk})
     )
+
+    # Substituir localhost/host externo pelo nome do container na rede Docker
+    # para que o OnlyOffice consiga acessar
+    host = request.get_host()
+    # sapl-dev:8000 é o nome do container e porta interna do SAPL
+    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
+    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
+    callback_url = callback_url.replace(f'http://{host}', 'http://sapl-dev:8000')
+    callback_url = callback_url.replace(f'https://{host}', 'http://sapl-dev:8000')
 
     # Configuração do documento
     document_config = {
@@ -212,7 +222,18 @@ def onlyoffice_callback(request, pk):
 
         # Status 2 ou 6 significa que o documento foi salvo
         if status in [2, 6] and download_url:
-            logger.info(f"URL de download recebida: {download_url}")
+            logger.info(f"URL original recebida: {download_url}")
+
+            # Substitui URLs externas por URLs internas da rede Docker
+            # O OnlyOffice pode retornar localhost:8001 ou o host externo
+            import re
+            # Padrão para capturar qualquer host:porta antes do path
+            download_url = re.sub(
+                r'https?://[^/]+',
+                'http://onlyoffice:80',
+                download_url
+            )
+            logger.info(f"URL substituída para rede Docker: {download_url}")
 
             logger.info(f"Iniciando download do documento de: {download_url}")
             proposicao = get_object_or_404(Proposicao, pk=pk)
@@ -243,8 +264,17 @@ def onlyoffice_callback(request, pk):
                     proposicao.texto_original.save(
                         filename,
                         ContentFile(response.content),
-                        save=True
+                        save=False
                     )
+
+                    # Regenera o hash_code se a proposição está em confirmação
+                    if proposicao.data_envio and not proposicao.data_recebimento:
+                        from sapl.utils import gerar_hash_arquivo
+                        proposicao.hash_code = gerar_hash_arquivo(
+                            proposicao.texto_original.path, str(proposicao.pk))
+                        logger.info(f"Hash code atualizado: {proposicao.hash_code}")
+
+                    proposicao.save()
                     logger.info(f"Documento salvo com sucesso: {filename}")
                     return JsonResponse({"error": 0})
                 except Exception as e:
@@ -286,7 +316,13 @@ def onlyoffice_editor(request, pk):
         return redirect('sapl.materia:proposicao_detail', pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
+    # Se ONLYOFFICE_URL contém 'onlyoffice' (nome do container), substitui pelo host da requisição
     onlyoffice_url = settings.ONLYOFFICE_URL
+    if 'onlyoffice:' in onlyoffice_url or 'onlyoffice/' in onlyoffice_url:
+        # É a URL interna do Docker, precisa usar a URL externa
+        protocol = 'https' if request.is_secure() else 'http'
+        host = request.get_host().split(':')[0]  # Remove porta se existir
+        onlyoffice_url = f"{protocol}://{host}:8001"
 
     context = {
         'proposicao': proposicao,
