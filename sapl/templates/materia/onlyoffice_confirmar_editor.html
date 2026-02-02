@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block base_content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2>{% trans "Editor de Texto - Confirmação de Proposição" %}</h2>
+            <hr>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <strong>{% trans "Tipo:" %}</strong> {{ proposicao.tipo }}<br>
+                <strong>{% trans "Ementa:" %}</strong> {{ proposicao.descricao }}<br>
+                <strong>{% trans "Autor:" %}</strong> {{ proposicao.autor }}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div id="onlyoffice-placeholder" style="height: 600px; border: 1px solid #ccc;">
+                <div class="text-center" style="padding-top: 250px;">
+                    <i class="fa fa-spinner fa-spin fa-3x"></i>
+                    <p>{% trans "Carregando editor..." %}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-12">
+            <button id="btn-salvar-voltar" class="btn btn-success" onclick="salvarEVoltar()">
+                <i class="fa fa-save"></i> {% trans "Salvar e Voltar" %}
+            </button>
+            <a href="{{ voltar_url }}" class="btn btn-secondary">
+                <i class="fa fa-arrow-left"></i> {% trans "Voltar sem Salvar" %}
+            </a>
+            <div class="alert alert-info mt-3">
+                <i class="fa fa-info-circle"></i>
+                {% trans "Use o botão 'Salvar e Voltar' para garantir que o documento seja salvo antes de sair. Se usar Ctrl+S, aguarde a confirmação de salvamento antes de sair." %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript" src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
+
+<script type="text/javascript">
+    var docEditor = null;
+    var documentSaved = false;
+    var returnUrl = "{{ voltar_url }}";
+
+    function salvarEVoltar() {
+        var btn = document.getElementById('btn-salvar-voltar');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
+
+        if (docEditor) {
+            // Força o salvamento do documento
+            docEditor.requestClose();
+        }
+
+        // Aguarda um tempo para o callback ser processado e redireciona
+        setTimeout(function() {
+            window.location.href = returnUrl;
+        }, 3000);
+    }
+
+    // Carrega a configuração do OnlyOffice
+    fetch('{{ config_url }}')
+        .then(response => response.json())
+        .then(config => {
+            console.log('OnlyOffice Config:', config);
+
+            // Adiciona eventos à configuração
+            config.events = {
+                'onDocumentReady': function() {
+                    console.log('Documento pronto para edição');
+                },
+                'onError': function(event) {
+                    console.error('Erro no OnlyOffice:', event);
+                    alert('Ocorreu um erro ao carregar o editor. Por favor, tente novamente.');
+                },
+                'onWarning': function(event) {
+                    console.warn('Aviso do OnlyOffice:', event);
+                },
+                'onDocumentStateChange': function(event) {
+                    // event.data = true quando há alterações não salvas
+                    console.log('Estado do documento:', event.data ? 'Alterações pendentes' : 'Salvo');
+                    documentSaved = !event.data;
+                },
+                'onRequestClose': function() {
+                    console.log('Editor fechado, redirecionando...');
+                }
+            };
+
+            // Inicializa o editor
+            docEditor = new DocsAPI.DocEditor("onlyoffice-placeholder", config);
+        })
+        .catch(error => {
+            console.error('Erro ao carregar configuração:', error);
+            document.getElementById('onlyoffice-placeholder').innerHTML =
+                '<div class="alert alert-danger m-5">' +
+                '<strong>Erro:</strong> Não foi possível carregar o editor. ' +
+                'Verifique se o servidor OnlyOffice está rodando.' +
+                '</div>';
+        });
+
+    // Aviso antes de sair se houver alterações não salvas
+    window.addEventListener('beforeunload', function(e) {
+        if (!documentSaved && docEditor) {
+            e.preventDefault();
+            e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
+            return e.returnValue;
+        }
+    });
+</script>
+{% endblock %}

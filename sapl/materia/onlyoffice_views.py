@@ -106,8 +106,12 @@ def onlyoffice_download(request, pk):
     proposicao = get_object_or_404(Proposicao, pk=pk)
 
     # Verificação de permissão apenas se houver usuário autenticado
-    if request.user.is_authenticated and not proposicao.autor.operadores.filter(id=request.user.id).exists():
-        return HttpResponse("Sem permissão", status=403)
+    # Permite: operadores do autor OU usuários com permissão de protocolo
+    if request.user.is_authenticated:
+        is_operator = proposicao.autor.operadores.filter(id=request.user.id).exists()
+        has_protocol_perm = request.user.has_perm('protocoloadm.add_documentoadministrativo')
+        if not is_operator and not has_protocol_perm:
+            return HttpResponse("Sem permissão", status=403)
 
     # Se já tem arquivo, retorna ele
     if proposicao.texto_original:
@@ -291,3 +295,127 @@ def onlyoffice_editor(request, pk):
     }
 
     return render(request, 'materia/onlyoffice_editor.html', context)
+
+
+@login_required
+@require_http_methods(["GET"])
+def onlyoffice_confirmar_config(request, pk):
+    """
+    Retorna a configuração JSON para o editor OnlyOffice na página de confirmação
+    """
+    proposicao = get_object_or_404(Proposicao, pk=pk)
+
+    # Verifica se o usuário tem permissão de protocolo
+    if not request.user.has_perm('protocoloadm.add_documentoadministrativo'):
+        return JsonResponse({"error": "Sem permissão"}, status=403)
+
+    # Verifica se a proposição está em estado de confirmação
+    # (enviada mas não recebida)
+    if not proposicao.data_envio or proposicao.data_recebimento:
+        return JsonResponse({"error": "Proposição não está em confirmação"}, status=400)
+
+    # URLs para o OnlyOffice acessar o documento
+    download_url = request.build_absolute_uri(
+        reverse('sapl.materia:onlyoffice_download', kwargs={'pk': pk})
+    )
+    callback_url = request.build_absolute_uri(
+        reverse('sapl.materia:onlyoffice_callback', kwargs={'pk': pk})
+    )
+
+    # Configuração do documento
+    document_config = {
+        "fileType": "docx",
+        "key": generate_file_key(proposicao.pk, request.user.pk),
+        "title": f"Proposicao_{proposicao.pk}.docx",
+        "url": download_url,
+        "permissions": {
+            "edit": True,
+            "download": True,
+            "print": True,
+            "review": True,
+            "comment": True,
+        },
+    }
+
+    # Configuração do editor - permite edição na confirmação
+    editor_config = {
+        "mode": "edit",
+        "lang": "pt-BR",
+        "callbackUrl": callback_url,
+        "user": {
+            "id": str(request.user.pk),
+            "name": request.user.get_full_name() or request.user.username,
+        },
+        "customization": {
+            "autosave": True,
+            "forcesave": True,
+            "comments": True,
+            "chat": False,
+        },
+    }
+
+    config = {
+        "documentType": "word",
+        "document": document_config,
+        "editorConfig": editor_config,
+        "height": "600px",
+        "width": "100%",
+    }
+
+    # Adiciona JWT se estiver habilitado
+    if settings.ONLYOFFICE_JWT_ENABLED and settings.ONLYOFFICE_JWT_SECRET:
+        import jwt
+        token = jwt.encode(config, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+        config['token'] = token
+
+    return JsonResponse(config)
+
+
+@login_required
+def onlyoffice_confirmar_editor(request, pk, hash):
+    """
+    Renderiza a página com o editor OnlyOffice para proposição em confirmação
+    """
+    from django.shortcuts import render, redirect
+    from django.contrib import messages
+    from sapl.materia.forms import SEPARADOR_HASH_PROPOSICAO
+    from sapl.utils import gerar_hash_arquivo
+
+    proposicao = get_object_or_404(Proposicao, pk=pk)
+
+    # Verifica se o usuário tem permissão de protocolo
+    if not request.user.has_perm('protocoloadm.add_documentoadministrativo'):
+        messages.error(request, 'Você não tem permissão para editar esta proposição.')
+        return redirect('sapl.materia:proposicao-confirmar', hash=hash, pk=pk)
+
+    # Verifica se a proposição está em estado de confirmação
+    if not proposicao.data_envio or proposicao.data_recebimento:
+        messages.warning(request, 'Esta proposição não está em estado de confirmação.')
+        return redirect('sapl.materia:proposicao-confirmar', hash=hash, pk=pk)
+
+    # Verifica o hash (mesma lógica de ConfirmarProposicao)
+    if proposicao.texto_articulado.exists():
+        ta = proposicao.texto_articulado.first()
+        hasher = 'P' + ta.hash() + SEPARADOR_HASH_PROPOSICAO + str(proposicao.pk)
+    else:
+        hasher = gerar_hash_arquivo(
+            proposicao.texto_original.path,
+            str(proposicao.pk)) if proposicao.texto_original else None
+
+    expected_hash = 'P%s%s%s' % (hash, SEPARADOR_HASH_PROPOSICAO, proposicao.pk)
+    if hasher != expected_hash:
+        messages.error(request, 'Link de confirmação inválido.')
+        return redirect('sapl.materia:proposicao-confirmar', hash=hash, pk=pk)
+
+    # URL do OnlyOffice acessível pelo navegador do usuário
+    onlyoffice_url = settings.ONLYOFFICE_URL
+
+    context = {
+        'proposicao': proposicao,
+        'hash': hash,
+        'onlyoffice_url': onlyoffice_url,
+        'config_url': reverse('sapl.materia:onlyoffice_confirmar_config', kwargs={'pk': pk}),
+        'voltar_url': reverse('sapl.materia:proposicao-confirmar', kwargs={'hash': hash, 'pk': pk}),
+    }
+
+    return render(request, 'materia/onlyoffice_confirmar_editor.html', context)
