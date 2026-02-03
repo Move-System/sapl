@@ -55,15 +55,6 @@ def onlyoffice_config(request, pk):
         reverse('sapl.materia:onlyoffice_callback', kwargs={'pk': pk})
     )
 
-    # Substituir localhost/host externo pelo nome do container na rede Docker
-    # para que o OnlyOffice consiga acessar
-    host = request.get_host()
-    # sapl-dev:8000 é o nome do container e porta interna do SAPL
-    download_url = download_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    download_url = download_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'http://{host}', 'http://sapl-dev:8000')
-    callback_url = callback_url.replace(f'https://{host}', 'http://sapl-dev:8000')
-
     # Configuração do documento
     document_config = {
         "fileType": "docx",
@@ -224,16 +215,18 @@ def onlyoffice_callback(request, pk):
         if status in [2, 6] and download_url:
             logger.info(f"URL original recebida: {download_url}")
 
-            # Substitui URLs externas por URLs internas da rede Docker
-            # O OnlyOffice pode retornar localhost:8001 ou o host externo
+            # Substitui o host da URL pelo ONLYOFFICE_URL configurado
+            # O OnlyOffice retorna URLs com seu próprio hostname que pode não ser acessível
             import re
-            # Padrão para capturar qualquer host:porta antes do path
+            from urllib.parse import urlparse
+            onlyoffice_parsed = urlparse(settings.ONLYOFFICE_URL)
+            onlyoffice_base = f"{onlyoffice_parsed.scheme}://{onlyoffice_parsed.netloc}"
             download_url = re.sub(
                 r'https?://[^/]+',
-                'http://onlyoffice:80',
+                onlyoffice_base,
                 download_url
             )
-            logger.info(f"URL substituída para rede Docker: {download_url}")
+            logger.info(f"URL substituída para: {download_url}")
 
             logger.info(f"Iniciando download do documento de: {download_url}")
             proposicao = get_object_or_404(Proposicao, pk=pk)
