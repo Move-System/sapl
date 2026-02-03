@@ -51,38 +51,48 @@ def criar_documento_com_template(tipo_conteudo, tipo_especifico, dados):
             logger.error(f"Erro ao carregar template {template.pk}: {e}")
             return None
 
-        # Limpa o corpo do documento mantendo cabeçalho e rodapé
-        # Remove todos os parágrafos existentes
-        for paragraph in doc.paragraphs:
-            p = paragraph._element
-            p.getparent().remove(p)
-
-        # Remove todas as tabelas existentes
-        for table in doc.tables:
-            t = table._element
-            t.getparent().remove(t)
-
-        # Adiciona o conteúdo inicial do novo documento
+        # Substitui placeholders no corpo do documento
+        # Placeholders suportados: {titulo}, {ementa}, {descricao}, {tipo}, {data}
         titulo = dados.get('titulo', 'Documento')
         descricao = dados.get('descricao', '')
         tipo_display = dados.get('tipo_display', tipo_conteudo.title())
 
-        # Adiciona título
-        doc.add_heading(titulo, level=0)
+        from datetime import date
+        data_atual = date.today().strftime('%d/%m/%Y')
 
-        # Adiciona informações do documento
-        if descricao:
-            if tipo_conteudo in ['proposicao', 'materia', 'norma']:
-                doc.add_paragraph(f'Ementa: {descricao}')
-            else:
-                doc.add_paragraph(f'Assunto: {descricao}')
+        placeholders = {
+            '{titulo}': titulo,
+            '{ementa}': descricao,
+            '{descricao}': descricao,
+            '{tipo}': tipo_display,
+            '{data}': data_atual,
+        }
 
-        doc.add_paragraph('')
+        # Substitui placeholders nos parágrafos
+        for paragraph in doc.paragraphs:
+            for placeholder, valor in placeholders.items():
+                if placeholder in paragraph.text:
+                    paragraph.text = paragraph.text.replace(placeholder, valor)
 
-        # Texto orientativo
-        doc.add_paragraph(f'Digite o texto do documento abaixo:')
-        doc.add_paragraph('')
-        doc.add_paragraph('')
+        # Substitui placeholders nas tabelas
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for paragraph in cell.paragraphs:
+                        for placeholder, valor in placeholders.items():
+                            if placeholder in paragraph.text:
+                                paragraph.text = paragraph.text.replace(placeholder, valor)
+
+        # Substitui placeholders no cabeçalho e rodapé
+        for section in doc.sections:
+            for header_para in section.header.paragraphs:
+                for placeholder, valor in placeholders.items():
+                    if placeholder in header_para.text:
+                        header_para.text = header_para.text.replace(placeholder, valor)
+            for footer_para in section.footer.paragraphs:
+                for placeholder, valor in placeholders.items():
+                    if placeholder in footer_para.text:
+                        footer_para.text = footer_para.text.replace(placeholder, valor)
 
         # Salva em memória
         file_stream = BytesIO()
