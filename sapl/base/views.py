@@ -74,9 +74,13 @@ class IndexView(TemplateView):
             autor = self.request.user.autor_set.first()
             context['is_parlamentar'] = autor is not None
             context['autor_id'] = autor.id if autor else None
+            # Verifica se é Operador de Protocolo Administrativo
+            context['is_operador_protocolo'] = self.request.user.has_perm(
+                'protocoloadm.add_documentoadministrativo')
         else:
             context['is_parlamentar'] = False
             context['autor_id'] = None
+            context['is_operador_protocolo'] = False
         return context
 
 

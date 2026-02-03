@@ -38,6 +38,25 @@
       </div>
       {% endif %}
 
+      <!-- Proposições Pendentes (Operador de Protocolo) -->
+      {% if is_operador_protocolo %}
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-inbox"></i>
+        </div>
+        <h3 class="card-title">Proposições Pendentes</h3>
+        <p class="card-description">Proposições aguardando recebimento</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.materia:proposicao-pendente' %}" class="btn-action" title="Ver Pendentes">
+            <i class="fas fa-clock"></i> Pendentes
+          </a>
+          <a href="{% url 'sapl.materia:proposicao-recebida' %}" class="btn-action" title="Ver Recebidas">
+            <i class="fas fa-check"></i> Recebidas
+          </a>
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Mesa Diretora -->
       {% if not is_parlamentar %}
       <div class="homeBlock">
