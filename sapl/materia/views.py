@@ -2192,7 +2192,7 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
     paginate_by = 50
 
     export_fields = [
-        'id', 'ano', 'numero', 'tipo__sigla', 'tipo__descricao', 'autoria', 'texto_original', 'ementa'
+        'id', 'ano', 'numero', 'tipo__sigla', 'tipo__descricao', 'autoria', 'texto_original', 'texto_original_url', 'ementa'
     ]
 
     def hook_texto_original(self, obj):
@@ -2200,6 +2200,12 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
         texto_original = obj.texto_original if not isinstance(
             obj, dict) else obj["texto_original"]
         return f'{url}/media/{texto_original}'
+
+    def hook_texto_original_url(self, obj):
+        """
+        Hook para retornar a URL absoluta do texto_original (facilita download)
+        """
+        return self.hook_texto_original(obj)
 
     def hook_autoria(self, obj):
         """

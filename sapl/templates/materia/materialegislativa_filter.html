@@ -4,6 +4,7 @@
 {% load waffle_tags %}
 {% load crispy_forms_tags common_tags%}
 {% load webpack_static from webpack_loader %}
+{% load static %}
 
   {% block actions %}
 
@@ -241,6 +242,7 @@
   {% block table_content %}
   {% endblock table_content %}
   {% block extra_js %}
+  <script src="{% static 'js/materia_pesquisa_download_pdfs.js' %}"></script>
 
   <script type="text/javascript" >
   $( document ).ready(function() {
