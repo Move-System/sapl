@@ -43,6 +43,7 @@ from sapl.utils import (autor_label, autor_modal, timing,
                         SEPARADOR_HASH_PROPOSICAO,
                         validar_arquivo, YES_NO_CHOICES,
                         GoogleRecapthaMixin, get_client_ip)
+from sapl.utils_template import adicionar_cabecalho_materia
 
 from .models import (AcompanhamentoMateria, Anexada, Autoria,
                      DespachoInicial, DocumentoAcessorio, Numeracao,
@@ -2649,6 +2650,11 @@ class ConfirmarProposicaoForm(ProposicaoForm):
 
             materia.save()
             conteudo_gerado = materia
+
+            # Adiciona cabeçalho com identificação da matéria no documento
+            # Ex: "INDICAÇÃO 10 / 2026"
+            if proposicao.texto_original:
+                adicionar_cabecalho_materia(materia)
 
             if proposicao.texto_articulado.exists():
                 ta = proposicao.texto_articulado.first()

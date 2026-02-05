@@ -3,7 +3,10 @@ Utilitários para aplicar templates de documentos aos novos documentos
 criados via OnlyOffice.
 """
 import logging
+import os
 from io import BytesIO
+
+from django.core.files.base import ContentFile
 
 logger = logging.getLogger(__name__)
 
@@ -223,3 +226,85 @@ def aplicar_template_existente(documento_path, tipo_conteudo, tipo_especifico=No
     except Exception as e:
         logger.error(f"Erro ao aplicar template a documento existente: {e}")
         return None
+
+
+def adicionar_cabecalho_materia(materia):
+    """
+    Adiciona cabeçalho com identificação da matéria no início do documento.
+
+    Adiciona um parágrafo no início do documento com o formato:
+    "TIPO NÚMERO / ANO" (ex: "INDICAÇÃO 10 / 2026")
+
+    Args:
+        materia: objeto MateriaLegislativa com texto_original preenchido
+
+    Returns:
+        True se o cabeçalho foi adicionado com sucesso, False caso contrário
+    """
+    if not materia.texto_original:
+        logger.warning(f"Matéria {materia.pk} não possui texto_original")
+        return False
+
+    # Verifica se é um arquivo .docx
+    arquivo_path = materia.texto_original.path
+    extensao = os.path.splitext(arquivo_path)[1].lower()
+
+    if extensao not in ['.docx', '.doc']:
+        logger.info(f"Arquivo {arquivo_path} não é .docx, pulando adição de cabeçalho")
+        return False
+
+    try:
+        from docx import Document
+        from docx.shared import Pt, Inches
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        # Carrega o documento
+        doc = Document(arquivo_path)
+
+        # Monta o texto do cabeçalho: "TIPO NÚMERO / ANO"
+        tipo_nome = str(materia.tipo).upper()
+        cabecalho_texto = f"{tipo_nome} {materia.numero} / {materia.ano}"
+
+        # Insere o cabeçalho no início do documento
+        # Precisamos inserir antes do primeiro parágrafo
+        if doc.paragraphs:
+            primeiro_paragrafo = doc.paragraphs[0]
+
+            # Cria novo parágrafo antes do primeiro
+            novo_paragrafo = primeiro_paragrafo.insert_paragraph_before(cabecalho_texto)
+
+            # Formata o cabeçalho
+            novo_paragrafo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in novo_paragrafo.runs:
+                run.bold = True
+                run.font.size = Pt(14)
+
+            # Adiciona linha em branco após o cabeçalho
+            primeiro_paragrafo.insert_paragraph_before('')
+        else:
+            # Documento vazio, adiciona o cabeçalho como primeiro parágrafo
+            paragrafo = doc.add_paragraph(cabecalho_texto)
+            paragrafo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            for run in paragrafo.runs:
+                run.bold = True
+                run.font.size = Pt(14)
+            doc.add_paragraph('')
+
+        # Salva o documento modificado
+        file_stream = BytesIO()
+        doc.save(file_stream)
+        file_stream.seek(0)
+
+        # Atualiza o arquivo da matéria
+        nome_arquivo = os.path.basename(arquivo_path)
+        materia.texto_original.save(nome_arquivo, ContentFile(file_stream.read()), save=True)
+
+        logger.info(f"Cabeçalho adicionado à matéria {materia.pk}: {cabecalho_texto}")
+        return True
+
+    except ImportError:
+        logger.error("python-docx não está instalado")
+        return False
+    except Exception as e:
+        logger.error(f"Erro ao adicionar cabeçalho à matéria {materia.pk}: {e}")
+        return False
