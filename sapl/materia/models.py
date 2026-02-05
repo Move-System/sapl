@@ -846,7 +846,7 @@ class Proposicao(models.Model):
     descricao = models.TextField(verbose_name=_('Ementa'))
 
     justificativa_devolucao = models.CharField(
-        max_length=200,
+        max_length=750,
         blank=True,
         verbose_name=_('Justificativa da Devolução')
     )
