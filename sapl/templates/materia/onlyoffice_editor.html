@@ -52,22 +52,82 @@
 <script type="text/javascript">
     var docEditor = null;
     var documentSaved = false;
+    var isSaving = false;
+    var documentKey = null;
     var returnUrl = "{% url 'sapl.materia:proposicao_detail' proposicao.pk %}";
+    var checkUrl = "{% url 'sapl.materia:proposicao_check_doc' proposicao.pk %}";
+    var forcesaveUrl = "{% url 'sapl.materia:proposicao_forcesave' proposicao.pk %}";
+    var csrfToken = "{{ csrf_token }}";
+
+    function iniciarPolling() {
+        var tentativas = 0;
+        var maxTentativas = 30;
+        var intervalo = setInterval(function() {
+            tentativas++;
+            console.log('Verificando documento... tentativa ' + tentativas);
+            fetch(checkUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    console.log('check-doc response:', data);
+                    if (data.has_document) {
+                        clearInterval(intervalo);
+                        window.location.href = returnUrl;
+                    } else if (tentativas >= maxTentativas) {
+                        clearInterval(intervalo);
+                        alert('Tempo esgotado aguardando salvamento. Verifique se o documento foi salvo.');
+                        window.location.href = returnUrl;
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Erro no check-doc:', err);
+                    if (tentativas >= maxTentativas) {
+                        clearInterval(intervalo);
+                        window.location.href = returnUrl;
+                    }
+                });
+        }, 1000);
+    }
 
     function salvarEVoltar() {
+        if (isSaving) return;
+        isSaving = true;
+
         var btn = document.getElementById('btn-salvar-voltar');
         btn.disabled = true;
         btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
 
-        if (docEditor) {
-            // Força o salvamento do documento
-            docEditor.requestClose();
-        }
-
-        // Aguarda um tempo para o callback ser processado e redireciona
-        setTimeout(function() {
-            window.location.href = returnUrl;
-        }, 3000);
+        // Chama o forcesave via Command Service do OnlyOffice (server-side).
+        // NÃO destroi o editor - o redirect natural encerra a sessão.
+        fetch(forcesaveUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({key: documentKey})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            console.log('Forcesave response:', data);
+            if (data.error === 0) {
+                // Forcesave aceito pelo OnlyOffice, aguardar callback salvar o documento
+                iniciarPolling();
+            } else if (data.error === 4) {
+                // Sem alterações para salvar
+                alert('Nenhuma alteração foi detectada no documento.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-save"></i> Salvar e Voltar';
+                isSaving = false;
+            } else {
+                console.error('Erro no forcesave:', data);
+                // Tenta polling mesmo assim (pode ser que o callback já tenha sido chamado)
+                iniciarPolling();
+            }
+        })
+        .catch(function(err) {
+            console.error('Erro na requisição forcesave:', err);
+            iniciarPolling();
+        });
     }
 
     // Carrega a configuração do OnlyOffice
@@ -75,6 +135,10 @@
         .then(response => response.json())
         .then(config => {
             console.log('OnlyOffice Config:', config);
+
+            // Guarda a chave do documento para uso no forcesave
+            documentKey = config.document.key;
+            console.log('Document key:', documentKey);
 
             // Adiciona eventos à configuração
             config.events = {
@@ -92,9 +156,6 @@
                     // event.data = true quando há alterações não salvas
                     console.log('Estado do documento:', event.data ? 'Alterações pendentes' : 'Salvo');
                     documentSaved = !event.data;
-                },
-                'onRequestClose': function() {
-                    console.log('Editor fechado, redirecionando...');
                 }
             };
 
@@ -112,7 +173,7 @@
 
     // Aviso antes de sair se houver alterações não salvas
     window.addEventListener('beforeunload', function(e) {
-        if (!documentSaved && docEditor) {
+        if (!documentSaved && docEditor && !isSaving) {
             e.preventDefault();
             e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
             return e.returnValue;

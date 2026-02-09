@@ -228,7 +228,6 @@ def onlyoffice_callback(request, pk):
             )
             logger.info(f"URL substituída para: {download_url}")
 
-            logger.info(f"Iniciando download do documento de: {download_url}")
             proposicao = get_object_or_404(Proposicao, pk=pk)
 
             # Baixa o documento do OnlyOffice
@@ -245,7 +244,6 @@ def onlyoffice_callback(request, pk):
                 from django.core.files.base import ContentFile
 
                 filename = f"proposicao_{pk}_{int(time.time())}.docx"
-                logger.info(f"Salvando arquivo: {filename}")
 
                 # Remove arquivo antigo se existir
                 if proposicao.texto_original:
@@ -265,7 +263,6 @@ def onlyoffice_callback(request, pk):
                         from sapl.utils import gerar_hash_arquivo
                         proposicao.hash_code = gerar_hash_arquivo(
                             proposicao.texto_original.path, str(proposicao.pk))
-                        logger.info(f"Hash code atualizado: {proposicao.hash_code}")
 
                     proposicao.save()
                     logger.info(f"Documento salvo com sucesso: {filename}")
@@ -283,6 +280,59 @@ def onlyoffice_callback(request, pk):
     except Exception as e:
         logger.error(f"Erro no callback OnlyOffice: {e}")
         return JsonResponse({"error": 1})
+
+
+@login_required
+@require_http_methods(["GET"])
+def proposicao_check_doc(request, pk):
+    """
+    Verifica se a proposição já possui documento salvo.
+    Usado pelo frontend para polling após forcesave do OnlyOffice.
+    """
+    proposicao = get_object_or_404(Proposicao, pk=pk)
+    has_document = bool(proposicao.texto_original)
+    return JsonResponse({"has_document": has_document})
+
+
+@login_required
+@require_http_methods(["POST"])
+def proposicao_forcesave(request, pk):
+    """
+    Força o salvamento do documento via OnlyOffice Command Service.
+    Chama o endpoint /coauthoring/CommandService.ashx com o comando forcesave.
+    """
+    proposicao = get_object_or_404(Proposicao, pk=pk)
+
+    body = json.loads(request.body.decode('utf-8'))
+    doc_key = body.get('key')
+
+    if not doc_key:
+        return JsonResponse({"error": "key é obrigatório"}, status=400)
+
+    # Monta a URL do Command Service do OnlyOffice
+    command_url = f"{settings.ONLYOFFICE_URL}/coauthoring/CommandService.ashx"
+
+    payload = {
+        "c": "forcesave",
+        "key": doc_key
+    }
+
+    # Adiciona JWT se habilitado
+    if settings.ONLYOFFICE_JWT_ENABLED and settings.ONLYOFFICE_JWT_SECRET:
+        import jwt
+        token = jwt.encode(payload, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+        payload['token'] = token
+
+    try:
+        import requests as http_requests
+        logger.info(f"Forcesave para proposição {pk}: key={doc_key}")
+        resp = http_requests.post(command_url, json=payload, timeout=10)
+        result = resp.json()
+        logger.info(f"Forcesave response para proposição {pk}: {result}")
+        return JsonResponse(result)
+    except Exception as e:
+        logger.error(f"Erro ao chamar forcesave para proposição {pk}: {e}")
+        return JsonResponse({"error": str(e)}, status=500)
 
 
 @login_required

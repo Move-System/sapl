@@ -34,7 +34,8 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 PesquisarStatusTramitacaoView, HistoricoProposicaoView)
 from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_download,
                                             onlyoffice_callback, onlyoffice_editor,
-                                            onlyoffice_confirmar_config, onlyoffice_confirmar_editor)
+                                            onlyoffice_confirmar_config, onlyoffice_confirmar_editor,
+                                            proposicao_check_doc, proposicao_forcesave)
 from sapl.materia.onlyoffice_materia_views import (
     materia_onlyoffice_editor, materia_onlyoffice_config,
     materia_onlyoffice_download, materia_onlyoffice_callback,
@@ -226,6 +227,10 @@ urlpatterns_proposicao = [
         name='onlyoffice_download'),
     url(r'^proposicao/(?P<pk>\d+)/onlyoffice/callback$', onlyoffice_callback,
         name='onlyoffice_callback'),
+    url(r'^proposicao/(?P<pk>\d+)/check-doc$', proposicao_check_doc,
+        name='proposicao_check_doc'),
+    url(r'^proposicao/(?P<pk>\d+)/forcesave$', proposicao_forcesave,
+        name='proposicao_forcesave'),
 
     url(r'^proposicao/(?P<pk>\d+)/onlyoffice/confirmar/config$',
         onlyoffice_confirmar_config,
