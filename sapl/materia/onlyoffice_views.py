@@ -8,6 +8,7 @@ import os
 import time
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
@@ -266,6 +267,8 @@ def onlyoffice_callback(request, pk):
 
                     proposicao.save()
                     logger.info(f"Documento salvo com sucesso: {filename}")
+                    cache.set(f'proposicao_saved_{pk}', True, timeout=120)
+                    cache.delete(f'proposicao_forcesave_{pk}')
                     return JsonResponse({"error": 0})
                 except Exception as e:
                     logger.error(f"Erro ao salvar arquivo: {e}")
@@ -288,7 +291,16 @@ def proposicao_check_doc(request, pk):
     """
     Verifica se a proposição já possui documento salvo.
     Usado pelo frontend para polling após forcesave do OnlyOffice.
+    Usa cache para rastrear o ciclo forcesave → callback → check.
     """
+    if cache.get(f'proposicao_saved_{pk}'):
+        cache.delete(f'proposicao_saved_{pk}')
+        cache.delete(f'proposicao_forcesave_{pk}')
+        return JsonResponse({"has_document": True})
+
+    if cache.get(f'proposicao_forcesave_{pk}'):
+        return JsonResponse({"has_document": False})
+
     proposicao = get_object_or_404(Proposicao, pk=pk)
     has_document = bool(proposicao.texto_original)
     return JsonResponse({"has_document": has_document})
@@ -329,6 +341,7 @@ def proposicao_forcesave(request, pk):
         resp = http_requests.post(command_url, json=payload, timeout=10)
         result = resp.json()
         logger.info(f"Forcesave response para proposição {pk}: {result}")
+        cache.set(f'proposicao_forcesave_{pk}', True, timeout=120)
         return JsonResponse(result)
     except Exception as e:
         logger.error(f"Erro ao chamar forcesave para proposição {pk}: {e}")

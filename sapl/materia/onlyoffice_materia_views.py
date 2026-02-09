@@ -8,6 +8,7 @@ import logging
 import time
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -241,6 +242,8 @@ def materia_onlyoffice_callback(request, pk):
                         save=True
                     )
                     logger.info(f"Documento salvo com sucesso: {filename}")
+                    cache.set(f'materia_saved_{pk}', True, timeout=120)
+                    cache.delete(f'materia_forcesave_{pk}')
                     return JsonResponse({"error": 0})
                 except Exception as e:
                     logger.error(f"Erro ao salvar arquivo: {e}")
@@ -262,7 +265,16 @@ def materia_check_doc(request, pk):
     """
     Verifica se a matéria já possui documento salvo.
     Usado pelo frontend para polling após forcesave do OnlyOffice.
+    Usa cache para rastrear o ciclo forcesave → callback → check.
     """
+    if cache.get(f'materia_saved_{pk}'):
+        cache.delete(f'materia_saved_{pk}')
+        cache.delete(f'materia_forcesave_{pk}')
+        return JsonResponse({"has_document": True})
+
+    if cache.get(f'materia_forcesave_{pk}'):
+        return JsonResponse({"has_document": False})
+
     materia = get_object_or_404(MateriaLegislativa, pk=pk)
     has_document = bool(materia.texto_original)
     return JsonResponse({"has_document": has_document})
@@ -300,6 +312,7 @@ def materia_forcesave(request, pk):
         resp = http_requests.post(command_url, json=payload, timeout=10)
         result = resp.json()
         logger.info(f"Forcesave response para matéria {pk}: {result}")
+        cache.set(f'materia_forcesave_{pk}', True, timeout=120)
         return JsonResponse(result)
     except Exception as e:
         logger.error(f"Erro ao chamar forcesave para matéria {pk}: {e}")
@@ -552,6 +565,8 @@ def docacessorio_onlyoffice_callback(request, pk):
                         save=True
                     )
                     logger.info(f"Documento salvo com sucesso: {filename}")
+                    cache.set(f'docacessorio_saved_{pk}', True, timeout=120)
+                    cache.delete(f'docacessorio_forcesave_{pk}')
                     return JsonResponse({"error": 0})
                 except Exception as e:
                     logger.error(f"Erro ao salvar arquivo: {e}")
@@ -573,7 +588,16 @@ def docacessorio_check_doc(request, pk):
     """
     Verifica se o documento acessório já possui arquivo salvo.
     Usado pelo frontend para polling após forcesave do OnlyOffice.
+    Usa cache para rastrear o ciclo forcesave → callback → check.
     """
+    if cache.get(f'docacessorio_saved_{pk}'):
+        cache.delete(f'docacessorio_saved_{pk}')
+        cache.delete(f'docacessorio_forcesave_{pk}')
+        return JsonResponse({"has_document": True})
+
+    if cache.get(f'docacessorio_forcesave_{pk}'):
+        return JsonResponse({"has_document": False})
+
     documento = get_object_or_404(DocumentoAcessorio, pk=pk)
     has_document = bool(documento.arquivo)
     return JsonResponse({"has_document": has_document})
@@ -611,6 +635,7 @@ def docacessorio_forcesave(request, pk):
         resp = http_requests.post(command_url, json=payload, timeout=10)
         result = resp.json()
         logger.info(f"Forcesave response para documento acessório {pk}: {result}")
+        cache.set(f'docacessorio_forcesave_{pk}', True, timeout=120)
         return JsonResponse(result)
     except Exception as e:
         logger.error(f"Erro ao chamar forcesave para documento acessório {pk}: {e}")
