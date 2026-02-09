@@ -33,6 +33,18 @@
 
     <div class="row mt-3">
         <div class="col-12">
+            {% if forcesave_url %}
+            <button id="btn-salvar-voltar" class="btn btn-success" onclick="salvarEVoltar()">
+                <i class="fa fa-save"></i> {% trans "Salvar e Voltar" %}
+            </button>
+            <a href="{{ voltar_url }}" class="btn btn-secondary">
+                <i class="fa fa-arrow-left"></i> {% trans "Voltar sem Salvar" %}
+            </a>
+            <div class="alert alert-info mt-3">
+                <i class="fa fa-info-circle"></i>
+                {% trans "Use o botão 'Salvar e Voltar' para garantir que o documento seja salvo antes de sair. Se usar Ctrl+S, aguarde a confirmação de salvamento antes de sair." %}
+            </div>
+            {% else %}
             <a href="{{ voltar_url }}" class="btn btn-secondary">
                 <i class="fa fa-arrow-left"></i> {% trans "Voltar" %}
             </a>
@@ -40,6 +52,7 @@
                 <i class="fa fa-info-circle"></i>
                 {% trans "O documento é salvo automaticamente enquanto você edita. Ao terminar, feche o editor e volte para a página do documento." %}
             </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -47,17 +60,95 @@
 <script type="text/javascript" src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
 
 <script type="text/javascript">
+    var docEditor = null;
+    var documentSaved = false;
+    var isSaving = false;
+    var documentKey = null;
+    var returnUrl = "{{ voltar_url }}";
+    {% if check_url %}var checkUrl = "{{ check_url }}";{% endif %}
+    {% if forcesave_url %}var forcesaveUrl = "{{ forcesave_url }}";{% endif %}
+    var csrfToken = "{{ csrf_token }}";
+
+    {% if forcesave_url %}
+    function iniciarPolling() {
+        var tentativas = 0;
+        var maxTentativas = 30;
+        var intervalo = setInterval(function() {
+            tentativas++;
+            console.log('Verificando documento... tentativa ' + tentativas);
+            fetch(checkUrl)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    console.log('check-doc response:', data);
+                    if (data.has_document) {
+                        clearInterval(intervalo);
+                        window.location.href = returnUrl;
+                    } else if (tentativas >= maxTentativas) {
+                        clearInterval(intervalo);
+                        alert('Tempo esgotado aguardando salvamento. Verifique se o documento foi salvo.');
+                        window.location.href = returnUrl;
+                    }
+                })
+                .catch(function(err) {
+                    console.error('Erro no check-doc:', err);
+                    if (tentativas >= maxTentativas) {
+                        clearInterval(intervalo);
+                        window.location.href = returnUrl;
+                    }
+                });
+        }, 1000);
+    }
+
+    function salvarEVoltar() {
+        if (isSaving) return;
+        isSaving = true;
+
+        var btn = document.getElementById('btn-salvar-voltar');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Salvando...';
+
+        fetch(forcesaveUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({key: documentKey})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            console.log('Forcesave response:', data);
+            if (data.error === 0) {
+                iniciarPolling();
+            } else if (data.error === 4) {
+                alert('Nenhuma alteração foi detectada no documento.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa fa-save"></i> Salvar e Voltar';
+                isSaving = false;
+            } else {
+                console.error('Erro no forcesave:', data);
+                iniciarPolling();
+            }
+        })
+        .catch(function(err) {
+            console.error('Erro na requisição forcesave:', err);
+            iniciarPolling();
+        });
+    }
+    {% endif %}
+
     // Carrega a configuração do OnlyOffice
     fetch('{{ config_url }}')
         .then(response => response.json())
         .then(config => {
             console.log('OnlyOffice Config:', config);
 
-            // Inicializa o editor
-            var docEditor = new DocsAPI.DocEditor("onlyoffice-placeholder", config);
+            // Guarda a chave do documento para uso no forcesave
+            documentKey = config.document.key;
+            console.log('Document key:', documentKey);
 
-            // Eventos do editor
-            docEditor.events = {
+            // Adiciona eventos à configuração
+            config.events = {
                 'onDocumentReady': function() {
                     console.log('Documento pronto para edição');
                 },
@@ -67,8 +158,15 @@
                 },
                 'onWarning': function(event) {
                     console.warn('Aviso do OnlyOffice:', event);
+                },
+                'onDocumentStateChange': function(event) {
+                    console.log('Estado do documento:', event.data ? 'Alterações pendentes' : 'Salvo');
+                    documentSaved = !event.data;
                 }
             };
+
+            // Inicializa o editor
+            docEditor = new DocsAPI.DocEditor("onlyoffice-placeholder", config);
         })
         .catch(error => {
             console.error('Erro ao carregar configuração:', error);
@@ -78,5 +176,14 @@
                 'Verifique se o servidor OnlyOffice está rodando.' +
                 '</div>';
         });
+
+    // Aviso antes de sair se houver alterações não salvas
+    window.addEventListener('beforeunload', function(e) {
+        if (!documentSaved && docEditor && !isSaving) {
+            e.preventDefault();
+            e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
+            return e.returnValue;
+        }
+    });
 </script>
 {% endblock %}

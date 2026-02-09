@@ -39,8 +39,10 @@ from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_downloa
 from sapl.materia.onlyoffice_materia_views import (
     materia_onlyoffice_editor, materia_onlyoffice_config,
     materia_onlyoffice_download, materia_onlyoffice_callback,
+    materia_check_doc, materia_forcesave,
     docacessorio_onlyoffice_editor, docacessorio_onlyoffice_config,
     docacessorio_onlyoffice_download, docacessorio_onlyoffice_callback,
+    docacessorio_check_doc, docacessorio_forcesave,
     materia_gerar_pdf_assinatura
 )
 from sapl.materia.views_assinatura import (
@@ -153,6 +155,10 @@ urlpatterns_materia = [
         name='materia_onlyoffice_download'),
     url(r'^materia/(?P<pk>\d+)/onlyoffice/callback$', materia_onlyoffice_callback,
         name='materia_onlyoffice_callback'),
+    url(r'^materia/(?P<pk>\d+)/check-doc$', materia_check_doc,
+        name='materia_check_doc'),
+    url(r'^materia/(?P<pk>\d+)/forcesave$', materia_forcesave,
+        name='materia_forcesave'),
     url(r'^materia/(?P<pk>\d+)/pdf-assinatura$', materia_gerar_pdf_assinatura,
         name='materia_pdf_assinatura'),
 
@@ -181,6 +187,10 @@ urlpatterns_materia = [
         name='docacessorio_onlyoffice_download'),
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/callback$', docacessorio_onlyoffice_callback,
         name='docacessorio_onlyoffice_callback'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/check-doc$', docacessorio_check_doc,
+        name='docacessorio_check_doc'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/forcesave$', docacessorio_forcesave,
+        name='docacessorio_forcesave'),
 ]
 
 
