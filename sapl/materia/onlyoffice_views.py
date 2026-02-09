@@ -15,7 +15,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from sapl.materia.models import Proposicao
-from sapl.utils import get_base_url
+from sapl.utils import get_base_url, build_onlyoffice_url, get_onlyoffice_browser_url
 
 logger = logging.getLogger(__name__)
 
@@ -44,14 +44,14 @@ def onlyoffice_config(request, pk):
         proposicao.autor.operadores.filter(id=request.user.id).exists()
     )
 
-    base_url = get_base_url(request)
-
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    # OnlyOffice precisa acessar o container SGVP pelo nome do serviço
-    download_url = request.build_absolute_uri(
+    # Usa SAPL_INTERNAL_URL quando configurada para comunicação container-a-container
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:onlyoffice_download', kwargs={'pk': pk})
     )
-    callback_url = request.build_absolute_uri(
+    callback_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:onlyoffice_callback', kwargs={'pk': pk})
     )
 
@@ -309,13 +309,7 @@ def onlyoffice_editor(request, pk):
         return redirect('sapl.materia:proposicao_detail', pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    # Se ONLYOFFICE_URL contém 'onlyoffice' (nome do container), substitui pelo host da requisição
-    onlyoffice_url = settings.ONLYOFFICE_URL
-    if 'onlyoffice:' in onlyoffice_url or 'onlyoffice/' in onlyoffice_url:
-        # É a URL interna do Docker, precisa usar a URL externa
-        protocol = 'https' if request.is_secure() else 'http'
-        host = request.get_host().split(':')[0]  # Remove porta se existir
-        onlyoffice_url = f"{protocol}://{host}:8001"
+    onlyoffice_url = get_onlyoffice_browser_url(request)
 
     context = {
         'proposicao': proposicao,
@@ -344,10 +338,12 @@ def onlyoffice_confirmar_config(request, pk):
         return JsonResponse({"error": "Proposição não está em confirmação"}, status=400)
 
     # URLs para o OnlyOffice acessar o documento
-    download_url = request.build_absolute_uri(
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:onlyoffice_download', kwargs={'pk': pk})
     )
-    callback_url = request.build_absolute_uri(
+    callback_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:onlyoffice_callback', kwargs={'pk': pk})
     )
 
@@ -437,7 +433,7 @@ def onlyoffice_confirmar_editor(request, pk, hash):
         return redirect('sapl.materia:proposicao-confirmar', hash=hash, pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    onlyoffice_url = settings.ONLYOFFICE_URL
+    onlyoffice_url = get_onlyoffice_browser_url(request)
 
     context = {
         'proposicao': proposicao,

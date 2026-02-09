@@ -8,7 +8,7 @@
        <a href="{% url 'sapl.materia:acompanhar_materia' object.id %}" class="btn btn-outline-primary">Acompanhar Matéria</a>
        </div>
     {% endif %}
-    {% if is_autor and not object.numero_protocolo %}
+    {% if is_autor and not object.numero_protocolo or can_edit_materia %}
         <div class="actions btn-group btn-group-sm" role="group">
             <a class="btn btn-primary" href="{% url 'sapl.materia:materia_onlyoffice_editor' object.pk %}">
                 <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}

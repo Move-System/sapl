@@ -124,3 +124,5 @@ NOTAS.txt
 # Database dumps
 *.sql
 dump_*.sql
+
+DADOS

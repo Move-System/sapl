@@ -16,6 +16,7 @@ from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 
 from sapl.materia.models import MateriaLegislativa, DocumentoAcessorio
+from sapl.utils import build_onlyoffice_url, get_onlyoffice_browser_url
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +47,12 @@ def materia_onlyoffice_config(request, pk):
     can_edit = request.user.has_perm('materia.change_materialegislativa')
 
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    download_url = request.build_absolute_uri(
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:materia_onlyoffice_download', kwargs={'pk': pk})
     )
-    callback_url = request.build_absolute_uri(
+    callback_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:materia_onlyoffice_callback', kwargs={'pk': pk})
     )
 
@@ -244,12 +247,14 @@ def materia_onlyoffice_editor(request, pk):
     materia = get_object_or_404(MateriaLegislativa, pk=pk)
 
     # Verifica se o usuário tem permissão
-    if not request.user.has_perm('materia.change_materialegislativa'):
+    # (administrador, operador de matéria, protocolo)
+    if not (request.user.is_superuser or
+            request.user.has_perm('materia.change_materialegislativa')):
         messages.error(request, 'Você não tem permissão para editar esta matéria.')
         return redirect('sapl.materia:materialegislativa_detail', pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    onlyoffice_url = settings.ONLYOFFICE_URL
+    onlyoffice_url = get_onlyoffice_browser_url(request)
 
     context = {
         'documento': materia,
@@ -280,10 +285,12 @@ def docacessorio_onlyoffice_config(request, pk):
     can_edit = request.user.has_perm('materia.change_documentoacessorio')
 
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    download_url = request.build_absolute_uri(
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:docacessorio_onlyoffice_download', kwargs={'pk': pk})
     )
-    callback_url = request.build_absolute_uri(
+    callback_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:docacessorio_onlyoffice_callback', kwargs={'pk': pk})
     )
 
@@ -482,12 +489,14 @@ def docacessorio_onlyoffice_editor(request, pk):
     documento = get_object_or_404(DocumentoAcessorio, pk=pk)
 
     # Verifica se o usuário tem permissão
-    if not request.user.has_perm('materia.change_documentoacessorio'):
+    # (administrador, operador de matéria, protocolo)
+    if not (request.user.is_superuser or
+            request.user.has_perm('materia.change_documentoacessorio')):
         messages.error(request, 'Você não tem permissão para editar este documento.')
         return redirect('sapl.materia:documentoacessorio_detail', pk=documento.materia.pk, zpk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    onlyoffice_url = settings.ONLYOFFICE_URL
+    onlyoffice_url = get_onlyoffice_browser_url(request)
 
     context = {
         'documento': documento,
@@ -546,7 +555,8 @@ def materia_gerar_pdf_assinatura(request, pk):
             return redirect('sapl.materia:materialegislativa_detail', pk=pk)
 
     # URL do documento para o OnlyOffice (dentro da rede Docker)
-    download_url = request.build_absolute_uri(
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:materia_onlyoffice_download', kwargs={'pk': pk})
     )
 

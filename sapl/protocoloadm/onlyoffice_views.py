@@ -16,6 +16,7 @@ from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 
 from sapl.protocoloadm.models import DocumentoAdministrativo
+from sapl.utils import build_onlyoffice_url, get_onlyoffice_browser_url
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,12 @@ def docadm_onlyoffice_config(request, pk):
     can_edit = request.user.has_perm('protocoloadm.change_documentoadministrativo')
 
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    download_url = request.build_absolute_uri(
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.protocoloadm:docadm_onlyoffice_download', kwargs={'pk': pk})
     )
-    callback_url = request.build_absolute_uri(
+    callback_url = build_onlyoffice_url(
+        request,
         reverse('sapl.protocoloadm:docadm_onlyoffice_callback', kwargs={'pk': pk})
     )
 
@@ -246,7 +249,7 @@ def docadm_onlyoffice_editor(request, pk):
         return redirect('sapl.protocoloadm:documentoadministrativo_detail', pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    onlyoffice_url = settings.ONLYOFFICE_URL
+    onlyoffice_url = get_onlyoffice_browser_url(request)
 
     context = {
         'documento': documento,

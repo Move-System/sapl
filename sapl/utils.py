@@ -427,6 +427,34 @@ def get_base_url(request):
     return "{0}://{1}".format(protocol, current_domain)
 
 
+def build_onlyoffice_url(request, path):
+    """
+    Constrói URL absoluta para o OnlyOffice acessar o SAPL.
+    Usa SAPL_INTERNAL_URL quando configurada (ambiente Docker),
+    caso contrário usa a URL do request.
+    """
+    from django.conf import settings
+    internal_url = getattr(settings, 'SAPL_INTERNAL_URL', '')
+    if internal_url:
+        return internal_url.rstrip('/') + path
+    return request.build_absolute_uri(path)
+
+
+def get_onlyoffice_browser_url(request):
+    """
+    Retorna a URL do OnlyOffice acessível pelo navegador do usuário.
+    Se ONLYOFFICE_URL é um nome de container Docker (ex: http://onlyoffice:80),
+    substitui pelo host da requisição com porta 8001.
+    """
+    from django.conf import settings
+    onlyoffice_url = settings.ONLYOFFICE_URL
+    if 'onlyoffice:' in onlyoffice_url or 'onlyoffice/' in onlyoffice_url:
+        protocol = 'https' if request.is_secure() else 'http'
+        host = request.get_host().split(':')[0]
+        onlyoffice_url = f"{protocol}://{host}:8001"
+    return onlyoffice_url
+
+
 def create_barcode(value, width=170, height=50, dpi=72):
     """
     creates a base64 encoded barcode PNG image

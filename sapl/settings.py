@@ -308,6 +308,10 @@ EMAIL_RUNNING = None
 ONLYOFFICE_URL = config('ONLYOFFICE_URL', default=config('ONLYOFFICE_SERVER', default='https://onlyoffice.legisinc.com.br'))
 ONLYOFFICE_JWT_SECRET = config('ONLYOFFICE_JWT_SECRET', default='')
 ONLYOFFICE_JWT_ENABLED = config('ONLYOFFICE_JWT_ENABLED', cast=bool, default=False)
+# URL interna para o OnlyOffice acessar o SAPL (ex: http://sapl-dev:8000)
+# Quando não configurada, usa a URL do request (funciona quando OnlyOffice
+# consegue acessar o SAPL pela mesma URL que o navegador)
+SAPL_INTERNAL_URL = config('SAPL_INTERNAL_URL', default='')
 
 # Integração externa de matérias da sessão
 SESSAO_MATERIAS_API_URL = config('SESSAO_MATERIAS_API_URL', default='')

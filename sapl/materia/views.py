@@ -1727,6 +1727,30 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
             context = super(UpdateView, self).get_context_data(**kwargs)
             return context
 
+    class DetailView(MasterDetailCrud.DetailView):
+        template_name = "materia/documentoacessorio_detail.html"
+
+    class ListView(MasterDetailCrud.ListView):
+
+        def hook_arquivo(self, obj, default, url):
+            u = self.request.user
+            can_edit = u.is_authenticated and (
+                u.is_superuser or
+                u.has_perm('materia.change_documentoacessorio')
+            )
+            html = default
+            if can_edit:
+                editor_url = reverse(
+                    'sapl.materia:docacessorio_onlyoffice_editor',
+                    kwargs={'pk': obj.pk}
+                )
+                html += (
+                    f'&nbsp;<a class="btn btn-sm btn-primary" '
+                    f'href="{editor_url}" title="Editar com OnlyOffice">'
+                    f'<i class="fa fa-file-word-o"></i></a>'
+                )
+            return html, url
+
 
 class AutoriaCrud(MasterDetailCrud):
     model = Autoria
@@ -2059,6 +2083,15 @@ class MateriaLegislativaCrud(Crud):
                         is_autor = True
                         break
             context['is_autor'] = is_autor
+
+            # Verifica se o usuário tem permissão de edição da matéria
+            # (administrador, operador de matéria, protocolo)
+            context['can_edit_materia'] = (
+                self.request.user.is_authenticated and (
+                    self.request.user.is_superuser or
+                    self.request.user.has_perm('materia.change_materialegislativa')
+                )
+            )
 
             return context
 

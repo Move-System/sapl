@@ -16,6 +16,7 @@ from django.views.decorators.http import require_http_methods
 from django.contrib import messages
 
 from sapl.base.models import DocumentTemplate
+from sapl.utils import build_onlyoffice_url, get_onlyoffice_browser_url
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,12 @@ def template_onlyoffice_config(request, pk):
     template = get_object_or_404(DocumentTemplate, pk=pk)
 
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
-    download_url = request.build_absolute_uri(
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.base:template_onlyoffice_download', kwargs={'pk': pk})
     )
-    callback_url = request.build_absolute_uri(
+    callback_url = build_onlyoffice_url(
+        request,
         reverse('sapl.base:template_onlyoffice_callback', kwargs={'pk': pk})
     )
 
@@ -226,7 +229,7 @@ def template_onlyoffice_editor(request, pk):
     template = get_object_or_404(DocumentTemplate, pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
-    onlyoffice_url = settings.ONLYOFFICE_URL
+    onlyoffice_url = get_onlyoffice_browser_url(request)
 
     context = {
         'documento': template,
