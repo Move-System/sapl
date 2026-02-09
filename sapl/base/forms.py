@@ -1081,6 +1081,7 @@ class ConfiguracoesAppForm(ModelForm):
                   'google_recaptcha_secret_key',
                   'google_analytics_id_metrica',
                   'identificacao_de_documentos',
+                  'assinatura_nome',
                   ]
 
     def __init__(self, *args, **kwargs):

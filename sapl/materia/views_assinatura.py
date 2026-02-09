@@ -19,6 +19,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from sapl.base.models import AppConfig
 from sapl.materia.models import MateriaLegislativa
 
 logger = logging.getLogger(__name__)
@@ -250,7 +251,11 @@ def materia_assinar_a1(request, pk):
                 ).first()
                 if parlamentar:
                     cargo = "Vereador(a)"
-                    nome_assinante = parlamentar.nome_parlamentar
+                    tipo_nome = AppConfig.attr('assinatura_nome')
+                    if tipo_nome == 'C':
+                        nome_assinante = parlamentar.nome_completo
+                    else:
+                        nome_assinante = parlamentar.nome_parlamentar
             except:
                 pass
 

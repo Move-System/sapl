@@ -45,6 +45,9 @@ AppConfig:
   {% trans 'Módulo Sessão Plenária' %}:
   - assinatura_ata
 
+  {% trans 'Módulo Assinatura Digital' %}:
+  - assinatura_nome
+
   {% trans 'Módulo Painel' %}:
   - cronometro_discurso cronometro_aparte
   - cronometro_ordem cronometro_consideracoes

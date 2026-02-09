@@ -48,6 +48,11 @@ ASSINATURA_ATA_CHOICES = (
     ('T', _('Todos os Parlamentares Presentes na Sessão')),
 )
 
+TIPO_NOME_ASSINATURA = (
+    ('P', _('Nome Político (Parlamentar)')),
+    ('C', _('Nome Civil (Real)')),
+)
+
 ORDENACAO_PESQUISA_MATERIA = (
     ('S', _('Alfabética por Sigla')),
     ('R', _('Sequência Regimental')),
@@ -222,6 +227,13 @@ class AppConfig(models.Model):
     assinatura_ata = models.CharField(
         verbose_name=_('Quem deve assinar a ata'),
         max_length=1, choices=ASSINATURA_ATA_CHOICES, default='T')
+
+    # MÓDULO ASSINATURA DIGITAL
+    assinatura_nome = models.CharField(
+        max_length=1,
+        verbose_name=_('Nome utilizado na assinatura digital'),
+        choices=TIPO_NOME_ASSINATURA,
+        default='P')
     # MÓDULO PAINEL
     cronometro_discurso = models.DurationField(
         verbose_name=_('Cronômetro do Discurso'),
