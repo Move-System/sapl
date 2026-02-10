@@ -345,12 +345,15 @@ class DocumentoAcessorioForm(FileFieldCheckMixin, ModelForm):
 
         arquivo = self.cleaned_data.get('arquivo')
 
+        # Quando criando via OnlyOffice, arquivo não é obrigatório
+        if self.data.get('action') == 'onlyoffice':
+            if arquivo:
+                validar_arquivo(arquivo, "Texto Integral")
+            return self.cleaned_data
+
         if arquivo:
             validar_arquivo(arquivo, "Texto Integral")
         else:
-            # TODO: definir arquivo no form e preservar o nome do campo
-            # que gerou a mensagem de erro.
-            ## arquivo = forms.FileField(required=True, label="Texto Integral")
             nome_arquivo = self.fields['arquivo'].label
             raise ValidationError(f'Favor anexar arquivo em {nome_arquivo}')
 

@@ -654,7 +654,7 @@ def docacessorio_onlyoffice_editor(request, pk):
     if not (request.user.is_superuser or
             request.user.has_perm('materia.change_documentoacessorio')):
         messages.error(request, 'Você não tem permissão para editar este documento.')
-        return redirect('sapl.materia:documentoacessorio_detail', pk=documento.materia.pk, zpk=pk)
+        return redirect('sapl.materia:documentoacessorio_detail', pk=pk)
 
     # URL do OnlyOffice acessível pelo navegador do usuário
     onlyoffice_url = get_onlyoffice_browser_url(request)
@@ -666,7 +666,7 @@ def docacessorio_onlyoffice_editor(request, pk):
         'documento_descricao': documento.ementa or f'Matéria: {documento.materia}',
         'onlyoffice_url': onlyoffice_url,
         'config_url': reverse('sapl.materia:docacessorio_onlyoffice_config', kwargs={'pk': pk}),
-        'voltar_url': reverse('sapl.materia:documentoacessorio_detail', kwargs={'pk': documento.materia.pk, 'zpk': pk}),
+        'voltar_url': reverse('sapl.materia:documentoacessorio_detail', kwargs={'pk': pk}),
         'check_url': reverse('sapl.materia:docacessorio_check_doc', kwargs={'pk': pk}),
         'forcesave_url': reverse('sapl.materia:docacessorio_forcesave', kwargs={'pk': pk}),
     }

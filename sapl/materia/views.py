@@ -10,7 +10,8 @@ import time
 import zipfile
 
 from PyPDF4 import PdfFileReader, PdfFileMerger
-from crispy_forms.layout import HTML
+from crispy_forms.bootstrap import FormActions
+from crispy_forms.layout import Div, HTML, Submit
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
@@ -1703,18 +1704,46 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
     class CreateView(MasterDetailCrud.CreateView):
         form_class = DocumentoAcessorioForm
 
-        def __init__(self, **kwargs):
-            super(MasterDetailCrud.CreateView, self).__init__(**kwargs)
-
         def get_initial(self):
             initial = super(CreateView, self).get_initial()
             initial['data'] = timezone.now().date()
-
             return initial
+
+        def get_success_url(self):
+            if self.request.POST.get('action') == 'onlyoffice':
+                messages.info(self.request, _(
+                    'Documento Acessório criado com sucesso! '
+                    'Você será redirecionado para o Editor OnlyOffice.'))
+                return reverse('sapl.materia:docacessorio_onlyoffice_editor',
+                               kwargs={'pk': self.object.pk})
+            return super().get_success_url()
 
         def get_context_data(self, **kwargs):
             context = super(
                 MasterDetailCrud.CreateView, self).get_context_data(**kwargs)
+            form = context.get('form')
+            if form and hasattr(form, 'helper') and form.helper.layout:
+                btns = FormActions(
+                    HTML('<a href="{{ view.cancel_url }}"'
+                         ' class="btn btn-dark">%s</a>' % _('Cancelar')),
+                    Submit('action', _('Criar e Editar no OnlyOffice'),
+                           css_class='btn-primary',
+                           onclick="this.value='onlyoffice';"),
+                    Submit('salvar', _('Salvar'), css_class='float-right',
+                           onclick='this.form.submit();this.disabled=true;'),
+                    css_class='form-group row justify-content-between'
+                )
+                # Layout: Div(row) > Div(col) > FormActions
+                def replace_form_actions(fields):
+                    for i, field in enumerate(fields):
+                        if isinstance(field, FormActions):
+                            fields[i] = btns
+                            return True
+                        if hasattr(field, 'fields'):
+                            if replace_form_actions(field.fields):
+                                return True
+                    return False
+                replace_form_actions(form.helper.layout.fields)
             return context
 
     class UpdateView(MasterDetailCrud.UpdateView):
