@@ -257,36 +257,36 @@ def str2intabs(value):
     except:
         return ''
 
+
 @register.filter
-def has_iframe(obj):
-    """
-    Espera receber HttpRequest.
-    Se vier string/None/outro tipo, não quebra template.
-    """
-    session = getattr(obj, "session", None)
-    if not session:
+#def has_iframe(request):
+#
+#    iframe = request.session.get('iframe', False)
+#    if not iframe and 'iframe' in request.GET:
+#        ival = request.GET['iframe']
+#        if ival and int(ival) == 1:
+#            request.session['iframe'] = True
+#            return True
+# elif 'iframe' in request.GET:
+    #    ival = request.GET['iframe']
+   #     if ival and int(ival) == 0:
+  #          del request.session['iframe']
+ #           return False
+#
+#    return iframe
+def has_iframe(request):
+    # Em alguns templates essa tag pode receber string (ex.: request.path),
+    # então protegemos pra não derrubar a página.
+    if not hasattr(request, "session"):
         return False
-
-    iframe = session.get('iframe', False)
-    if not iframe and hasattr(obj, 'GET') and 'iframe' in obj.GET:
-        ival = obj.GET['iframe']
-        if ival and int(ival) == 1:
-            session['iframe'] = True
-            return True
-    elif hasattr(obj, 'GET') and 'iframe' in obj.GET:
-        ival = obj.GET['iframe']
-        if ival and int(ival) == 0:
-            del session['iframe']
-            return False
-
-    return iframe
+    return request.session.get("iframe", False)
 
 
 @register.filter
 def url(value):
-    if not isinstance(value, str):
-        return False
-    return value.startswith(('http://', 'https://'))
+    if value.startswith('http://') or value.startswith('https://'):
+        return True
+    return False
 
 
 @register.filter

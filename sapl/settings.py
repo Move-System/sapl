@@ -34,7 +34,9 @@ PROJECT_DIR = Path(__file__).ancestor(2)
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='32jk1h412l3kjh421lkj4hlkj234')
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+#DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
+
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
 
@@ -154,10 +156,11 @@ MIDDLEWARE = [
     'sapl.middleware.CheckWeakPasswordMiddleware',
     'django_prometheus.middleware.PrometheusAfterMiddleware',
 ]
-if DEBUG:
+if DEBUG and 'runserver' in sys.argv:
     INSTALLED_APPS += ('debug_toolbar',)
-    MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware', ]
-    INTERNAL_IPS = ('127.0.0.1')
+    MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
+    INTERNAL_IPS = ('127.0.0.1',)
+
 
 SITE_URL = config('SITE_URL', cast=str, default='')
 
