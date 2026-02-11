@@ -16,7 +16,7 @@
                 <a class="btn btn-success" href="{% url 'sapl.materia:docacessorio_pdf_assinado' object.pk %}" target="_blank">
                     <i class="fa fa-check-circle"></i> {% trans "Ver PDF Assinado" %}
                 </a>
-            {% elif is_autor %}
+            {% elif pode_assinar %}
                 <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#assinaturaModal">
                     <i class="fa fa-certificate"></i> {% trans "Assinar PDF Digitalmente" %}
                 </button>
@@ -76,7 +76,7 @@
 
 {% block extra_js %}
 {{ block.super }}
-{% if object.arquivo and not object.pdf_assinado and is_autor %}
+{% if object.arquivo and not object.pdf_assinado and pode_assinar %}
   {% include "materia/assinatura_modal.html" %}
   <script>
     document.addEventListener('DOMContentLoaded', function() {

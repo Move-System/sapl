@@ -1761,15 +1761,22 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
 
         def get_context_data(self, **kwargs):
             context = super().get_context_data(**kwargs)
+            u = self.request.user
             is_autor = False
-            if self.request.user.is_authenticated:
+            if u.is_authenticated:
                 materia = self.object.materia
                 for autoria in materia.autoria_set.all():
                     if autoria.autor.operadores.filter(
-                            id=self.request.user.id).exists():
+                            id=u.id).exists():
                         is_autor = True
                         break
             context['is_autor'] = is_autor
+            context['pode_assinar'] = is_autor or (
+                u.is_authenticated and (
+                    u.is_superuser or
+                    u.has_perm('materia.change_documentoacessorio')
+                )
+            )
             return context
 
     class ListView(MasterDetailCrud.ListView):
