@@ -55,6 +55,6 @@ cryptography>=41.0.0
 git+https://github.com/interlegis/django-admin-bootstrapped
 
 setuptools==80.10.2
-pycairo=1.29.0
+pycairo==1.29.0
 freetype-py==2.5.1
 rlPyCairo==0.4.0
