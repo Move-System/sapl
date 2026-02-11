@@ -49,7 +49,11 @@ def nav_run(context, path=None):
             root_pk = obj.pk
 
     if root_pk or 'subnav_template_name' in context or path:
-        request = context['request']
+        #request = context['request']
+        request = context.get('request')
+        if request is None:
+            return {}
+
 
         """
         As implementações das Views de Modelos que são dados auxiliares e
@@ -112,8 +116,13 @@ def resolve_urls_inplace(menu, pk, rm, context):
 
             url_name = menu['url']
 
-            if 'check_permission' in menu and not context[
-                    'request'].user.has_perm(menu['check_permission']):
+            #if 'check_permission' in menu and not context[
+            #        'request'].user.has_perm(menu['check_permission']):
+            req = context.get('request')
+            if 'check_permission' in menu:
+                if not req or not req.user.has_perm(menu['check_permission']):
+                    return ''
+
                 menu['url'] = ''
                 menu['active'] = ''
             else:
