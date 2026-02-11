@@ -231,7 +231,7 @@ def materia_assinar_a1(request, pk):
             from pyhanko.sign.general import SigningError
             from PyPDF4 import PdfFileReader, PdfFileWriter
             from reportlab.pdfgen import canvas
-            from reportlab.lib.pagesizes import A4
+
             from reportlab.lib.units import mm
             from reportlab.lib.utils import ImageReader
             import re
@@ -286,9 +286,16 @@ def materia_assinar_a1(request, pk):
 
             # ===== PASSO 1: Criar carimbo visual e adicionar ao PDF ANTES de assinar =====
 
-            # Cria PDF com o carimbo de assinatura
+            # Lê o PDF original para obter as dimensões reais da última página
+            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+            page_box = last_page.mediaBox
+            page_width = float(page_box.getWidth())
+            page_height = float(page_box.getHeight())
+
+            # Cria PDF com o carimbo usando as mesmas dimensões da página original
             stamp_buffer = io.BytesIO()
-            c = canvas.Canvas(stamp_buffer, pagesize=A4)
+            c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
 
             # Posição do carimbo (canto inferior esquerdo)
             y_pos = 15 * mm
@@ -361,7 +368,6 @@ def materia_assinar_a1(request, pk):
 
             # Mescla o carimbo com o PDF original (ANTES de assinar)
             stamp_pdf = PdfFileReader(stamp_buffer)
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
             output_pdf = PdfFileWriter()
 
             for page_num in range(original_pdf.getNumPages()):
