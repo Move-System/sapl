@@ -590,6 +590,35 @@ class DocumentoAcessorio(models.Model):
     data_ultima_atualizacao = models.DateTimeField(
         blank=True, null=True, auto_now=True, verbose_name=_('Data'))
 
+    # Campos para assinatura digital
+    pdf_assinado = models.FileField(
+        max_length=300,
+        upload_to=anexo_upload_path,
+        blank=True,
+        null=True,
+        verbose_name=_('PDF Assinado'),
+        storage=OverwriteStorage()
+    )
+    assinatura_info = JSONField(
+        blank=True,
+        null=True,
+        verbose_name=_('Informações da Assinatura'),
+        help_text=_('Metadados do certificado digital usado na assinatura')
+    )
+    assinado_em = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_('Data/Hora da Assinatura')
+    )
+    assinado_por = models.ForeignKey(
+        get_settings_auth_user_model(),
+        verbose_name=_('Assinado por'),
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='docacessorios_assinados'
+    )
+
     class Meta:
         verbose_name = _('Documento Acessório')
         verbose_name_plural = _('Documentos Acessórios')

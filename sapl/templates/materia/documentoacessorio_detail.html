@@ -1,5 +1,5 @@
 {% extends "crud/detail.html" %}
-{% load i18n %}
+{% load i18n tz %}
 
 {% block sub_actions %}
     {{ block.super }}
@@ -10,4 +10,80 @@
             </a>
         </div>
     {% endif %}
+    {% if object.arquivo %}
+        <div class="actions btn-group btn-group-sm" role="group">
+            {% if object.pdf_assinado %}
+                <a class="btn btn-success" href="{% url 'sapl.materia:docacessorio_pdf_assinado' object.pk %}" target="_blank">
+                    <i class="fa fa-check-circle"></i> {% trans "Ver PDF Assinado" %}
+                </a>
+            {% elif is_autor %}
+                <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#assinaturaModal">
+                    <i class="fa fa-certificate"></i> {% trans "Assinar PDF Digitalmente" %}
+                </button>
+            {% endif %}
+        </div>
+    {% endif %}
 {% endblock sub_actions %}
+
+{% block detail_content %}
+    {{ block.super }}
+    {% if object.pdf_assinado %}
+      <div class="row mt-3">
+        <div class="col-12">
+          <div class="card border-success">
+            <div class="card-header bg-success text-white">
+              <i class="fa fa-certificate"></i> {% trans "Assinatura Digital" %}
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <p class="mb-1"><strong>{% trans "Status:" %}</strong>
+                    <span class="badge badge-success">{% trans "Documento Assinado" %}</span>
+                  </p>
+                  {% if object.assinado_em %}
+                    <p class="mb-1"><strong>{% trans "Data/Hora:" %}</strong> {{ object.assinado_em|localtime|date:"d/m/Y H:i:s" }}</p>
+                  {% endif %}
+                  {% if object.assinado_por %}
+                    <p class="mb-1"><strong>{% trans "Assinado por:" %}</strong> {{ object.assinado_por.get_full_name|default:object.assinado_por.username }}</p>
+                  {% endif %}
+                </div>
+                <div class="col-md-6">
+                  {% if object.assinatura_info %}
+                    <p class="mb-1"><strong>{% trans "Tipo de Certificado:" %}</strong> {{ object.assinatura_info.tipo_certificado|default:"A1" }}</p>
+                    {% if object.assinatura_info.subject %}
+                      <p class="mb-1"><strong>{% trans "Certificado:" %}</strong> {{ object.assinatura_info.subject|truncatechars:50 }}</p>
+                    {% endif %}
+                    {% if object.assinatura_info.valid_to %}
+                      <p class="mb-1"><strong>{% trans "Validade:" %}</strong> {{ object.assinatura_info.valid_to|slice:":10" }}</p>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </div>
+              <div class="mt-2">
+                <a href="{% url 'sapl.materia:docacessorio_pdf_assinado' object.pk %}" class="btn btn-sm btn-success" target="_blank">
+                  <i class="fa fa-download"></i> {% trans "Baixar PDF Assinado" %}
+                </a>
+                <a href="https://validar.iti.gov.br/" class="btn btn-sm btn-outline-info" target="_blank">
+                  <i class="fa fa-external-link"></i> {% trans "Validar no ITI" %}
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+{% endblock detail_content %}
+
+{% block extra_js %}
+{{ block.super }}
+{% if object.arquivo and not object.pdf_assinado and is_autor %}
+  {% include "materia/assinatura_modal.html" %}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.AssinaturaModal) {
+        window.AssinaturaModal.init({{ object.pk }}, '/materia/documentoacessorio/{{ object.pk }}');
+      }
+    });
+  </script>
+{% endif %}
+{% endblock extra_js %}

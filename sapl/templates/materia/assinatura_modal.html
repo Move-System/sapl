@@ -250,8 +250,9 @@ document.addEventListener('DOMContentLoaded', function() {
         materiaId: null,
         a3AppInfo: null,
 
-        init: function(materiaId) {
+        init: function(materiaId, urlPrefix) {
             this.materiaId = materiaId;
+            this.urlPrefix = urlPrefix || ('/materia/' + materiaId);
             this.bindEvents();
         },
 
@@ -408,7 +409,7 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('certificado', certificado);
             formData.append('senha', senha);
 
-            fetch('/materia/' + this.materiaId + '/assinar/a1/', {
+            fetch(this.urlPrefix + '/assinar/a1/', {
                 method: 'POST',
                 body: formData,
                 headers: {
@@ -468,7 +469,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('sucesso-certificado-info').innerHTML = info;
 
             var btnBaixar = document.getElementById('btn-baixar-assinado');
-            btnBaixar.href = '/materia/' + this.materiaId + '/pdf-assinado/';
+            btnBaixar.href = this.urlPrefix + '/pdf-assinado/';
             btnBaixar.style.display = 'inline-block';
 
             document.getElementById('btn-fechar-modal').textContent = 'Fechar';

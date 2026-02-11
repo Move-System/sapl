@@ -20,7 +20,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from sapl.base.models import AppConfig
-from sapl.materia.models import MateriaLegislativa
+from sapl.materia.models import DocumentoAcessorio, MateriaLegislativa
 
 logger = logging.getLogger(__name__)
 
@@ -808,3 +808,545 @@ def detectar_aplicacao_a3(request):
         'portas_conhecidas': portas_conhecidas,
         'instrucoes': 'O frontend deve tentar conectar a cada porta para detectar a aplicação.'
     })
+
+
+# =============================================================================
+# Views de Assinatura Digital para Documento Acessório
+# =============================================================================
+
+def _gerar_pdf_do_docacessorio(docacessorio, request):
+    """
+    Gera o PDF do documento acessório para assinatura.
+    Se já é PDF, retorna direto. Se é DOCX, converte via OnlyOffice.
+    Retorna (bytes, None) ou (None, erro).
+    """
+    import requests as http_requests
+    import xml.etree.ElementTree as ET
+    from django.urls import reverse
+
+    if not docacessorio.arquivo:
+        return None, "Documento acessório não possui arquivo."
+
+    file_name = docacessorio.arquivo.name.lower()
+
+    # Se já é PDF, retorna diretamente
+    if file_name.endswith('.pdf'):
+        try:
+            with open(docacessorio.arquivo.path, 'rb') as f:
+                return f.read(), None
+        except Exception as e:
+            logger.error(f"Erro ao ler arquivo PDF: {e}")
+            return None, f"Erro ao ler o arquivo PDF: {e}"
+
+    # Converter DOCX para PDF via OnlyOffice
+    from sapl.materia.onlyoffice_materia_views import generate_file_key
+
+    download_url = request.build_absolute_uri(
+        reverse('sapl.materia:docacessorio_onlyoffice_download', kwargs={'pk': docacessorio.pk})
+    )
+
+    conversion_url = f'{settings.ONLYOFFICE_URL}/ConvertService.ashx'
+
+    conversion_data = {
+        "async": False,
+        "filetype": "docx",
+        "key": generate_file_key("docacessorio_sign", docacessorio.pk, request.user.pk),
+        "outputtype": "pdf",
+        "title": f"DocAcessorio_{docacessorio.pk}.pdf",
+        "url": download_url,
+    }
+
+    if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+        import jwt
+        token = jwt.encode(conversion_data, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+        conversion_data['token'] = token
+
+    try:
+        headers = {'Content-Type': 'application/json'}
+
+        if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+            import jwt
+            header_token = jwt.encode({"payload": conversion_data}, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+            headers['Authorization'] = f'Bearer {header_token}'
+
+        conversion_response = http_requests.post(
+            conversion_url,
+            json=conversion_data,
+            headers=headers,
+            timeout=60
+        )
+
+        if conversion_response.status_code != 200:
+            return None, f"Erro na conversão OnlyOffice: status={conversion_response.status_code}"
+
+        root = ET.fromstring(conversion_response.text)
+
+        error_elem = root.find('Error')
+        if error_elem is not None:
+            return None, f"Erro na conversão do documento: código {error_elem.text}"
+
+        file_url_elem = root.find('FileUrl')
+        if file_url_elem is None or not file_url_elem.text:
+            return None, "URL do PDF não retornada pelo OnlyOffice"
+
+        pdf_url = file_url_elem.text
+        pdf_response = http_requests.get(pdf_url, timeout=60)
+
+        if pdf_response.status_code != 200:
+            return None, f"Erro ao baixar PDF convertido: status={pdf_response.status_code}"
+
+        return pdf_response.content, None
+
+    except Exception as e:
+        logger.error(f"Erro na geração de PDF do doc acessório: {e}")
+        return None, f"Erro inesperado: {e}"
+
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def docacessorio_assinar_a1(request, pk):
+    """
+    Assina o PDF do documento acessório com certificado A1 (arquivo .pfx/.p12).
+    """
+    docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
+
+    if docacessorio.pdf_assinado:
+        return JsonResponse({
+            'success': False,
+            'error': 'Este documento já possui um PDF assinado.'
+        }, status=400)
+
+    certificado_file = request.FILES.get('certificado')
+    senha = request.POST.get('senha', '')
+
+    if not certificado_file:
+        return JsonResponse({
+            'success': False,
+            'error': 'Certificado não informado.'
+        }, status=400)
+
+    if not senha:
+        return JsonResponse({
+            'success': False,
+            'error': 'Senha do certificado não informada.'
+        }, status=400)
+
+    pdf_bytes, error = _gerar_pdf_do_docacessorio(docacessorio, request)
+    if error:
+        return JsonResponse({
+            'success': False,
+            'error': error
+        }, status=400)
+
+    try:
+        from pyhanko.sign import signers, fields
+        from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+        from pyhanko.keys import load_cert_from_pemder
+        from pyhanko_certvalidator import ValidationContext
+
+        cert_data = certificado_file.read()
+
+        import tempfile as tmp_module
+        with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
+            tmp_cert.write(cert_data)
+            tmp_cert_path = tmp_cert.name
+
+        try:
+            signer = signers.SimpleSigner.load_pkcs12(
+                pfx_file=tmp_cert_path,
+                passphrase=senha.encode('utf-8')
+            )
+            if os.path.exists(tmp_cert_path):
+                os.unlink(tmp_cert_path)
+        except Exception as cert_error:
+            logger.error(f"Erro ao carregar certificado: {cert_error}")
+            if os.path.exists(tmp_cert_path):
+                os.unlink(tmp_cert_path)
+            error_msg = str(cert_error)
+            if 'password' in error_msg.lower() or 'mac' in error_msg.lower():
+                error_detail = 'Senha incorreta.'
+            elif 'decode' in error_msg.lower() or 'parse' in error_msg.lower():
+                error_detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
+            else:
+                error_detail = f'Detalhes: {error_msg}'
+            return JsonResponse({
+                'success': False,
+                'error': f'Erro ao carregar certificado: {error_detail}'
+            }, status=400)
+
+        cert_info = signer.signing_cert
+        now = timezone.now()
+        valid_before = cert_info.not_valid_before
+        valid_after = cert_info.not_valid_after
+        if valid_before.tzinfo is None:
+            import pytz
+            valid_before = pytz.UTC.localize(valid_before)
+        if valid_after.tzinfo is None:
+            import pytz
+            valid_after = pytz.UTC.localize(valid_after)
+        if now < valid_before or now > valid_after:
+            return JsonResponse({
+                'success': False,
+                'error': 'Certificado expirado ou ainda não válido.'
+            }, status=400)
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_stamped:
+            temp_stamped_path = temp_stamped.name
+
+        try:
+            from pyhanko.sign.fields import SigSeedSubFilter
+            from pyhanko.pdf_utils import text
+            from pyhanko.sign.general import SigningError
+            from PyPDF4 import PdfFileReader, PdfFileWriter
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.units import mm
+            from reportlab.lib.utils import ImageReader
+            import re
+
+            nome_assinante = request.user.get_full_name() or request.user.username
+            data_assinatura = timezone.localtime(timezone.now())
+            data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
+
+            cargo = "Usuário do Sistema"
+            parlamentar = None
+            try:
+                from sapl.parlamentares.models import Parlamentar
+                parlamentar = Parlamentar.objects.filter(
+                    usuario=request.user
+                ).first()
+                if parlamentar:
+                    cargo = "Vereador(a)"
+                    tipo_nome = AppConfig.attr('assinatura_nome')
+                    if tipo_nome == 'C':
+                        nome_assinante = parlamentar.nome_completo
+                    else:
+                        nome_assinante = parlamentar.nome_parlamentar
+            except:
+                pass
+
+            issuer_str = str(cert_info.issuer).upper()
+            if 'ICP-BRASIL' in issuer_str or 'ICP BRASIL' in issuer_str:
+                tipo_cert = "ICP-Brasil"
+            else:
+                tipo_cert = "Certificado Digital"
+
+            cpf = ""
+            try:
+                if parlamentar and parlamentar.cpf:
+                    cpf = parlamentar.cpf
+            except:
+                pass
+
+            if not cpf:
+                subject_str = str(cert_info.subject)
+                cpf_match = re.search(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}', subject_str)
+                if cpf_match:
+                    cpf = cpf_match.group()
+
+            data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+
+            # Criar carimbo visual e adicionar ao PDF ANTES de assinar
+            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+            page_box = last_page.mediaBox
+            page_width = float(page_box.getWidth())
+            page_height = float(page_box.getHeight())
+
+            stamp_buffer = io.BytesIO()
+            c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
+
+            y_pos = 15 * mm
+            x_pos = 10 * mm
+            largura_carimbo = 70 * mm
+            altura_carimbo = 22 * mm
+            logo_width = 18 * mm
+
+            c.setStrokeColorRGB(0.5, 0.5, 0.5)
+            c.setLineWidth(0.5)
+            c.rect(x_pos, y_pos, largura_carimbo, altura_carimbo)
+
+            c.setFont("Helvetica", 6)
+            c.setFillColorRGB(0.3, 0.3, 0.3)
+            c.drawString(x_pos + 3*mm, y_pos + 17*mm, "Assinado digitalmente por")
+
+            c.setFont("Helvetica-Bold", 7)
+            c.setFillColorRGB(0, 0, 0)
+            nome_upper = nome_assinante.upper()
+            if len(nome_upper) > 28:
+                nome_upper = nome_upper[:28] + "..."
+            c.drawString(x_pos + 3*mm, y_pos + 12*mm, nome_upper)
+
+            c.setFont("Helvetica", 6)
+            c.setFillColorRGB(0.3, 0.3, 0.3)
+            if cpf:
+                c.drawString(x_pos + 3*mm, y_pos + 7*mm, f"CPF: {cpf}")
+                c.drawString(x_pos + 3*mm, y_pos + 3*mm, f"Data: {data_simples}")
+            else:
+                c.drawString(x_pos + 3*mm, y_pos + 5*mm, f"Data: {data_simples}")
+
+            try:
+                logo_path = None
+                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+                possible_paths = [
+                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
+                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
+                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
+                    os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
+                    os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
+                ]
+
+                logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
+                if os.path.exists(logo_dir):
+                    for f in os.listdir(logo_dir):
+                        if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+                            possible_paths.insert(0, os.path.join(logo_dir, f))
+
+                for path in possible_paths:
+                    if os.path.exists(path):
+                        logo_path = path
+                        break
+
+                if logo_path:
+                    logo = ImageReader(logo_path)
+                    logo_x = x_pos + largura_carimbo - logo_width - 2*mm
+                    logo_y = y_pos + 2*mm
+                    c.drawImage(logo, logo_x, logo_y,
+                               width=logo_width, height=logo_width,
+                               preserveAspectRatio=True, mask='auto')
+            except Exception as logo_error:
+                logger.warning(f"Não foi possível adicionar logo: {logo_error}")
+
+            c.save()
+            stamp_buffer.seek(0)
+
+            stamp_pdf = PdfFileReader(stamp_buffer)
+            output_pdf = PdfFileWriter()
+
+            for page_num in range(original_pdf.getNumPages()):
+                page = original_pdf.getPage(page_num)
+                if page_num == original_pdf.getNumPages() - 1:
+                    page.mergePage(stamp_pdf.getPage(0))
+                output_pdf.addPage(page)
+
+            with open(temp_stamped_path, 'wb') as f:
+                output_pdf.write(f)
+
+            # Assinar o PDF que já contém o carimbo
+            with open(temp_stamped_path, 'rb') as stamped_file:
+                stamped_bytes = stamped_file.read()
+
+            signed_buffer = io.BytesIO()
+            with io.BytesIO(stamped_bytes) as inf:
+                w = IncrementalPdfFileWriter(inf)
+
+                meta = signers.PdfSignatureMetadata(
+                    field_name='AssinaturaDigital',
+                    location='Câmara Municipal',
+                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                    name=nome_assinante
+                )
+
+                signers.sign_pdf(
+                    w,
+                    meta,
+                    signer=signer,
+                    output=signed_buffer
+                )
+
+            signed_buffer.seek(0)
+            signed_pdf_content = signed_buffer.read()
+
+            filename = f"docacessorio_{docacessorio.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+            docacessorio.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
+
+            docacessorio.assinatura_info = {
+                'tipo_certificado': 'A1',
+                'tipo_certificado_display': f'{tipo_cert} – A1',
+                'subject': str(cert_info.subject),
+                'issuer': str(cert_info.issuer),
+                'serial': str(cert_info.serial_number),
+                'valid_from': cert_info.not_valid_before.isoformat(),
+                'valid_to': cert_info.not_valid_after.isoformat(),
+                'signed_by': request.user.username,
+                'nome_assinante': nome_assinante,
+                'cargo': cargo,
+                'data_assinatura': data_formatada,
+                'validade_juridica': 'Assinatura Eletrônica Qualificada'
+            }
+            docacessorio.assinado_em = timezone.now()
+            docacessorio.assinado_por = request.user
+            docacessorio.save()
+
+            logger.info(f"Documento acessório {docacessorio.pk} assinado por {request.user.username}")
+
+            return JsonResponse({
+                'success': True,
+                'message': 'PDF assinado com sucesso!',
+                'certificado': {
+                    'nome': str(cert_info.subject),
+                    'validade': cert_info.not_valid_after.strftime('%d/%m/%Y')
+                }
+            })
+
+        finally:
+            if os.path.exists(temp_stamped_path):
+                os.unlink(temp_stamped_path)
+
+    except ImportError:
+        logger.error("pyhanko não está instalado")
+        return JsonResponse({
+            'success': False,
+            'error': 'Biblioteca de assinatura não instalada. Contate o administrador.'
+        }, status=500)
+    except Exception as e:
+        logger.error(f"Erro ao assinar PDF do doc acessório: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Erro ao assinar o PDF: {str(e)}'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def docacessorio_pdf_assinado(request, pk):
+    """
+    Retorna o PDF assinado do documento acessório para download/visualização.
+    """
+    docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
+
+    if not docacessorio.pdf_assinado:
+        messages.error(request, 'Este documento não possui PDF assinado.')
+        return redirect('sapl.materia:documentoacessorio_detail',
+                        pk=docacessorio.materia.pk, dpk=pk)
+
+    try:
+        with open(docacessorio.pdf_assinado.path, 'rb') as f:
+            content = f.read()
+
+        filename = f"DocAcessorio_{docacessorio.pk}_{docacessorio.nome}_ASSINADO.pdf"
+        filename = filename.replace(' ', '_').replace('/', '-')
+
+        response = HttpResponse(content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+
+    except Exception as e:
+        logger.error(f"Erro ao ler PDF assinado do doc acessório: {e}")
+        messages.error(request, 'Erro ao ler o arquivo PDF assinado.')
+        return redirect('sapl.materia:documentoacessorio_detail',
+                        pk=docacessorio.materia.pk, dpk=pk)
+
+
+@login_required
+@require_http_methods(["GET"])
+def docacessorio_verificar_assinatura(request, pk):
+    """
+    Verifica a assinatura digital do PDF do documento acessório.
+    """
+    docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
+
+    if not docacessorio.pdf_assinado:
+        return JsonResponse({
+            'success': False,
+            'error': 'Este documento não possui PDF assinado.',
+            'assinado': False
+        })
+
+    try:
+        from pyhanko.sign.validation import validate_pdf_signature
+        from pyhanko.pdf_utils.reader import PdfFileReader
+
+        with open(docacessorio.pdf_assinado.path, 'rb') as f:
+            reader = PdfFileReader(f)
+
+            assinaturas = []
+
+            for sig_field_name in reader.embedded_signatures:
+                try:
+                    sig = reader.embedded_signatures[sig_field_name]
+
+                    sig_info = {
+                        'campo': sig_field_name,
+                        'assinante': str(sig.signer_cert.subject) if sig.signer_cert else 'Desconhecido',
+                        'data': sig.self_reported_timestamp.isoformat() if sig.self_reported_timestamp else None,
+                    }
+
+                    assinaturas.append(sig_info)
+
+                except Exception as sig_error:
+                    logger.warning(f"Erro ao verificar assinatura {sig_field_name}: {sig_error}")
+                    assinaturas.append({
+                        'campo': sig_field_name,
+                        'erro': str(sig_error)
+                    })
+
+            return JsonResponse({
+                'success': True,
+                'assinado': True,
+                'total_assinaturas': len(assinaturas),
+                'assinaturas': assinaturas,
+                'info_salva': docacessorio.assinatura_info
+            })
+
+    except ImportError:
+        return JsonResponse({
+            'success': True,
+            'assinado': True,
+            'info_salva': docacessorio.assinatura_info,
+            'verificacao_disponivel': False
+        })
+    except Exception as e:
+        logger.error(f"Erro ao verificar assinatura do doc acessório: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Erro ao verificar assinatura: {str(e)}',
+            'assinado': True,
+            'info_salva': docacessorio.assinatura_info
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def docacessorio_remover_assinatura(request, pk):
+    """
+    Remove a assinatura digital do documento acessório.
+    Apenas superusuários podem executar esta ação.
+    """
+    if not request.user.is_superuser:
+        return JsonResponse({
+            'success': False,
+            'error': 'Apenas administradores podem remover assinaturas.'
+        }, status=403)
+
+    docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
+
+    if not docacessorio.pdf_assinado:
+        return JsonResponse({
+            'success': False,
+            'error': 'Este documento não possui PDF assinado.'
+        }, status=400)
+
+    try:
+        docacessorio.pdf_assinado.delete(save=False)
+
+        docacessorio.pdf_assinado = None
+        docacessorio.assinatura_info = None
+        docacessorio.assinado_em = None
+        docacessorio.assinado_por = None
+        docacessorio.save()
+
+        logger.info(f"Assinatura do doc acessório {docacessorio.pk} removida por {request.user.username}")
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Assinatura removida com sucesso.'
+        })
+
+    except Exception as e:
+        logger.error(f"Erro ao remover assinatura do doc acessório: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': f'Erro ao remover assinatura: {str(e)}'
+        }, status=500)

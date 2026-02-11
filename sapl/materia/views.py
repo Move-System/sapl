@@ -1759,6 +1759,19 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
     class DetailView(MasterDetailCrud.DetailView):
         template_name = "materia/documentoacessorio_detail.html"
 
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            is_autor = False
+            if self.request.user.is_authenticated:
+                materia = self.object.materia
+                for autoria in materia.autoria_set.all():
+                    if autoria.autor.operadores.filter(
+                            id=self.request.user.id).exists():
+                        is_autor = True
+                        break
+            context['is_autor'] = is_autor
+            return context
+
     class ListView(MasterDetailCrud.ListView):
 
         def hook_arquivo(self, obj, default, url):

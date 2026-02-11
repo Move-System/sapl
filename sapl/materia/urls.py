@@ -48,7 +48,9 @@ from sapl.materia.onlyoffice_materia_views import (
 from sapl.materia.views_assinatura import (
     materia_assinar_a1, materia_assinar_a3_preparar, materia_assinar_a3_finalizar,
     materia_pdf_assinado, materia_verificar_assinatura, materia_remover_assinatura,
-    detectar_aplicacao_a3
+    detectar_aplicacao_a3,
+    docacessorio_assinar_a1, docacessorio_pdf_assinado,
+    docacessorio_verificar_assinatura, docacessorio_remover_assinatura
 )
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
@@ -191,6 +193,16 @@ urlpatterns_materia = [
         name='docacessorio_check_doc'),
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/forcesave$', docacessorio_forcesave,
         name='docacessorio_forcesave'),
+
+    # Assinatura Digital de Documento Acessório
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/assinar/a1/$', docacessorio_assinar_a1,
+        name='docacessorio_assinar_a1'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/pdf-assinado/$', docacessorio_pdf_assinado,
+        name='docacessorio_pdf_assinado'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/verificar-assinatura/$', docacessorio_verificar_assinatura,
+        name='docacessorio_verificar_assinatura'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/remover-assinatura/$', docacessorio_remover_assinatura,
+        name='docacessorio_remover_assinatura'),
 ]
 
 
