@@ -122,3 +122,15 @@ def custom_permission_denied_view(request, exception=None):
 
 
 handler403 = custom_permission_denied_view
+
+
+def custom_page_not_found_view(request, exception=None):
+    from django.shortcuts import redirect, render
+
+    if not request.user.is_authenticated:
+        return redirect('/login/')
+
+    return render(request, '404.html', status=404)
+
+
+handler404 = custom_page_not_found_view

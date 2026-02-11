@@ -64,6 +64,8 @@ def nav_run(context, path=None):
         """
 
         rm = request.resolver_match
+        if rm is None:
+            return {}
         app_template = rm.app_name.rsplit('.', 1)[-1]
 
         if path:

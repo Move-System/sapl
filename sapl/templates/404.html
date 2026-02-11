@@ -1,12 +1,149 @@
 {% extends "base.html" %}
 {% load i18n %}
 
-{% block head_title %}{% trans 'Página não encontrada! Erro 404' %}{% endblock %}
+{% block head_title %}{% trans 'Página não encontrada' %} - 404{% endblock %}
 
 {% block base_content %}
-<div class="container text-center" style="margin-top: 50px; margin-bottom: 50px;">
-  <h1><big>{% trans 'Página não encontrada! Erro 404' %}</big></h1>
-  <p>{% trans 'A página que você está procurando não foi encontrada.' %}</p>
-  <a href="/" class="btn btn-primary">{% trans 'Voltar para a página inicial' %}</a>
+<style>
+  .error-container {
+    text-align: center;
+    padding: 60px 20px;
+    min-height: 60vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .error-icon {
+    font-size: 120px;
+    color: #f39c12;
+    margin-bottom: 30px;
+    animation: float 2s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  .error-code {
+    font-size: 72px;
+    font-weight: bold;
+    color: #34495e;
+    margin: 0;
+    line-height: 1;
+  }
+
+  .error-title {
+    font-size: 32px;
+    color: #2c3e50;
+    margin: 20px 0;
+    font-weight: 600;
+  }
+
+  .error-message {
+    font-size: 18px;
+    color: #7f8c8d;
+    max-width: 600px;
+    margin: 20px auto;
+    line-height: 1.6;
+  }
+
+  .error-actions {
+    margin-top: 40px;
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .btn-error {
+    padding: 12px 30px;
+    font-size: 16px;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .btn-back {
+    background: #3498db;
+    color: white;
+    border: 2px solid #3498db;
+  }
+
+  .btn-back:hover {
+    background: #2980b9;
+    border-color: #2980b9;
+    color: white;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+
+  .btn-home {
+    background: white;
+    color: #3498db;
+    border: 2px solid #3498db;
+  }
+
+  .btn-home:hover {
+    background: #3498db;
+    color: white;
+    text-decoration: none;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  }
+
+  @media (max-width: 768px) {
+    .error-code {
+      font-size: 48px;
+    }
+
+    .error-title {
+      font-size: 24px;
+    }
+
+    .error-icon {
+      font-size: 80px;
+    }
+
+    .error-actions {
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .btn-error {
+      width: 100%;
+      max-width: 300px;
+      justify-content: center;
+    }
+  }
+</style>
+
+<div class="error-container">
+  <div class="error-icon">
+    <i class="fas fa-search"></i>
+  </div>
+
+  <h1 class="error-code">404</h1>
+  <h2 class="error-title">{% trans 'Página não encontrada' %}</h2>
+
+  <p class="error-message">
+    {% trans 'A página que você está procurando não existe ou foi movida.' %}
+  </p>
+
+  <div class="error-actions">
+    <a href="javascript:history.back()" class="btn-error btn-back">
+      <i class="fas fa-arrow-left"></i> {% trans 'Voltar' %}
+    </a>
+    <a href="/" class="btn-error btn-home">
+      <i class="fas fa-home"></i> {% trans 'Página Inicial' %}
+    </a>
+  </div>
 </div>
-{% endblock %}
+
+{% endblock base_content %}

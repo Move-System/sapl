@@ -266,7 +266,20 @@ def has_iframe(obj):
     session = getattr(obj, "session", None)
     if not session:
         return False
-    return bool(session.get("iframe", False))
+
+    iframe = session.get('iframe', False)
+    if not iframe and hasattr(obj, 'GET') and 'iframe' in obj.GET:
+        ival = obj.GET['iframe']
+        if ival and int(ival) == 1:
+            session['iframe'] = True
+            return True
+    elif hasattr(obj, 'GET') and 'iframe' in obj.GET:
+        ival = obj.GET['iframe']
+        if ival and int(ival) == 0:
+            del session['iframe']
+            return False
+
+    return iframe
 
 
 @register.filter
