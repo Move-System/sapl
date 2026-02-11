@@ -184,8 +184,11 @@ def resolve_urls_inplace(menu, pk, rm, context):
                             logger.error(log)
                             raise Exception(log)
 
-                menu['active'] = 'active'\
-                    if context['request'].path == menu['url'] else ''
+                #menu['active'] = 'active'\
+                    #if context['request'].path == menu['url'] else ''
+                req = context.get('request')
+                menu['active'] = 'active' if req and req.path == menu['url'] else ''
+
                 if not menu['active']:
                     """
                     Se não encontrada diretamente,

@@ -1,5 +1,6 @@
 #REQUIREMENTS ORIGINAL DO PROJETO SAPL
 django==2.2.28
+django-debug-toolbar==2.2.1
 django-haystack==3.1.1
 django-filter==2.4.0
 djangorestframework==3.12.4
@@ -52,3 +53,8 @@ cryptography>=41.0.0
 
 
 git+https://github.com/interlegis/django-admin-bootstrapped
+
+setuptools==80.10.2
+pycairo=1.29.0
+freetype-py==2.5.1
+rlPyCairo==0.4.0

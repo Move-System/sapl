@@ -1,6 +1,8 @@
 import collections
 import html
 import logging
+logger = logging.getLogger(__name__)
+
 import re
 from datetime import datetime as dt, datetime
 
@@ -1764,17 +1766,20 @@ def gera_etiqueta_ml(materia_legislativa, base_url):
 
 
 def etiqueta_materia_legislativa(request, pk):
-    base_url = request.build_absolute_uri()
-    materia_legislativa = MateriaLegislativa.objects.get(pk=pk)
+    try:
+        base_url = request.build_absolute_uri()
+        materia_legislativa = MateriaLegislativa.objects.get(pk=pk)
 
-    pdf_file = gera_etiqueta_ml(materia_legislativa, base_url)
+        pdf_file = gera_etiqueta_ml(materia_legislativa, base_url)
 
-    response = HttpResponse(content_type='application/pdf;')
-    response['Content-Disposition'] = 'inline; filename=etiqueta.pdf'
-    response['Content-Transfer-Encoding'] = 'binary'
-    response.write(pdf_file)
-
-    return response
+        response = HttpResponse(content_type="application/pdf;")
+        response["Content-Disposition"] = "inline; filename=etiqueta.pdf"
+        response["Content-Transfer-Encoding"] = "binary"
+        response.write(pdf_file)
+        return response
+    except Exception:
+        logger.exception("ERRO etiqueta_materia_legislativa pk=%s", pk)
+        raise
 
 
 def relatorio_materia_tramitacao(request, pk):
