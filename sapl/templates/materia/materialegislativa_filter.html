@@ -13,6 +13,9 @@
       {% with 'sapl.materia:pesquisar_materia' as url_reverse %}
         {% include "crud/format_options.html" %}
       {% endwith %}
+      <button id="btn-download-todos-pdfs" class="btn btn-outline-secondary" title="Baixar todos os PDFs das matérias filtradas">
+        <i class="fas fa-download"></i>
+      </button>
     </div>
   {% endif %}
 
@@ -204,7 +207,15 @@
                       </a>
                       </br>
                   {% endif %}
-                  {% if m.texto_original %}<strong><a href="{{m.texto_original.url}}">Texto Original</a></strong></br>{% endif %}
+                  {% if m.texto_original %}
+                    <strong>
+                      <a href="{{m.texto_original.url}}" 
+                         {% if m.pdf_assinado %}data-pdf-assinado="{{m.pdf_assinado.url}}"{% endif %}>
+                        Texto Original
+                      </a>
+                    </strong>
+                    </br>
+                  {% endif %}
                   {% if m.texto_articulado.exists %}<strong><a href="{% url 'sapl.materia:materia_ta' m.id%}">Texto Articulado</a></strong></br>{% endif %}
                   {% if m.normajuridica_set.exists %}
                       {% for nr in m.normajuridica_set.all %}

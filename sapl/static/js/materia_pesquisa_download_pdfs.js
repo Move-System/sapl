@@ -1,12 +1,13 @@
 /*
  * Adiciona botões de download ao lado do link "Texto Original" 
  * na tela de resultados de pesquisa de matérias.
+ * Também adiciona botão para baixar todos os PDFs em lote.
  */
 
 (function () {
   function downloadFile(url, filename) {
     // Usa fetch para baixar o arquivo como blob e forçar download
-    fetch(url)
+    return fetch(url)
       .then(response => {
         if (!response.ok) {
           throw new Error('Erro ao baixar arquivo');
@@ -32,9 +33,80 @@
       })
       .catch(error => {
         console.error('Erro ao baixar PDF:', error);
-        // Fallback: abre em nova aba se o download falhar
-        window.open(url, '_blank');
+        throw error;
       });
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async function downloadAllPDFs() {
+    const btn = document.getElementById('btn-download-todos-pdfs');
+    if (!btn) return;
+
+    // Coleta todos os links de "Texto Original"
+    const strongElements = Array.from(document.querySelectorAll('strong'));
+    const pdfList = [];
+
+    strongElements.forEach((strong) => {
+      const link = strong.querySelector('a');
+      if (!link || link.textContent.trim() !== 'Texto Original') return;
+
+      const pdfAssinadoUrl = link.getAttribute('data-pdf-assinado');
+      const textoOriginalUrl = link.getAttribute('href');
+      const pdfUrl = pdfAssinadoUrl || textoOriginalUrl;
+
+      if (!pdfUrl) return;
+
+      let filename = pdfUrl.split('/').pop() || 'texto_original.pdf';
+      if (pdfAssinadoUrl && !filename.includes('assinado')) {
+        const parts = filename.split('.');
+        if (parts.length > 1) {
+          parts[parts.length - 2] += '_assinado';
+          filename = parts.join('.');
+        }
+      }
+
+      pdfList.push({ url: pdfUrl, filename: filename });
+    });
+
+    if (pdfList.length === 0) {
+      alert('Nenhum PDF encontrado para download.');
+      return;
+    }
+
+    // Desabilita o botão e mostra progresso
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Baixando...';
+
+    let downloaded = 0;
+    let errors = 0;
+
+    for (const pdf of pdfList) {
+      try {
+        await downloadFile(pdf.url, pdf.filename);
+        downloaded++;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Baixando ${downloaded}/${pdfList.length}...`;
+        // Delay entre downloads para não sobrecarregar o navegador
+        await sleep(500);
+      } catch (error) {
+        errors++;
+        console.error(`Erro ao baixar ${pdf.filename}:`, error);
+      }
+    }
+
+    // Restaura o botão
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+
+    // Mostra mensagem de conclusão
+    if (errors === 0) {
+      alert(`✅ Download concluído! ${downloaded} PDF(s) baixado(s) com sucesso.`);
+    } else {
+      alert(`⚠️ Download concluído com erros!\n${downloaded} PDF(s) baixado(s)\n${errors} erro(s)`);
+    }
   }
 
   function injectButtons() {
@@ -49,17 +121,37 @@
       if (strong.nextSibling && strong.nextSibling.nodeType === Node.ELEMENT_NODE 
           && strong.nextSibling.hasAttribute('data-sapl-download-pdf-btn')) return;
 
-      const pdfUrl = link.getAttribute('href');
+      // Prioriza PDF assinado se existir, senão usa texto original
+      const pdfAssinadoUrl = link.getAttribute('data-pdf-assinado');
+      const textoOriginalUrl = link.getAttribute('href');
+      const pdfUrl = pdfAssinadoUrl || textoOriginalUrl;
+      
       if (!pdfUrl) return;
 
-      // extrai nome do arquivo da URL
-      const filename = pdfUrl.split('/').pop() || 'texto_original.pdf';
+      // extrai nome do arquivo da URL e adiciona sufixo se for assinado
+      let filename = pdfUrl.split('/').pop() || 'texto_original.pdf';
+      if (pdfAssinadoUrl && !filename.includes('assinado')) {
+        const parts = filename.split('.');
+        if (parts.length > 1) {
+          parts[parts.length - 2] += '_assinado';
+          filename = parts.join('.');
+        }
+      }
 
       // cria botão com ícone FontAwesome
       const btn = document.createElement('a');
       btn.setAttribute('data-sapl-download-pdf-btn', '1');
       btn.className = 'btn btn-sm btn-outline-primary ml-1';
-      btn.title = 'Baixar PDF';
+      
+      // Define título e estilo diferente se for PDF assinado
+      if (pdfAssinadoUrl) {
+        btn.title = 'Baixar PDF Assinado';
+        btn.classList.add('btn-success'); // Verde para PDF assinado
+        btn.classList.remove('btn-outline-primary');
+      } else {
+        btn.title = 'Baixar PDF';
+      }
+      
       btn.href = 'javascript:void(0);';
       btn.innerHTML = '<i class="fas fa-download"></i>';
       
@@ -82,4 +174,15 @@
   } else {
     injectButtons();
   }
+
+  // Adiciona listener para o botão de download em lote
+  document.addEventListener('DOMContentLoaded', function() {
+    const btnDownloadAll = document.getElementById('btn-download-todos-pdfs');
+    if (btnDownloadAll) {
+      btnDownloadAll.addEventListener('click', function(e) {
+        e.preventDefault();
+        downloadAllPDFs();
+      });
+    }
+  });
 })();
