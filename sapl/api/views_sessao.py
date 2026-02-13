@@ -85,18 +85,31 @@ class _SessaoPlenariaViewSet:
         def material_item(m: MateriaLegislativa, status_sessao: str,
                           extra: dict = None):
             extra = extra or {}
+            
+            # Prioriza PDF assinado, depois texto original, depois documentos acessórios
             pdf_url = None
+            pdf_assinado_url = None
+            
             try:
-                if m.documentoacessorio_set.filter(arquivo__iendswith='pdf').exists():
+                # 1. Verifica se existe PDF assinado
+                if m.pdf_assinado:
+                    pdf_assinado_url = request.build_absolute_uri(m.pdf_assinado.url)
+                    pdf_url = pdf_assinado_url
+                # 2. Se não, verifica texto original
+                elif m.texto_original:
+                    pdf_url = request.build_absolute_uri(m.texto_original.url)
+                # 3. Fallback: documentos acessórios em PDF
+                elif m.documentoacessorio_set.filter(arquivo__iendswith='pdf').exists():
                     pdf_url = request.build_absolute_uri(
                         reverse('sapl.materia:merge_docacessorios', kwargs={'pk': m.pk})
                     )
             except Exception:
                 pdf_url = None
+                pdf_assinado_url = None
 
             status_tram, fase_materia = tramitacao_info(m)
 
-            return {
+            result = {
                 'id_materia': m.pk,
                 'nome_documento': str(m),
                 'autoria': autores_info(m),
@@ -116,6 +129,15 @@ class _SessaoPlenariaViewSet:
                 ),
                 **extra
             }
+            
+            # Adiciona campo indicando se é PDF assinado
+            if pdf_assinado_url:
+                result['pdf_assinado'] = True
+                result['pdf_assinado_url'] = pdf_assinado_url
+            else:
+                result['pdf_assinado'] = False
+            
+            return result
 
         expediente_items = []
         momentos_items = []
