@@ -16,6 +16,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
 from django.contrib.auth.mixins import PermissionRequiredMixin
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned, ValidationError
 from django.db.models import Max, Q
 from django.http import HttpResponse, JsonResponse
@@ -50,7 +51,8 @@ from sapl.materia.forms import (AnexadaForm, AutoriaForm, AutoriaMultiCreateForm
                                 MateriaPesquisaSimplesForm, OrgaoForm, ProposicaoForm,
                                 TipoProposicaoForm, TramitacaoForm, TramitacaoUpdateForm, ConfigEtiquetaMateriaLegislativaForms)
 from sapl.norma.models import LegislacaoCitada
-from sapl.parlamentares.models import Legislatura
+from sapl.parlamentares.models import (
+    ComposicaoMesa, Legislatura, SessaoLegislativa)
 from sapl.protocoloadm.models import Protocolo
 from sapl.settings import MAX_DOC_UPLOAD_SIZE, MEDIA_ROOT, RATE_LIMITER_RATE
 from sapl.utils import (autor_label, autor_modal, gerar_hash_arquivo, get_base_url,
@@ -1763,6 +1765,7 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
             context = super().get_context_data(**kwargs)
             u = self.request.user
             is_autor = False
+            is_presidente = False
             if u.is_authenticated:
                 materia = self.object.materia
                 for autoria in materia.autoria_set.all():
@@ -1770,8 +1773,38 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
                             id=u.id).exists():
                         is_autor = True
                         break
+
+                # Verifica se o usuário é operador do presidente
+                # da Mesa Diretora vigente
+                hoje = timezone.now().date()
+                sessao_leg = SessaoLegislativa.objects.filter(
+                    data_inicio__lte=hoje,
+                    data_fim__gte=hoje
+                ).first()
+                if sessao_leg:
+                    mesa = sessao_leg.mesadiretora_set.filter(
+                        data_inicio__lte=hoje,
+                        data_fim__gte=hoje
+                    ).order_by('-data_inicio').first()
+                    if not mesa:
+                        mesa = sessao_leg.mesadiretora_set.order_by(
+                            '-data_inicio').first()
+                    if mesa:
+                        presidente = ComposicaoMesa.objects.filter(
+                            mesa_diretora=mesa,
+                            cargo__descricao='Presidente'
+                        ).select_related('parlamentar').first()
+                        if presidente:
+                            ct = ContentType.objects.get_for_model(
+                                presidente.parlamentar)
+                            is_presidente = Autor.objects.filter(
+                                content_type=ct,
+                                object_id=presidente.parlamentar.pk,
+                                operadores=u
+                            ).exists()
+
             context['is_autor'] = is_autor
-            context['pode_assinar'] = is_autor or (
+            context['pode_assinar'] = is_autor or is_presidente or (
                 u.is_authenticated and (
                     u.is_superuser or
                     u.has_perm('materia.change_documentoacessorio')
