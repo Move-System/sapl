@@ -1,4 +1,4 @@
-from sapl.rules import SGVP_GROUP_LOGIN_SOCIAL
+from sapl.rules import SGVP_GROUP_LOGIN_SOCIAL, SGVP_GROUP_PRESIDENTE_MESA
 from sapl.rules.group_administrativo import rules_group_administrativo
 from sapl.rules.group_anonymous import rules_group_anonymous
 from sapl.rules.group_audiencia import rules_group_audiencia
@@ -11,6 +11,11 @@ from sapl.rules.group_painel import rules_group_painel
 from sapl.rules.group_protocolo import rules_group_protocolo
 from sapl.rules.group_sessao import rules_group_sessao
 from sapl.rules.group_votante import rules_group_votante
+
+rules_group_presidente_mesa = {
+    'group': SGVP_GROUP_PRESIDENTE_MESA,
+    'rules': []
+}
 
 rules_group_login_social = {
     'group': SGVP_GROUP_LOGIN_SOCIAL,
@@ -93,6 +98,7 @@ rules_patterns = [
     rules_group_geral,
     rules_group_autor,
     rules_group_votante,
+    rules_group_presidente_mesa,
 
     rules_group_anonymous,  # anotação para validação do teste de rules
     rules_group_login_social  # TODO não implementado

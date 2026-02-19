@@ -66,6 +66,7 @@ SGVP_GROUP_PAINEL = _("Operador de Painel Eletrônico")
 SGVP_GROUP_GERAL = _("Operador Geral")
 SGVP_GROUP_AUTOR = _("Autor")
 SGVP_GROUP_VOTANTE = _("Votante")
+SGVP_GROUP_PRESIDENTE_MESA = _("Presidente da Mesa Diretora")
 
 # TODO - funcionalidade ainda não existe mas está aqui para efeito de anotação
 SGVP_GROUP_LOGIN_SOCIAL = _("Usuários com Login Social")
@@ -86,6 +87,7 @@ SGVP_GROUPS = [
     SGVP_GROUP_GERAL,
     SGVP_GROUP_AUTOR,
     SGVP_GROUP_VOTANTE,
+    SGVP_GROUP_PRESIDENTE_MESA,
     SGVP_GROUP_LOGIN_SOCIAL,
     SGVP_GROUP_ANONYMOUS,
 ]

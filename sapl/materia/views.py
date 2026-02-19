@@ -1766,6 +1766,7 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
             u = self.request.user
             is_autor = False
             is_presidente = False
+            is_grupo_presidente = False
             if u.is_authenticated:
                 materia = self.object.materia
                 for autoria in materia.autoria_set.all():
@@ -1803,11 +1804,19 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
                                 operadores=u
                             ).exists()
 
+                # Verifica também pelo grupo "Presidente da Mesa Diretora"
+                from sapl.rules import SGVP_GROUP_PRESIDENTE_MESA
+                is_grupo_presidente = u.groups.filter(
+                    name=SGVP_GROUP_PRESIDENTE_MESA
+                ).exists()
+
             context['is_autor'] = is_autor
-            context['pode_assinar'] = is_autor or is_presidente or (
-                u.is_authenticated and (
-                    u.is_superuser or
-                    u.has_perm('materia.change_documentoacessorio')
+            context['pode_assinar'] = (
+                is_autor or is_presidente or is_grupo_presidente or (
+                    u.is_authenticated and (
+                        u.is_superuser or
+                        u.has_perm('materia.change_documentoacessorio')
+                    )
                 )
             )
             return context
