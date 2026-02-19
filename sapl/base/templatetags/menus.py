@@ -125,93 +125,73 @@ def resolve_urls_inplace(menu, pk, rm, context):
                 if not req or not req.user.has_perm(menu['check_permission']):
                     return ''
 
-                menu['url'] = ''
-                menu['active'] = ''
-            else:
-                if '/' in url_name:
-                    pass
-                elif ':' in url_name:
+            if '/' in url_name:
+                pass
+            elif ':' in url_name:
+                try:
+                    menu['url'] = reverse('%s' % menu['url'])
+                except:
                     try:
-                        menu['url'] = reverse('%s' % menu['url'])
+                        menu['url'] = reverse('%s' % menu['url'],
+                                              kwargs={'pk': pk})
                     except:
-                        try:
-                            menu['url'] = reverse('%s' % menu['url'],
-                                                  kwargs={'pk': pk})
-                        except:
-                            # tem que ser root_pk pois quando está sendo
-                            # renderizado um detail, update, delete
-                            # e ainda sim é necessário colocar o menu,
-                            # nestes, casos o pk da url é do detail, e não
-                            # do master, porém, os menus do subnav, apontam para
-                            # outras áreas que as urls destas são construídas
-                            # com pk do master, e não do detail... por isso
-                            # no contexto deve ter, ou root_pk, ou object
-                            # sendo que qualquer um dos dois,deverá ser o
-                            # master.
-                            # Estes detalhes são relevantes quando usa-se
-                            # o menu isolado. Por outro lado, quando usado
-                            # conjuntamente com o crud, este configura o contexto
-                            # como se deve para o menus.py
-                            log = """
-                            Erro na construção do Menu:
-                            menu: {}
-                            url: {}
-                            1) Verifique se a url existe 
-                            2) Se existe no contexto um desses itens:
-                                - context['root_pk'] pk do master
-                                - context['object'] objeto do master
-                            """.format(menu['title'], menu['url'])
-                            logger.error(log)
-                            raise Exception(log)
-
-                else:
+                        log = """
+                        Erro na construção do Menu:
+                        menu: {}
+                        url: {}
+                        1) Verifique se a url existe
+                        2) Se existe no contexto um desses itens:
+                            - context['root_pk'] pk do master
+                            - context['object'] objeto do master
+                        """.format(menu['title'], menu['url'])
+                        logger.error(log)
+                        raise Exception(log)
+            else:
+                try:
+                    menu['url'] = reverse('%s:%s' % (
+                        rm.app_name, menu['url']))
+                except:
                     try:
                         menu['url'] = reverse('%s:%s' % (
-                            rm.app_name, menu['url']))
+                            rm.app_name, menu['url']), kwargs={'pk': pk})
                     except:
-                        try:
-                            menu['url'] = reverse('%s:%s' % (
-                                rm.app_name, menu['url']), kwargs={'pk': pk})
-                        except:
-                            log = """Erro na construção do Menu:
-                            menu: {}
-                            url: {}
-                            1) Verifique se a url existe 
-                            2) Se existe no contexto um desses itens:
-                                - context['root_pk'] pk do master
-                                - context['object'] objeto do master
-                            """.format(menu['title'], menu['url'])
-                            logger.error(log)
-                            raise Exception(log)
+                        log = """Erro na construção do Menu:
+                        menu: {}
+                        url: {}
+                        1) Verifique se a url existe
+                        2) Se existe no contexto um desses itens:
+                            - context['root_pk'] pk do master
+                            - context['object'] objeto do master
+                        """.format(menu['title'], menu['url'])
+                        logger.error(log)
+                        raise Exception(log)
 
-                #menu['active'] = 'active'\
-                    #if context['request'].path == menu['url'] else ''
-                req = context.get('request')
-                menu['active'] = 'active' if req and req.path == menu['url'] else ''
+            req = context.get('request')
+            menu['active'] = 'active' if req and req.path == menu['url'] else ''
 
-                if not menu['active']:
-                    """
-                    Se não encontrada diretamente,
-                    procura a url acionada dentro do crud, caso seja um.
-                    Serve para manter o active no subnav correto ao acionar
-                    as funcionalidades diretas do MasterDetailCrud, como:
-                    - visualização de detalhes, adição, edição, remoção.
-                    """
-                    try:
-                        if 'view' in context:
-                            view = context['view']
-                            if hasattr(view, 'crud'):
-                                urls = view.crud.get_urls()
-                                for u in urls:
-                                    if (u.name == url_name or
-                                            'urls_extras' in menu and
-                                            u.name in menu['urls_extras']):
-                                        menu['active'] = 'active'
-                                        break
-                    except:
-                        url_active = menu.get('url', '')
-                        logger.warning(
-                            f'Não foi possível definir se url {url_active} é a url ativa.')
+            if not menu['active']:
+                """
+                Se não encontrada diretamente,
+                procura a url acionada dentro do crud, caso seja um.
+                Serve para manter o active no subnav correto ao acionar
+                as funcionalidades diretas do MasterDetailCrud, como:
+                - visualização de detalhes, adição, edição, remoção.
+                """
+                try:
+                    if 'view' in context:
+                        view = context['view']
+                        if hasattr(view, 'crud'):
+                            urls = view.crud.get_urls()
+                            for u in urls:
+                                if (u.name == url_name or
+                                        'urls_extras' in menu and
+                                        u.name in menu['urls_extras']):
+                                    menu['active'] = 'active'
+                                    break
+                except:
+                    url_active = menu.get('url', '')
+                    logger.warning(
+                        f'Não foi possível definir se url {url_active} é a url ativa.')
         elif 'check_permission' in menu and not context[
                 'request'].user.has_perm(menu['check_permission']):
             menu['active'] = ''
