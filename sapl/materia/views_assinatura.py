@@ -203,6 +203,12 @@ def materia_assinar_a1(request, pk):
                 'error': f'Erro ao carregar certificado: {error_detail}'
             }, status=400)
 
+        if signer is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'Não foi possível carregar o certificado. Verifique se o arquivo .pfx/.p12 é válido e contém uma chave de assinatura.'
+            }, status=400)
+
         # Verifica validade do certificado
         cert_info = signer.signing_cert
         now = timezone.now()
@@ -973,6 +979,12 @@ def docacessorio_assinar_a1(request, pk):
             return JsonResponse({
                 'success': False,
                 'error': f'Erro ao carregar certificado: {error_detail}'
+            }, status=400)
+
+        if signer is None:
+            return JsonResponse({
+                'success': False,
+                'error': 'Não foi possível carregar o certificado. Verifique se o arquivo .pfx/.p12 é válido e contém uma chave de assinatura.'
             }, status=400)
 
         cert_info = signer.signing_cert
