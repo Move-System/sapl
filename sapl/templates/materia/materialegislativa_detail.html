@@ -2,35 +2,40 @@
 {% load i18n tz common_tags %}
 
 {% block sub_actions %}
-    {{ block.super }}
-    <div class="d-flex flex-wrap align-items-center mt-1" style="gap: 0.35rem;">
+    <div class="actions btn-group btn-group-sm flex-wrap" role="group">
+        {% if view.list_url %}
+            <a href="{{ view.list_url }}" class="btn btn-outline-primary">{% trans 'Listar' %} {{view.verbose_name_plural}}</a>
+        {% endif %}
+        {% if view.search_url %}
+            <a href="{{ view.search_url }}" class="btn btn-outline-primary">{% trans 'Fazer Nova Pesquisa' %}</a>
+        {% endif %}
         {% if object.em_tramitacao and mail_service_configured and google_recaptcha_configured %}
-            <a href="{% url 'sapl.materia:acompanhar_materia' object.id %}" class="btn btn-sm btn-outline-primary">
+            <a href="{% url 'sapl.materia:acompanhar_materia' object.id %}" class="btn btn-outline-primary">
                 <i class="fa fa-bell"></i> {% trans "Acompanhar Matéria" %}
             </a>
         {% endif %}
         {% if is_autor and not object.numero_protocolo or can_edit_materia %}
-            <a class="btn btn-sm btn-primary" href="{% url 'sapl.materia:materia_onlyoffice_editor' object.pk %}">
+            <a class="btn btn-primary" href="{% url 'sapl.materia:materia_onlyoffice_editor' object.pk %}">
                 <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
             </a>
         {% endif %}
         {% if object.numero_protocolo and object.texto_original %}
             {% if object.pdf_assinado %}
-                <a class="btn btn-sm btn-success" href="{% url 'sapl.materia:materia_pdf_assinado' object.pk %}" target="_blank">
+                <a class="btn btn-success" href="{% url 'sapl.materia:materia_pdf_assinado' object.pk %}" target="_blank">
                     <i class="fa fa-check-circle"></i> {% trans "Ver PDF Assinado" %}
                 </a>
             {% endif %}
             {% if is_autor and not ja_assinou %}
-                <button type="button" class="btn btn-sm btn-warning" data-toggle="modal" data-target="#assinaturaModal">
+                <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#assinaturaModal">
                     <i class="fa fa-certificate"></i> {% trans "Assinar PDF Digitalmente" %}
                 </button>
             {% endif %}
         {% endif %}
         {% if object.documentoacessorio_set.all.exists %}
-            <a class="btn btn-sm btn-danger" href="{% url 'sapl.materia:pdf_completo_materia' object.pk %}" title="{% trans 'Mescla matéria e acessórios em um único PDF' %}">
+            <a class="btn btn-danger" href="{% url 'sapl.materia:pdf_completo_materia' object.pk %}" title="{% trans 'Mescla matéria e acessórios em um único PDF' %}">
                 <i class="fa fa-file-pdf-o"></i> {% trans "Todos em PDF" %}
             </a>
-            <a class="btn btn-sm btn-secondary" href="{% url 'sapl.materia:zip_completo_materia' object.pk %}" title="{% trans 'Baixa matéria e acessórios em arquivos separados (ZIP)' %}">
+            <a class="btn btn-secondary" href="{% url 'sapl.materia:zip_completo_materia' object.pk %}" title="{% trans 'Baixa matéria e acessórios em arquivos separados (ZIP)' %}">
                 <i class="fa fa-file-archive-o"></i> {% trans "Todos em ZIP" %}
             </a>
         {% endif %}
@@ -219,6 +224,12 @@
                 <a href="https://validar.iti.gov.br/" class="btn btn-sm btn-outline-info" target="_blank">
                   <i class="fa fa-external-link"></i> {% trans "Validar no ITI" %}
                 </a>
+                {% if object.codigo_autenticacao %}
+                <a href="{% url 'sapl.materia:materia_verificar_documento' object.pk %}?codigo={{ object.codigo_autenticacao }}"
+                   class="btn btn-sm btn-outline-primary" target="_blank">
+                  <i class="fa fa-qrcode"></i> {% trans "Verificar Autenticidade" %}
+                </a>
+                {% endif %}
               </div>
             </div>
           </div>

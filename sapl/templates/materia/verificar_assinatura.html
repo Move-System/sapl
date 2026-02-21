@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block head_title %}{% trans "Verificação de Autenticidade" %} - {{ tipo_documento }}{% endblock %}
+
+{% block base_content %}
+<div class="container mt-4 mb-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <h3 class="text-center mb-4">
+        <i class="fa fa-shield"></i> {% trans "Verificação de Autenticidade" %}
+      </h3>
+
+      {% if valido %}
+        {# Status: VÁLIDO #}
+        <div class="card border-success mb-4">
+          <div class="card-header bg-success text-white text-center">
+            <h4 class="mb-0">
+              <i class="fa fa-check-circle"></i> {% trans "Documento Autêntico" %}
+            </h4>
+          </div>
+          <div class="card-body">
+            <p class="text-center text-success mb-0">
+              {% trans "O código de autenticação informado é válido. Este documento foi assinado digitalmente e sua integridade está confirmada." %}
+            </p>
+          </div>
+        </div>
+      {% elif codigo_informado %}
+        {# Status: INVÁLIDO #}
+        <div class="card border-danger mb-4">
+          <div class="card-header bg-danger text-white text-center">
+            <h4 class="mb-0">
+              <i class="fa fa-times-circle"></i> {% trans "Código Inválido" %}
+            </h4>
+          </div>
+          <div class="card-body">
+            <p class="text-center text-danger mb-0">
+              {% trans "O código de autenticação informado NÃO corresponde a este documento. O documento pode ter sido alterado ou o código está incorreto." %}
+            </p>
+          </div>
+        </div>
+      {% else %}
+        {# Sem código informado #}
+        <div class="card border-warning mb-4">
+          <div class="card-header bg-warning text-center">
+            <h4 class="mb-0">
+              <i class="fa fa-exclamation-triangle"></i> {% trans "Código não informado" %}
+            </h4>
+          </div>
+          <div class="card-body">
+            <p class="text-center mb-0">
+              {% trans "Nenhum código de autenticação foi informado para verificação." %}
+            </p>
+          </div>
+        </div>
+      {% endif %}
+
+      {# Dados do Documento #}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0"><i class="fa fa-file-text"></i> {% trans "Dados do Documento" %}</h5>
+        </div>
+        <div class="card-body">
+          <table class="table table-sm table-borderless mb-0">
+            <tr>
+              <th style="width: 200px;">{% trans "Tipo" %}</th>
+              <td>{{ tipo_documento }}</td>
+            </tr>
+            <tr>
+              <th>{% trans "Documento" %}</th>
+              <td>{{ descricao_documento }}</td>
+            </tr>
+            {% if ementa %}
+            <tr>
+              <th>{% trans "Ementa" %}</th>
+              <td>{{ ementa }}</td>
+            </tr>
+            {% endif %}
+            {% if codigo_autenticacao %}
+            <tr>
+              <th>{% trans "Código de Autenticação" %}</th>
+              <td><code>{{ codigo_autenticacao }}</code></td>
+            </tr>
+            {% endif %}
+          </table>
+        </div>
+      </div>
+
+      {# Lista de Assinaturas #}
+      {% if assinaturas %}
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5 class="mb-0">
+            <i class="fa fa-certificate"></i> {% trans "Assinaturas Digitais" %}
+            <span class="badge badge-primary ml-1">{{ assinaturas|length }}</span>
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          <table class="table table-striped mb-0">
+            <thead>
+              <tr>
+                <th>{% trans "Assinante" %}</th>
+                <th>{% trans "Cargo" %}</th>
+                <th>{% trans "Data/Hora" %}</th>
+                <th>{% trans "Certificado" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for assinatura in assinaturas %}
+              <tr>
+                <td><strong>{{ assinatura.nome_assinante }}</strong></td>
+                <td>{{ assinatura.cargo }}</td>
+                <td>{{ assinatura.data_assinatura }}</td>
+                <td>{{ assinatura.tipo_certificado_display }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Links úteis #}
+      <div class="text-center mt-4">
+        <a href="https://validar.iti.gov.br/" class="btn btn-outline-info" target="_blank">
+          <i class="fa fa-external-link"></i> {% trans "Validar assinatura no ITI (validar.iti.gov.br)" %}
+        </a>
+      </div>
+
+      <p class="text-muted text-center mt-3 small">
+        {% trans "Documento assinado digitalmente nos termos da Medida Provisória nº 2.200-2/2001." %}
+      </p>
+
+    </div>
+  </div>
+</div>
+{% endblock base_content %}

@@ -50,6 +50,7 @@ requests==2.31.0
 pyhanko==0.21.0
 pyhanko-certvalidator==0.26.3
 cryptography>=41.0.0
+qrcode[pil]==7.4.2
 
 
 git+https://github.com/interlegis/django-admin-bootstrapped

@@ -333,6 +333,11 @@ class MateriaLegislativa(models.Model):
         blank=True,
         related_name='materias_assinadas'
     )
+    codigo_autenticacao = models.CharField(
+        max_length=16, blank=True, null=True,
+        verbose_name=_('Código de Autenticação'),
+        db_index=True
+    )
 
     class Meta:
         verbose_name = _('Matéria Legislativa')
@@ -617,6 +622,11 @@ class DocumentoAcessorio(models.Model):
         null=True,
         blank=True,
         related_name='docacessorios_assinados'
+    )
+    codigo_autenticacao = models.CharField(
+        max_length=16, blank=True, null=True,
+        verbose_name=_('Código de Autenticação'),
+        db_index=True
     )
 
     class Meta:

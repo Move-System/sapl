@@ -2,6 +2,7 @@
 Views para assinatura digital de PDFs de Matérias Legislativas.
 Suporta certificados A1 (arquivo .pfx/.p12) e A3 (token USB/smartcard).
 """
+import hashlib
 import io
 import json
 import logging
@@ -14,13 +15,15 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from sapl.base.models import AppConfig
 from sapl.materia.models import DocumentoAcessorio, MateriaLegislativa
+from sapl.utils import build_onlyoffice_url
 
 logger = logging.getLogger(__name__)
 
@@ -34,18 +37,348 @@ def _normalizar_assinatura_info(info):
     return info
 
 
-def _calcular_posicao_carimbo(n):
-    """
-    Calcula posição (x, y) do n-ésimo carimbo (n começa em 0).
-    Layout em grade: 2 colunas, múltiplas linhas.
-    """
-    from reportlab.lib.units import mm
-    col = n % 2
-    row = n // 2
-    x = (10 + col * 75) * mm
-    y = (15 + row * 25) * mm
-    return x, y
+# =============================================================================
+# Funções auxiliares para página de autenticação
+# =============================================================================
 
+def _gerar_codigo_autenticacao(pdf_bytes):
+    """Gera código de autenticação SHA-256 truncado (16 caracteres hex)."""
+    return hashlib.sha256(pdf_bytes).hexdigest()[:16].upper()
+
+
+def _gerar_qrcode_image(url):
+    """Gera imagem PNG de QR Code em memória (BytesIO)."""
+    import qrcode
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    return buf
+
+
+def _construir_url_verificacao(request, tipo, pk, codigo):
+    """Monta URL pública de verificação."""
+    if tipo == 'materia':
+        url_name = 'sapl.materia:materia_verificar_documento'
+    else:
+        url_name = 'sapl.materia:docacessorio_verificar_documento'
+
+    base_url = request.build_absolute_uri(
+        reverse(url_name, kwargs={'pk': pk})
+    )
+    return f'{base_url}?codigo={codigo}'
+
+
+def _obter_nome_casa_legislativa():
+    """Obtém o nome da Casa Legislativa do AppConfig."""
+    try:
+        from sapl.base.models import CasaLegislativa
+        casa = CasaLegislativa.objects.first()
+        if casa:
+            return casa.nome
+    except Exception:
+        pass
+    return "Casa Legislativa"
+
+
+def _encontrar_logo():
+    """Procura logo da câmara para usar na página de autenticação."""
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        possible_paths = [
+            os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
+            os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
+            os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
+            os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
+            os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
+        ]
+
+        logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
+        if os.path.exists(logo_dir):
+            for f in os.listdir(logo_dir):
+                if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    possible_paths.insert(0, os.path.join(logo_dir, f))
+
+        for path in possible_paths:
+            if os.path.exists(path):
+                return path
+    except Exception:
+        pass
+    return None
+
+
+def _gerar_pagina_autenticacao(assinaturas_info, codigo, url_verificacao,
+                               page_width, page_height):
+    """
+    Gera uma página PDF de autenticação com:
+    - Cabeçalho com nome da casa legislativa
+    - Blocos de assinatura em grade 2 colunas
+    - Código de autenticação
+    - QR Code
+    - URL de verificação
+    - Aviso legal (MP 2.200-2/2001)
+
+    Retorna bytes do PDF de uma página.
+    """
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.units import mm
+    from reportlab.lib.utils import ImageReader
+
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=(page_width, page_height))
+
+    nome_casa = _obter_nome_casa_legislativa()
+    center_x = page_width / 2
+
+    # ---- Cabeçalho ----
+    y = page_height - 40 * mm
+
+    # Logo da câmara (pequeno, acima do título)
+    logo_path = _encontrar_logo()
+    if logo_path:
+        try:
+            logo = ImageReader(logo_path)
+            logo_size = 15 * mm
+            c.drawImage(logo, center_x - logo_size / 2, y + 2 * mm,
+                        width=logo_size, height=logo_size,
+                        preserveAspectRatio=True, mask='auto')
+            y -= 3 * mm
+        except Exception:
+            pass
+
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColorRGB(0, 0, 0)
+    c.drawCentredString(center_x, y, "PÁGINA DE AUTENTICAÇÃO")
+    y -= 6 * mm
+
+    c.setFont("Helvetica", 10)
+    c.setFillColorRGB(0.3, 0.3, 0.3)
+    c.drawCentredString(center_x, y, nome_casa)
+    y -= 4 * mm
+
+    # Linha separadora
+    c.setStrokeColorRGB(0.7, 0.7, 0.7)
+    c.setLineWidth(0.5)
+    margin = 20 * mm
+    c.line(margin, y, page_width - margin, y)
+    y -= 10 * mm
+
+    # ---- Blocos de assinatura (grade 2 colunas) ----
+    col_width = (page_width - 3 * margin) / 2
+    block_height = 22 * mm
+    block_spacing = 5 * mm
+    col_x = [margin, margin + col_width + margin]
+
+    for idx, assinatura in enumerate(assinaturas_info):
+        col = idx % 2
+        row = idx // 2
+
+        bx = col_x[col]
+        by = y - row * (block_height + block_spacing)
+
+        # Se vai ultrapassar a área útil, para
+        if by - block_height < 80 * mm:
+            break
+
+        # Borda do bloco
+        c.setStrokeColorRGB(0.6, 0.6, 0.6)
+        c.setLineWidth(0.5)
+        c.rect(bx, by - block_height, col_width, block_height)
+
+        # Conteúdo do bloco
+        text_x = bx + 3 * mm
+        text_y = by - 5 * mm
+
+        c.setFont("Helvetica", 6)
+        c.setFillColorRGB(0.3, 0.3, 0.3)
+        c.drawString(text_x, text_y, "Assinado digitalmente por")
+
+        text_y -= 4 * mm
+        c.setFont("Helvetica-Bold", 7)
+        c.setFillColorRGB(0, 0, 0)
+        nome = assinatura.get('nome_assinante', 'N/A').upper()
+        if len(nome) > 40:
+            nome = nome[:40] + "..."
+        c.drawString(text_x, text_y, nome)
+
+        text_y -= 4 * mm
+        c.setFont("Helvetica", 6)
+        c.setFillColorRGB(0.3, 0.3, 0.3)
+        cargo = assinatura.get('cargo', '')
+        if cargo:
+            c.drawString(text_x, text_y, cargo)
+            text_y -= 3.5 * mm
+
+        data = assinatura.get('data_assinatura', '')
+        c.drawString(text_x, text_y, f"Data: {data}")
+
+    # Ajusta y para depois dos blocos
+    n_rows = (len(assinaturas_info) + 1) // 2
+    y -= n_rows * (block_height + block_spacing) + 5 * mm
+
+    # Piso mínimo para evitar sobreposição com rodapé
+    if y < 95 * mm:
+        y = 95 * mm
+
+    # ---- Código de Autenticação ----
+    c.setFont("Helvetica-Bold", 11)
+    c.setFillColorRGB(0, 0, 0)
+    c.drawCentredString(center_x, y, f"Código de Autenticação: {codigo}")
+    y -= 10 * mm
+
+    # ---- QR Code ----
+    try:
+        qr_buf = _gerar_qrcode_image(url_verificacao)
+        qr_img = ImageReader(qr_buf)
+        qr_size = 30 * mm
+        c.drawImage(qr_img, center_x - qr_size / 2, y - qr_size,
+                    width=qr_size, height=qr_size)
+        y -= qr_size + 5 * mm
+    except Exception as e:
+        logger.warning(f"Não foi possível gerar QR Code: {e}")
+        y -= 5 * mm
+
+    # ---- URL de verificação ----
+    c.setFont("Helvetica", 7)
+    c.setFillColorRGB(0.2, 0.2, 0.8)
+    c.drawCentredString(center_x, y, f"Verifique em: {url_verificacao}")
+    y -= 12 * mm
+
+    # ---- Aviso legal ----
+    c.setFont("Helvetica", 7)
+    c.setFillColorRGB(0.4, 0.4, 0.4)
+    c.drawCentredString(center_x, y,
+                        "Documento assinado digitalmente nos termos da")
+    y -= 3.5 * mm
+    c.drawCentredString(center_x, y,
+                        "Medida Provisória nº 2.200-2/2001.")
+
+    c.save()
+    buf.seek(0)
+    return buf.read()
+
+
+def _obter_info_assinante(request, cert_info):
+    """
+    Obtém informações do assinante (nome, cargo, tipo_cert).
+    Busca via Autor.operadores → Parlamentar (GenericFK).
+    Retorna (nome_assinante, cargo, tipo_cert).
+    """
+    nome_assinante = request.user.get_full_name() or request.user.username
+    cargo = "Usuário do Sistema"
+
+    try:
+        from sapl.base.models import Autor
+        from sapl.parlamentares.models import Parlamentar
+
+        autor = Autor.objects.filter(operadores=request.user).first()
+        if autor:
+            # Usa tipo do autor como cargo (ex: "Parlamentar" → "Vereador(a)")
+            tipo_descricao = autor.tipo.descricao if autor.tipo else ''
+            if tipo_descricao == 'Parlamentar':
+                cargo = "Vereador(a)"
+            elif tipo_descricao:
+                cargo = tipo_descricao
+
+            # Se o autor está vinculado a um Parlamentar, usa o nome dele
+            if isinstance(autor.autor_related, Parlamentar):
+                parlamentar = autor.autor_related
+                tipo_nome = AppConfig.attr('assinatura_nome')
+                if tipo_nome == 'C':
+                    nome_assinante = parlamentar.nome_completo
+                else:
+                    nome_assinante = parlamentar.nome_parlamentar
+    except Exception:
+        pass
+
+    issuer_str = str(cert_info.issuer).upper()
+    if 'ICP-BRASIL' in issuer_str or 'ICP BRASIL' in issuer_str:
+        tipo_cert = "ICP-Brasil"
+    else:
+        tipo_cert = "Certificado Digital"
+
+    return nome_assinante, cargo, tipo_cert
+
+
+def _carregar_certificado(certificado_file, senha):
+    """
+    Carrega certificado PKCS12 de um arquivo.
+    Retorna (signer, error_response) — se error_response não é None, retornar direto.
+    """
+    from pyhanko.sign import signers
+
+    cert_data = certificado_file.read()
+
+    import tempfile as tmp_module
+    with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
+        tmp_cert.write(cert_data)
+        tmp_cert_path = tmp_cert.name
+
+    try:
+        signer = signers.SimpleSigner.load_pkcs12(
+            pfx_file=tmp_cert_path,
+            passphrase=senha.encode('utf-8')
+        )
+        if os.path.exists(tmp_cert_path):
+            os.unlink(tmp_cert_path)
+    except Exception as cert_error:
+        logger.error(f"Erro ao carregar certificado: {cert_error}")
+        if os.path.exists(tmp_cert_path):
+            os.unlink(tmp_cert_path)
+        error_msg = str(cert_error)
+        if 'password' in error_msg.lower() or 'mac' in error_msg.lower():
+            error_detail = 'Senha incorreta.'
+        elif 'decode' in error_msg.lower() or 'parse' in error_msg.lower():
+            error_detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
+        else:
+            error_detail = f'Detalhes: {error_msg}'
+        return None, JsonResponse({
+            'success': False,
+            'error': f'Erro ao carregar certificado: {error_detail}'
+        }, status=400)
+
+    if signer is None:
+        return None, JsonResponse({
+            'success': False,
+            'error': 'Não foi possível carregar o certificado. Verifique se o arquivo .pfx/.p12 é válido e contém uma chave de assinatura.'
+        }, status=400)
+
+    return signer, None
+
+
+def _validar_certificado(cert_info):
+    """
+    Valida datas do certificado.
+    Retorna error_response ou None se válido.
+    """
+    now = timezone.now()
+    valid_before = cert_info.not_valid_before
+    valid_after = cert_info.not_valid_after
+    if valid_before.tzinfo is None:
+        import pytz
+        valid_before = pytz.UTC.localize(valid_before)
+    if valid_after.tzinfo is None:
+        import pytz
+        valid_after = pytz.UTC.localize(valid_after)
+    if now < valid_before or now > valid_after:
+        return JsonResponse({
+            'success': False,
+            'error': 'Certificado expirado ou ainda não válido.'
+        }, status=400)
+    return None
+
+
+# =============================================================================
+# Geração de PDFs
+# =============================================================================
 
 def _gerar_pdf_da_materia(materia, request):
     """
@@ -55,7 +388,6 @@ def _gerar_pdf_da_materia(materia, request):
     """
     import requests as http_requests
     import xml.etree.ElementTree as ET
-    from django.urls import reverse
 
     # Se não tem documento, retorna None
     if not materia.texto_original:
@@ -75,7 +407,8 @@ def _gerar_pdf_da_materia(materia, request):
     # Converter DOCX para PDF via OnlyOffice
     from sapl.materia.onlyoffice_materia_views import generate_file_key
 
-    download_url = request.build_absolute_uri(
+    download_url = build_onlyoffice_url(
+        request,
         reverse('sapl.materia:materia_onlyoffice_download', kwargs={'pk': materia.pk})
     )
 
@@ -138,6 +471,98 @@ def _gerar_pdf_da_materia(materia, request):
         return None, f"Erro inesperado: {e}"
 
 
+def _gerar_pdf_do_docacessorio(docacessorio, request):
+    """
+    Gera o PDF do documento acessório para assinatura.
+    Se já é PDF, retorna direto. Se é DOCX, converte via OnlyOffice.
+    Retorna (bytes, None) ou (None, erro).
+    """
+    import requests as http_requests
+    import xml.etree.ElementTree as ET
+
+    if not docacessorio.arquivo:
+        return None, "Documento acessório não possui arquivo."
+
+    file_name = docacessorio.arquivo.name.lower()
+
+    # Se já é PDF, retorna diretamente
+    if file_name.endswith('.pdf'):
+        try:
+            with open(docacessorio.arquivo.path, 'rb') as f:
+                return f.read(), None
+        except Exception as e:
+            logger.error(f"Erro ao ler arquivo PDF: {e}")
+            return None, f"Erro ao ler o arquivo PDF: {e}"
+
+    # Converter DOCX para PDF via OnlyOffice
+    from sapl.materia.onlyoffice_materia_views import generate_file_key
+
+    download_url = build_onlyoffice_url(
+        request,
+        reverse('sapl.materia:docacessorio_onlyoffice_download', kwargs={'pk': docacessorio.pk})
+    )
+
+    conversion_url = f'{settings.ONLYOFFICE_URL}/ConvertService.ashx'
+
+    conversion_data = {
+        "async": False,
+        "filetype": "docx",
+        "key": generate_file_key("docacessorio_sign", docacessorio.pk, request.user.pk),
+        "outputtype": "pdf",
+        "title": f"DocAcessorio_{docacessorio.pk}.pdf",
+        "url": download_url,
+    }
+
+    if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+        import jwt
+        token = jwt.encode(conversion_data, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+        conversion_data['token'] = token
+
+    try:
+        headers = {'Content-Type': 'application/json'}
+
+        if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+            import jwt
+            header_token = jwt.encode({"payload": conversion_data}, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+            headers['Authorization'] = f'Bearer {header_token}'
+
+        conversion_response = http_requests.post(
+            conversion_url,
+            json=conversion_data,
+            headers=headers,
+            timeout=60
+        )
+
+        if conversion_response.status_code != 200:
+            return None, f"Erro na conversão OnlyOffice: status={conversion_response.status_code}"
+
+        root = ET.fromstring(conversion_response.text)
+
+        error_elem = root.find('Error')
+        if error_elem is not None:
+            return None, f"Erro na conversão do documento: código {error_elem.text}"
+
+        file_url_elem = root.find('FileUrl')
+        if file_url_elem is None or not file_url_elem.text:
+            return None, "URL do PDF não retornada pelo OnlyOffice"
+
+        pdf_url = file_url_elem.text
+        pdf_response = http_requests.get(pdf_url, timeout=60)
+
+        if pdf_response.status_code != 200:
+            return None, f"Erro ao baixar PDF convertido: status={pdf_response.status_code}"
+
+        return pdf_response.content, None
+
+    except Exception as e:
+        logger.error(f"Erro na geração de PDF do doc acessório: {e}")
+        return None, f"Erro inesperado: {e}"
+
+
+# =============================================================================
+# Assinatura Digital de Matéria Legislativa
+# =============================================================================
+
 @login_required
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -150,9 +575,6 @@ def materia_assinar_a1(request, pk):
     - senha: senha do certificado
     """
     materia = get_object_or_404(MateriaLegislativa, pk=pk)
-
-    # Permissão: qualquer usuário autenticado pode assinar
-    # (a autenticação é garantida pelo decorator @login_required)
 
     # Verifica se o usuário atual já assinou
     assinaturas_existentes = _normalizar_assinatura_info(materia.assinatura_info)
@@ -191,128 +613,29 @@ def materia_assinar_a1(request, pk):
     try:
         from pyhanko.sign import signers, fields
         from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-        from pyhanko.keys import load_cert_from_pemder
-        from pyhanko_certvalidator import ValidationContext
 
-        # Lê o certificado
-        cert_data = certificado_file.read()
+        signer, error_response = _carregar_certificado(certificado_file, senha)
+        if error_response:
+            return error_response
 
-        # Cria o assinador - salva temporariamente o certificado
-        import tempfile as tmp_module
-        with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
-            tmp_cert.write(cert_data)
-            tmp_cert_path = tmp_cert.name
-
-        try:
-            signer = signers.SimpleSigner.load_pkcs12(
-                pfx_file=tmp_cert_path,
-                passphrase=senha.encode('utf-8')
-            )
-            # Limpa arquivo temporário do certificado após carregar
-            if os.path.exists(tmp_cert_path):
-                os.unlink(tmp_cert_path)
-        except Exception as cert_error:
-            logger.error(f"Erro ao carregar certificado: {cert_error}")
-            # Limpa arquivo temporário do certificado
-            if os.path.exists(tmp_cert_path):
-                os.unlink(tmp_cert_path)
-            error_msg = str(cert_error)
-            if 'password' in error_msg.lower() or 'mac' in error_msg.lower():
-                error_detail = 'Senha incorreta.'
-            elif 'decode' in error_msg.lower() or 'parse' in error_msg.lower():
-                error_detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
-            else:
-                error_detail = f'Detalhes: {error_msg}'
-            return JsonResponse({
-                'success': False,
-                'error': f'Erro ao carregar certificado: {error_detail}'
-            }, status=400)
-
-        if signer is None:
-            return JsonResponse({
-                'success': False,
-                'error': 'Não foi possível carregar o certificado. Verifique se o arquivo .pfx/.p12 é válido e contém uma chave de assinatura.'
-            }, status=400)
-
-        # Verifica validade do certificado
         cert_info = signer.signing_cert
-        now = timezone.now()
-        # Converte datas do certificado para timezone-aware se necessário
-        valid_before = cert_info.not_valid_before
-        valid_after = cert_info.not_valid_after
-        if valid_before.tzinfo is None:
-            import pytz
-            valid_before = pytz.UTC.localize(valid_before)
-        if valid_after.tzinfo is None:
-            import pytz
-            valid_after = pytz.UTC.localize(valid_after)
-        if now < valid_before or now > valid_after:
-            return JsonResponse({
-                'success': False,
-                'error': 'Certificado expirado ou ainda não válido.'
-            }, status=400)
+        error_response = _validar_certificado(cert_info)
+        if error_response:
+            return error_response
 
-        # Cria arquivo temporário para o PDF com carimbo
+        # Cria arquivo temporário para o PDF com página de autenticação
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_stamped:
             temp_stamped_path = temp_stamped.name
 
         try:
-            from pyhanko.sign.fields import SigSeedSubFilter, SigFieldSpec
-            from pyhanko.pdf_utils import text
-            from pyhanko.sign.general import SigningError
+            from pyhanko.sign.fields import SigFieldSpec
             from PyPDF4 import PdfFileReader, PdfFileWriter
-            from reportlab.pdfgen import canvas
-
             from reportlab.lib.units import mm
-            from reportlab.lib.utils import ImageReader
-            import re
 
             # Informações do assinante
-            nome_assinante = request.user.get_full_name() or request.user.username
+            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
             data_assinatura = timezone.localtime(timezone.now())
             data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
-
-            # Tenta obter cargo do usuário (se for parlamentar/autor)
-            cargo = "Usuário do Sistema"
-            parlamentar = None
-            try:
-                from sapl.parlamentares.models import Parlamentar
-                parlamentar = Parlamentar.objects.filter(
-                    usuario=request.user
-                ).first()
-                if parlamentar:
-                    cargo = "Vereador(a)"
-                    tipo_nome = AppConfig.attr('assinatura_nome')
-                    if tipo_nome == 'C':
-                        nome_assinante = parlamentar.nome_completo
-                    else:
-                        nome_assinante = parlamentar.nome_parlamentar
-            except:
-                pass
-
-            # Determina tipo de certificado baseado no issuer
-            issuer_str = str(cert_info.issuer).upper()
-            if 'ICP-BRASIL' in issuer_str or 'ICP BRASIL' in issuer_str:
-                tipo_cert = "ICP-Brasil"
-            else:
-                tipo_cert = "Certificado Digital"
-
-            # Tenta obter CPF do parlamentar ou do certificado
-            cpf = ""
-            try:
-                if parlamentar and parlamentar.cpf:
-                    cpf = parlamentar.cpf
-            except:
-                pass
-
-            # Se não encontrou CPF no parlamentar, tenta extrair do certificado
-            if not cpf:
-                subject_str = str(cert_info.subject)
-                cpf_match = re.search(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}', subject_str)
-                if cpf_match:
-                    cpf = cpf_match.group()
-
-            # Formata data
             data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
 
             # Número da assinatura (0-indexed)
@@ -321,24 +644,29 @@ def materia_assinar_a1(request, pk):
 
             if ja_tem_pdf_assinado:
                 # ===== ASSINATURA SUBSEQUENTE: Incremental sobre PDF já assinado =====
+                # A página de autenticação já existe (criada na 1ª assinatura).
+                # Posicionar campo de assinatura na última página (autenticação).
 
                 with open(materia.pdf_assinado.path, 'rb') as f:
                     existing_pdf_bytes = f.read()
 
-                # Criar carimbo visual via pyhanko TextStampStyle + SigFieldSpec
-                x_pos, y_pos = _calcular_posicao_carimbo(n_assinatura)
+                # Calcular posição do campo de assinatura na página de autenticação
+                # Grade 2 colunas para blocos de assinatura
+                col = n_assinatura % 2
+                row = n_assinatura // 2
+                margin = 20 * mm
                 largura_carimbo = 70 * mm
                 altura_carimbo = 22 * mm
 
-                # Converter para pontos (pyhanko usa pontos)
-                x1 = x_pos
-                y1 = y_pos
-                x2 = x_pos + largura_carimbo
-                y2 = y_pos + altura_carimbo
+                x_pos = margin + col * (largura_carimbo + margin)
+                # Posição a partir do topo da página de autenticação
+                y_base = 500  # Posição base aproximada para os blocos (em pontos)
+                y_pos = y_base - row * (altura_carimbo + 5 * mm)
 
-                nome_upper = nome_assinante.upper()
-                if len(nome_upper) > 28:
-                    nome_upper = nome_upper[:28] + "..."
+                x1 = x_pos
+                y1 = y_pos - altura_carimbo
+                x2 = x_pos + largura_carimbo
+                y2 = y_pos
 
                 signed_buffer = io.BytesIO()
                 with io.BytesIO(existing_pdf_bytes) as inf:
@@ -356,19 +684,6 @@ def materia_assinar_a1(request, pk):
                         box=(x1, y1, x2, y2)
                     )
                     fields.append_signature_field(w, sig_field)
-
-                    # Cria stamp style para o carimbo visual
-                    from pyhanko.stamp import TextStampStyle
-
-                    stamp_text = f"Assinado digitalmente por\n{nome_upper}"
-                    if cpf:
-                        stamp_text += f"\nCPF: {cpf}"
-                    stamp_text += f"\nData: {data_simples}"
-
-                    stamp_style = TextStampStyle(
-                        stamp_text=stamp_text,
-                        background=None,
-                    )
 
                     meta = signers.PdfSignatureMetadata(
                         field_name=sig_field_name,
@@ -389,102 +704,52 @@ def materia_assinar_a1(request, pk):
                 signed_pdf_content = signed_buffer.read()
 
             else:
-                # ===== PRIMEIRA ASSINATURA: Carimbo ReportLab + pyhanko sign =====
+                # ===== PRIMEIRA ASSINATURA: Página de autenticação + pyhanko sign =====
 
-                # Lê o PDF original para obter as dimensões reais da última página
+                # Lê o PDF original para obter as dimensões
                 original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
                 last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
                 page_box = last_page.mediaBox
                 page_width = float(page_box.getWidth())
                 page_height = float(page_box.getHeight())
 
-                # Cria PDF com o carimbo usando as mesmas dimensões da página original
-                stamp_buffer = io.BytesIO()
-                c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
+                # Gerar código de autenticação
+                codigo = _gerar_codigo_autenticacao(pdf_bytes)
 
-                # Posição do carimbo (canto inferior esquerdo) — posição 0
-                x_pos, y_pos = _calcular_posicao_carimbo(0)
-                largura_carimbo = 70 * mm
-                altura_carimbo = 22 * mm
-                logo_width = 18 * mm
+                # Construir URL de verificação
+                url_verificacao = _construir_url_verificacao(
+                    request, 'materia', pk, codigo
+                )
 
-                # Desenha borda fina do carimbo
-                c.setStrokeColorRGB(0.5, 0.5, 0.5)
-                c.setLineWidth(0.5)
-                c.rect(x_pos, y_pos, largura_carimbo, altura_carimbo)
+                # Nova assinatura info (para incluir na página de autenticação)
+                nova_assinatura_info = {
+                    'nome_assinante': nome_assinante,
+                    'cargo': cargo,
+                    'data_assinatura': data_simples,
+                }
 
-                # Texto do carimbo (lado esquerdo)
-                c.setFont("Helvetica", 6)
-                c.setFillColorRGB(0.3, 0.3, 0.3)
-                c.drawString(x_pos + 3*mm, y_pos + 17*mm, "Assinado digitalmente por")
+                # Gerar a página de autenticação
+                auth_page_bytes = _gerar_pagina_autenticacao(
+                    [nova_assinatura_info],
+                    codigo, url_verificacao,
+                    page_width, page_height
+                )
 
-                c.setFont("Helvetica-Bold", 7)
-                c.setFillColorRGB(0, 0, 0)
-                nome_upper = nome_assinante.upper()
-                if len(nome_upper) > 28:
-                    nome_upper = nome_upper[:28] + "..."
-                c.drawString(x_pos + 3*mm, y_pos + 12*mm, nome_upper)
-
-                c.setFont("Helvetica", 6)
-                c.setFillColorRGB(0.3, 0.3, 0.3)
-                if cpf:
-                    c.drawString(x_pos + 3*mm, y_pos + 7*mm, f"CPF: {cpf}")
-                    c.drawString(x_pos + 3*mm, y_pos + 3*mm, f"Data: {data_simples}")
-                else:
-                    c.drawString(x_pos + 3*mm, y_pos + 5*mm, f"Data: {data_simples}")
-
-                # Logo da câmara (lado direito)
-                try:
-                    logo_path = None
-                    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-                    possible_paths = [
-                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
-                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
-                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
-                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
-                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
-                    ]
-
-                    logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
-                    if os.path.exists(logo_dir):
-                        for f in os.listdir(logo_dir):
-                            if f.lower().endswith(('.png', '.jpg', '.jpeg')):
-                                possible_paths.insert(0, os.path.join(logo_dir, f))
-
-                    for path in possible_paths:
-                        if os.path.exists(path):
-                            logo_path = path
-                            break
-
-                    if logo_path:
-                        logo = ImageReader(logo_path)
-                        logo_x = x_pos + largura_carimbo - logo_width - 2*mm
-                        logo_y = y_pos + 2*mm
-                        c.drawImage(logo, logo_x, logo_y,
-                                   width=logo_width, height=logo_width,
-                                   preserveAspectRatio=True, mask='auto')
-                except Exception as logo_error:
-                    logger.warning(f"Não foi possível adicionar logo: {logo_error}")
-
-                c.save()
-                stamp_buffer.seek(0)
-
-                # Mescla o carimbo com o PDF original (ANTES de assinar)
-                stamp_pdf = PdfFileReader(stamp_buffer)
+                # Montar PDF: original + página de autenticação
+                auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
                 output_pdf = PdfFileWriter()
 
                 for page_num in range(original_pdf.getNumPages()):
-                    page = original_pdf.getPage(page_num)
-                    if page_num == original_pdf.getNumPages() - 1:  # Última página
-                        page.mergePage(stamp_pdf.getPage(0))
-                    output_pdf.addPage(page)
+                    output_pdf.addPage(original_pdf.getPage(page_num))
 
-                # Salva o PDF com carimbo em arquivo temporário
+                # Anexar página de autenticação
+                output_pdf.addPage(auth_page_pdf.getPage(0))
+
+                # Salvar em arquivo temporário
                 with open(temp_stamped_path, 'wb') as f:
                     output_pdf.write(f)
 
-                # Assinar o PDF que já contém o carimbo
+                # Assinar o PDF combinado
                 with open(temp_stamped_path, 'rb') as stamped_file:
                     stamped_bytes = stamped_file.read()
 
@@ -492,7 +757,6 @@ def materia_assinar_a1(request, pk):
                 with io.BytesIO(stamped_bytes) as inf:
                     w = IncrementalPdfFileWriter(inf)
 
-                    # Metadados da assinatura
                     meta = signers.PdfSignatureMetadata(
                         field_name='AssinaturaDigital',
                         location='Câmara Municipal',
@@ -500,7 +764,6 @@ def materia_assinar_a1(request, pk):
                         name=nome_assinante
                     )
 
-                    # Executa assinatura
                     signers.sign_pdf(
                         w,
                         meta,
@@ -510,6 +773,9 @@ def materia_assinar_a1(request, pk):
 
                 signed_buffer.seek(0)
                 signed_pdf_content = signed_buffer.read()
+
+                # Salvar código de autenticação
+                materia.codigo_autenticacao = codigo
 
             # Salva o PDF assinado no modelo
             filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
@@ -577,7 +843,6 @@ def materia_assinar_a3_preparar(request, pk):
     - pdf_base64: PDF codificado em base64 (para assinatura no cliente)
     """
     import base64
-    import hashlib
 
     materia = get_object_or_404(MateriaLegislativa, pk=pk)
 
@@ -699,10 +964,6 @@ def materia_assinar_a3_finalizar(request, pk):
             temp_signed_path = temp_signed.name
 
         try:
-            # Cria o signer externo com a assinatura pré-computada
-            # Nota: Esta é uma implementação simplificada
-            # Em produção, seria necessário usar o ExternalSigner corretamente
-
             with io.BytesIO(pdf_bytes) as inf:
                 w = IncrementalPdfFileWriter(inf)
 
@@ -877,6 +1138,7 @@ def materia_remover_assinatura(request, pk):
         materia.assinatura_info = None
         materia.assinado_em = None
         materia.assinado_por = None
+        materia.codigo_autenticacao = None
         materia.save()
 
         logger.info(f"Assinatura da matéria {materia.pk} removida por {request.user.username}")
@@ -918,94 +1180,6 @@ def detectar_aplicacao_a3(request):
 # =============================================================================
 # Views de Assinatura Digital para Documento Acessório
 # =============================================================================
-
-def _gerar_pdf_do_docacessorio(docacessorio, request):
-    """
-    Gera o PDF do documento acessório para assinatura.
-    Se já é PDF, retorna direto. Se é DOCX, converte via OnlyOffice.
-    Retorna (bytes, None) ou (None, erro).
-    """
-    import requests as http_requests
-    import xml.etree.ElementTree as ET
-    from django.urls import reverse
-
-    if not docacessorio.arquivo:
-        return None, "Documento acessório não possui arquivo."
-
-    file_name = docacessorio.arquivo.name.lower()
-
-    # Se já é PDF, retorna diretamente
-    if file_name.endswith('.pdf'):
-        try:
-            with open(docacessorio.arquivo.path, 'rb') as f:
-                return f.read(), None
-        except Exception as e:
-            logger.error(f"Erro ao ler arquivo PDF: {e}")
-            return None, f"Erro ao ler o arquivo PDF: {e}"
-
-    # Converter DOCX para PDF via OnlyOffice
-    from sapl.materia.onlyoffice_materia_views import generate_file_key
-
-    download_url = request.build_absolute_uri(
-        reverse('sapl.materia:docacessorio_onlyoffice_download', kwargs={'pk': docacessorio.pk})
-    )
-
-    conversion_url = f'{settings.ONLYOFFICE_URL}/ConvertService.ashx'
-
-    conversion_data = {
-        "async": False,
-        "filetype": "docx",
-        "key": generate_file_key("docacessorio_sign", docacessorio.pk, request.user.pk),
-        "outputtype": "pdf",
-        "title": f"DocAcessorio_{docacessorio.pk}.pdf",
-        "url": download_url,
-    }
-
-    if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
-        import jwt
-        token = jwt.encode(conversion_data, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
-        conversion_data['token'] = token
-
-    try:
-        headers = {'Content-Type': 'application/json'}
-
-        if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
-            import jwt
-            header_token = jwt.encode({"payload": conversion_data}, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
-            headers['Authorization'] = f'Bearer {header_token}'
-
-        conversion_response = http_requests.post(
-            conversion_url,
-            json=conversion_data,
-            headers=headers,
-            timeout=60
-        )
-
-        if conversion_response.status_code != 200:
-            return None, f"Erro na conversão OnlyOffice: status={conversion_response.status_code}"
-
-        root = ET.fromstring(conversion_response.text)
-
-        error_elem = root.find('Error')
-        if error_elem is not None:
-            return None, f"Erro na conversão do documento: código {error_elem.text}"
-
-        file_url_elem = root.find('FileUrl')
-        if file_url_elem is None or not file_url_elem.text:
-            return None, "URL do PDF não retornada pelo OnlyOffice"
-
-        pdf_url = file_url_elem.text
-        pdf_response = http_requests.get(pdf_url, timeout=60)
-
-        if pdf_response.status_code != 200:
-            return None, f"Erro ao baixar PDF convertido: status={pdf_response.status_code}"
-
-        return pdf_response.content, None
-
-    except Exception as e:
-        logger.error(f"Erro na geração de PDF do doc acessório: {e}")
-        return None, f"Erro inesperado: {e}"
-
 
 @login_required
 @csrf_exempt
@@ -1051,114 +1225,27 @@ def docacessorio_assinar_a1(request, pk):
     try:
         from pyhanko.sign import signers, fields
         from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-        from pyhanko.keys import load_cert_from_pemder
-        from pyhanko_certvalidator import ValidationContext
 
-        cert_data = certificado_file.read()
-
-        import tempfile as tmp_module
-        with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
-            tmp_cert.write(cert_data)
-            tmp_cert_path = tmp_cert.name
-
-        try:
-            signer = signers.SimpleSigner.load_pkcs12(
-                pfx_file=tmp_cert_path,
-                passphrase=senha.encode('utf-8')
-            )
-            if os.path.exists(tmp_cert_path):
-                os.unlink(tmp_cert_path)
-        except Exception as cert_error:
-            logger.error(f"Erro ao carregar certificado: {cert_error}")
-            if os.path.exists(tmp_cert_path):
-                os.unlink(tmp_cert_path)
-            error_msg = str(cert_error)
-            if 'password' in error_msg.lower() or 'mac' in error_msg.lower():
-                error_detail = 'Senha incorreta.'
-            elif 'decode' in error_msg.lower() or 'parse' in error_msg.lower():
-                error_detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
-            else:
-                error_detail = f'Detalhes: {error_msg}'
-            return JsonResponse({
-                'success': False,
-                'error': f'Erro ao carregar certificado: {error_detail}'
-            }, status=400)
-
-        if signer is None:
-            return JsonResponse({
-                'success': False,
-                'error': 'Não foi possível carregar o certificado. Verifique se o arquivo .pfx/.p12 é válido e contém uma chave de assinatura.'
-            }, status=400)
+        signer, error_response = _carregar_certificado(certificado_file, senha)
+        if error_response:
+            return error_response
 
         cert_info = signer.signing_cert
-        now = timezone.now()
-        valid_before = cert_info.not_valid_before
-        valid_after = cert_info.not_valid_after
-        if valid_before.tzinfo is None:
-            import pytz
-            valid_before = pytz.UTC.localize(valid_before)
-        if valid_after.tzinfo is None:
-            import pytz
-            valid_after = pytz.UTC.localize(valid_after)
-        if now < valid_before or now > valid_after:
-            return JsonResponse({
-                'success': False,
-                'error': 'Certificado expirado ou ainda não válido.'
-            }, status=400)
+        error_response = _validar_certificado(cert_info)
+        if error_response:
+            return error_response
 
         with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_stamped:
             temp_stamped_path = temp_stamped.name
 
         try:
-            from pyhanko.sign.fields import SigSeedSubFilter, SigFieldSpec
-            from pyhanko.pdf_utils import text
-            from pyhanko.sign.general import SigningError
+            from pyhanko.sign.fields import SigFieldSpec
             from PyPDF4 import PdfFileReader, PdfFileWriter
-            from reportlab.pdfgen import canvas
             from reportlab.lib.units import mm
-            from reportlab.lib.utils import ImageReader
-            import re
 
-            nome_assinante = request.user.get_full_name() or request.user.username
+            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
             data_assinatura = timezone.localtime(timezone.now())
             data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
-
-            cargo = "Usuário do Sistema"
-            parlamentar = None
-            try:
-                from sapl.parlamentares.models import Parlamentar
-                parlamentar = Parlamentar.objects.filter(
-                    usuario=request.user
-                ).first()
-                if parlamentar:
-                    cargo = "Vereador(a)"
-                    tipo_nome = AppConfig.attr('assinatura_nome')
-                    if tipo_nome == 'C':
-                        nome_assinante = parlamentar.nome_completo
-                    else:
-                        nome_assinante = parlamentar.nome_parlamentar
-            except:
-                pass
-
-            issuer_str = str(cert_info.issuer).upper()
-            if 'ICP-BRASIL' in issuer_str or 'ICP BRASIL' in issuer_str:
-                tipo_cert = "ICP-Brasil"
-            else:
-                tipo_cert = "Certificado Digital"
-
-            cpf = ""
-            try:
-                if parlamentar and parlamentar.cpf:
-                    cpf = parlamentar.cpf
-            except:
-                pass
-
-            if not cpf:
-                subject_str = str(cert_info.subject)
-                cpf_match = re.search(r'\d{3}\.?\d{3}\.?\d{3}-?\d{2}', subject_str)
-                if cpf_match:
-                    cpf = cpf_match.group()
-
             data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
 
             # Número da assinatura (0-indexed)
@@ -1166,23 +1253,26 @@ def docacessorio_assinar_a1(request, pk):
             sig_field_name = f'AssinaturaDigital_{n_assinatura + 1}' if n_assinatura > 0 else 'AssinaturaDigital'
 
             if ja_tem_pdf_assinado:
-                # ===== ASSINATURA SUBSEQUENTE: Incremental sobre PDF já assinado =====
+                # ===== ASSINATURA SUBSEQUENTE =====
 
                 with open(docacessorio.pdf_assinado.path, 'rb') as f:
                     existing_pdf_bytes = f.read()
 
-                x_pos, y_pos = _calcular_posicao_carimbo(n_assinatura)
+                # Calcular posição na página de autenticação
+                col = n_assinatura % 2
+                row = n_assinatura // 2
+                margin = 20 * mm
                 largura_carimbo = 70 * mm
                 altura_carimbo = 22 * mm
 
-                x1 = x_pos
-                y1 = y_pos
-                x2 = x_pos + largura_carimbo
-                y2 = y_pos + altura_carimbo
+                x_pos = margin + col * (largura_carimbo + margin)
+                y_base = 500
+                y_pos = y_base - row * (altura_carimbo + 5 * mm)
 
-                nome_upper = nome_assinante.upper()
-                if len(nome_upper) > 28:
-                    nome_upper = nome_upper[:28] + "..."
+                x1 = x_pos
+                y1 = y_pos - altura_carimbo
+                x2 = x_pos + largura_carimbo
+                y2 = y_pos
 
                 signed_buffer = io.BytesIO()
                 with io.BytesIO(existing_pdf_bytes) as inf:
@@ -1198,18 +1288,6 @@ def docacessorio_assinar_a1(request, pk):
                         box=(x1, y1, x2, y2)
                     )
                     fields.append_signature_field(w, sig_field)
-
-                    from pyhanko.stamp import TextStampStyle
-
-                    stamp_text = f"Assinado digitalmente por\n{nome_upper}"
-                    if cpf:
-                        stamp_text += f"\nCPF: {cpf}"
-                    stamp_text += f"\nData: {data_simples}"
-
-                    stamp_style = TextStampStyle(
-                        stamp_text=stamp_text,
-                        background=None,
-                    )
 
                     meta = signers.PdfSignatureMetadata(
                         field_name=sig_field_name,
@@ -1230,7 +1308,7 @@ def docacessorio_assinar_a1(request, pk):
                 signed_pdf_content = signed_buffer.read()
 
             else:
-                # ===== PRIMEIRA ASSINATURA: Carimbo ReportLab + pyhanko sign =====
+                # ===== PRIMEIRA ASSINATURA: Página de autenticação + pyhanko sign =====
 
                 original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
                 last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
@@ -1238,81 +1316,36 @@ def docacessorio_assinar_a1(request, pk):
                 page_width = float(page_box.getWidth())
                 page_height = float(page_box.getHeight())
 
-                stamp_buffer = io.BytesIO()
-                c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
+                # Gerar código de autenticação
+                codigo = _gerar_codigo_autenticacao(pdf_bytes)
 
-                x_pos, y_pos = _calcular_posicao_carimbo(0)
-                largura_carimbo = 70 * mm
-                altura_carimbo = 22 * mm
-                logo_width = 18 * mm
+                # Construir URL de verificação
+                url_verificacao = _construir_url_verificacao(
+                    request, 'docacessorio', pk, codigo
+                )
 
-                c.setStrokeColorRGB(0.5, 0.5, 0.5)
-                c.setLineWidth(0.5)
-                c.rect(x_pos, y_pos, largura_carimbo, altura_carimbo)
+                # Nova assinatura info
+                nova_assinatura_info = {
+                    'nome_assinante': nome_assinante,
+                    'cargo': cargo,
+                    'data_assinatura': data_simples,
+                }
 
-                c.setFont("Helvetica", 6)
-                c.setFillColorRGB(0.3, 0.3, 0.3)
-                c.drawString(x_pos + 3*mm, y_pos + 17*mm, "Assinado digitalmente por")
+                # Gerar a página de autenticação
+                auth_page_bytes = _gerar_pagina_autenticacao(
+                    [nova_assinatura_info],
+                    codigo, url_verificacao,
+                    page_width, page_height
+                )
 
-                c.setFont("Helvetica-Bold", 7)
-                c.setFillColorRGB(0, 0, 0)
-                nome_upper = nome_assinante.upper()
-                if len(nome_upper) > 28:
-                    nome_upper = nome_upper[:28] + "..."
-                c.drawString(x_pos + 3*mm, y_pos + 12*mm, nome_upper)
-
-                c.setFont("Helvetica", 6)
-                c.setFillColorRGB(0.3, 0.3, 0.3)
-                if cpf:
-                    c.drawString(x_pos + 3*mm, y_pos + 7*mm, f"CPF: {cpf}")
-                    c.drawString(x_pos + 3*mm, y_pos + 3*mm, f"Data: {data_simples}")
-                else:
-                    c.drawString(x_pos + 3*mm, y_pos + 5*mm, f"Data: {data_simples}")
-
-                try:
-                    logo_path = None
-                    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-                    possible_paths = [
-                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
-                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
-                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
-                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
-                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
-                    ]
-
-                    logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
-                    if os.path.exists(logo_dir):
-                        for f in os.listdir(logo_dir):
-                            if f.lower().endswith(('.png', '.jpg', '.jpeg')):
-                                possible_paths.insert(0, os.path.join(logo_dir, f))
-
-                    for path in possible_paths:
-                        if os.path.exists(path):
-                            logo_path = path
-                            break
-
-                    if logo_path:
-                        logo = ImageReader(logo_path)
-                        logo_x = x_pos + largura_carimbo - logo_width - 2*mm
-                        logo_y = y_pos + 2*mm
-                        c.drawImage(logo, logo_x, logo_y,
-                                   width=logo_width, height=logo_width,
-                                   preserveAspectRatio=True, mask='auto')
-                except Exception as logo_error:
-                    logger.warning(f"Não foi possível adicionar logo: {logo_error}")
-
-                c.save()
-                stamp_buffer.seek(0)
-
-                stamp_pdf = PdfFileReader(stamp_buffer)
+                # Montar PDF: original + página de autenticação
+                auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
                 output_pdf = PdfFileWriter()
 
                 for page_num in range(original_pdf.getNumPages()):
-                    page = original_pdf.getPage(page_num)
-                    if page_num == original_pdf.getNumPages() - 1:
-                        page.mergePage(stamp_pdf.getPage(0))
-                    output_pdf.addPage(page)
+                    output_pdf.addPage(original_pdf.getPage(page_num))
+
+                output_pdf.addPage(auth_page_pdf.getPage(0))
 
                 with open(temp_stamped_path, 'wb') as f:
                     output_pdf.write(f)
@@ -1340,6 +1373,9 @@ def docacessorio_assinar_a1(request, pk):
 
                 signed_buffer.seek(0)
                 signed_pdf_content = signed_buffer.read()
+
+                # Salvar código de autenticação
+                docacessorio.codigo_autenticacao = codigo
 
             filename = f"docacessorio_{docacessorio.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
             docacessorio.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
@@ -1520,6 +1556,7 @@ def docacessorio_remover_assinatura(request, pk):
         docacessorio.assinatura_info = None
         docacessorio.assinado_em = None
         docacessorio.assinado_por = None
+        docacessorio.codigo_autenticacao = None
         docacessorio.save()
 
         logger.info(f"Assinatura do doc acessório {docacessorio.pk} removida por {request.user.username}")
@@ -1535,3 +1572,89 @@ def docacessorio_remover_assinatura(request, pk):
             'success': False,
             'error': f'Erro ao remover assinatura: {str(e)}'
         }, status=500)
+
+
+# =============================================================================
+# Views Públicas de Verificação de Documento
+# =============================================================================
+
+@require_http_methods(["GET"])
+def materia_verificar_documento(request, pk):
+    """
+    Página pública de verificação de autenticidade de Matéria Legislativa.
+    Valida o código de autenticação e exibe status + lista de assinaturas.
+    """
+    materia = get_object_or_404(MateriaLegislativa, pk=pk)
+    codigo_informado = request.GET.get('codigo', '').strip().upper()
+
+    valido = (
+        bool(materia.codigo_autenticacao)
+        and bool(codigo_informado)
+        and materia.codigo_autenticacao == codigo_informado
+    )
+
+    assinaturas = _normalizar_assinatura_info(materia.assinatura_info)
+    # Filtrar campos sensíveis das assinaturas
+    assinaturas_publicas = []
+    for a in assinaturas:
+        assinaturas_publicas.append({
+            'nome_assinante': a.get('nome_assinante', ''),
+            'cargo': a.get('cargo', ''),
+            'data_assinatura': a.get('data_assinatura', ''),
+            'tipo_certificado_display': a.get('tipo_certificado_display', a.get('tipo_certificado', '')),
+        })
+
+    context = {
+        'object': materia,
+        'tipo_documento': 'Matéria Legislativa',
+        'descricao_documento': str(materia),
+        'ementa': materia.ementa,
+        'codigo_autenticacao': materia.codigo_autenticacao or '',
+        'codigo_informado': codigo_informado,
+        'valido': valido,
+        'assinaturas': assinaturas_publicas,
+        'tem_assinatura': bool(materia.pdf_assinado),
+    }
+
+    return render(request, 'materia/verificar_assinatura.html', context)
+
+
+@require_http_methods(["GET"])
+def docacessorio_verificar_documento(request, pk):
+    """
+    Página pública de verificação de autenticidade de Documento Acessório.
+    Valida o código de autenticação e exibe status + lista de assinaturas.
+    """
+    docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
+    codigo_informado = request.GET.get('codigo', '').strip().upper()
+
+    valido = (
+        bool(docacessorio.codigo_autenticacao)
+        and bool(codigo_informado)
+        and docacessorio.codigo_autenticacao == codigo_informado
+    )
+
+    assinaturas = _normalizar_assinatura_info(docacessorio.assinatura_info)
+    assinaturas_publicas = []
+    for a in assinaturas:
+        assinaturas_publicas.append({
+            'nome_assinante': a.get('nome_assinante', ''),
+            'cargo': a.get('cargo', ''),
+            'data_assinatura': a.get('data_assinatura', ''),
+            'tipo_certificado_display': a.get('tipo_certificado_display', a.get('tipo_certificado', '')),
+        })
+
+    context = {
+        'object': docacessorio,
+        'tipo_documento': 'Documento Acessório',
+        'descricao_documento': str(docacessorio),
+        'ementa': docacessorio.ementa,
+        'codigo_autenticacao': docacessorio.codigo_autenticacao or '',
+        'codigo_informado': codigo_informado,
+        'valido': valido,
+        'assinaturas': assinaturas_publicas,
+        'tem_assinatura': bool(docacessorio.pdf_assinado),
+        'materia': docacessorio.materia,
+    }
+
+    return render(request, 'materia/verificar_assinatura.html', context)

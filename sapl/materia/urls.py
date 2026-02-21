@@ -50,7 +50,8 @@ from sapl.materia.views_assinatura import (
     materia_pdf_assinado, materia_verificar_assinatura, materia_remover_assinatura,
     detectar_aplicacao_a3,
     docacessorio_assinar_a1, docacessorio_pdf_assinado,
-    docacessorio_verificar_assinatura, docacessorio_remover_assinatura
+    docacessorio_verificar_assinatura, docacessorio_remover_assinatura,
+    materia_verificar_documento, docacessorio_verificar_documento
 )
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
@@ -184,6 +185,10 @@ urlpatterns_materia = [
     url(r'^materia/assinatura/detectar-a3/$', detectar_aplicacao_a3,
         name='detectar_aplicacao_a3'),
 
+    # Verificação pública de autenticidade (sem login)
+    url(r'^materia/(?P<pk>\d+)/verificar/$', materia_verificar_documento,
+        name='materia_verificar_documento'),
+
     # OnlyOffice endpoints para Documento Acessório
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/onlyoffice/editor$', docacessorio_onlyoffice_editor,
         name='docacessorio_onlyoffice_editor'),
@@ -207,6 +212,10 @@ urlpatterns_materia = [
         name='docacessorio_verificar_assinatura'),
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/remover-assinatura/$', docacessorio_remover_assinatura,
         name='docacessorio_remover_assinatura'),
+
+    # Verificação pública de autenticidade de Documento Acessório (sem login)
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/verificar/$', docacessorio_verificar_documento,
+        name='docacessorio_verificar_documento'),
 ]
 
 

@@ -72,6 +72,12 @@
                 <a href="https://validar.iti.gov.br/" class="btn btn-sm btn-outline-info" target="_blank">
                   <i class="fa fa-external-link"></i> {% trans "Validar no ITI" %}
                 </a>
+                {% if object.codigo_autenticacao %}
+                <a href="{% url 'sapl.materia:docacessorio_verificar_documento' object.pk %}?codigo={{ object.codigo_autenticacao }}"
+                   class="btn btn-sm btn-outline-primary" target="_blank">
+                  <i class="fa fa-qrcode"></i> {% trans "Verificar Autenticidade" %}
+                </a>
+                {% endif %}
               </div>
             </div>
           </div>
