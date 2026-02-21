@@ -117,12 +117,12 @@ def template_onlyoffice_download(request, pk):
 
     # Se não tem arquivo, cria um documento em branco usando python-docx
     try:
-        from docx import Document
         from docx.shared import Inches, Pt
         from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from sapl.utils_template import criar_documento_padrao
         from io import BytesIO
 
-        doc = Document()
+        doc = criar_documento_padrao()
 
         # Adiciona cabeçalho padrão
         section = doc.sections[0]

@@ -164,10 +164,10 @@ def onlyoffice_download(request, pk):
 
     # Fallback: Se python-docx não está instalado ou houve erro
     try:
-        from docx import Document
+        from sapl.utils_template import criar_documento_padrao
         from io import BytesIO
 
-        doc = Document()
+        doc = criar_documento_padrao()
         doc.add_heading(f'Proposição {proposicao.tipo}', 0)
         doc.add_paragraph(f'Ementa: {proposicao.descricao}')
         doc.add_paragraph('')

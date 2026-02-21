@@ -152,10 +152,10 @@ def docadm_onlyoffice_download(request, pk):
 
     # Fallback: Se python-docx não está instalado ou houve erro
     try:
-        from docx import Document
+        from sapl.utils_template import criar_documento_padrao
         from io import BytesIO
 
-        doc = Document()
+        doc = criar_documento_padrao()
         doc.add_heading(f'Documento Administrativo {documento.tipo}', 0)
         doc.add_paragraph(f'Número: {documento.numero}/{documento.ano}')
         doc.add_paragraph(f'Assunto: {documento.assunto}')

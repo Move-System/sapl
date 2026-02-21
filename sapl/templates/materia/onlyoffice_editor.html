@@ -47,11 +47,13 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script type="text/javascript" src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
 
 <script type="text/javascript">
     var docEditor = null;
     var documentSaved = false;
+    var documentModified = false;
     var isSaving = false;
     var documentKey = null;
     var returnUrl = "{% url 'sapl.materia:proposicao_detail' proposicao.pk %}";
@@ -74,8 +76,14 @@
                         window.location.href = returnUrl;
                     } else if (tentativas >= maxTentativas) {
                         clearInterval(intervalo);
-                        alert('Tempo esgotado aguardando salvamento. Verifique se o documento foi salvo.');
-                        window.location.href = returnUrl;
+                        Swal.fire({
+                            title: 'Tempo esgotado',
+                            text: 'Tempo esgotado aguardando salvamento. Verifique se o documento foi salvo.',
+                            icon: 'warning',
+                            confirmButtonColor: '#3085d6'
+                        }).then(function() {
+                            window.location.href = returnUrl;
+                        });
                     }
                 })
                 .catch(function(err) {
@@ -114,7 +122,12 @@
                 iniciarPolling();
             } else if (data.error === 4) {
                 // Sem alterações para salvar
-                alert('Nenhuma alteração foi detectada no documento.');
+                Swal.fire({
+                    title: 'Sem alterações',
+                    text: 'Nenhuma alteração foi detectada no documento.',
+                    icon: 'info',
+                    confirmButtonColor: '#3085d6'
+                });
                 btn.disabled = false;
                 btn.innerHTML = '<i class="fa fa-save"></i> Salvar e Voltar';
                 isSaving = false;
@@ -147,7 +160,12 @@
                 },
                 'onError': function(event) {
                     console.error('Erro no OnlyOffice:', event);
-                    alert('Ocorreu um erro ao carregar o editor. Por favor, tente novamente.');
+                    Swal.fire({
+                        title: 'Erro',
+                        text: 'Ocorreu um erro ao carregar o editor. Por favor, tente novamente.',
+                        icon: 'error',
+                        confirmButtonColor: '#3085d6'
+                    });
                 },
                 'onWarning': function(event) {
                     console.warn('Aviso do OnlyOffice:', event);
@@ -155,6 +173,7 @@
                 'onDocumentStateChange': function(event) {
                     // event.data = true quando há alterações não salvas
                     console.log('Estado do documento:', event.data ? 'Alterações pendentes' : 'Salvo');
+                    if (event.data) documentModified = true;
                     documentSaved = !event.data;
                 }
             };
@@ -173,7 +192,7 @@
 
     // Aviso antes de sair se houver alterações não salvas
     window.addEventListener('beforeunload', function(e) {
-        if (!documentSaved && docEditor && !isSaving) {
+        if (documentModified && !documentSaved && docEditor && !isSaving) {
             e.preventDefault();
             e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
             return e.returnValue;

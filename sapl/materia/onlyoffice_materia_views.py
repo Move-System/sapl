@@ -157,10 +157,10 @@ def materia_onlyoffice_download(request, pk):
 
     # Fallback: Se python-docx não está instalado ou houve erro
     try:
-        from docx import Document
+        from sapl.utils_template import criar_documento_padrao
         from io import BytesIO
 
-        doc = Document()
+        doc = criar_documento_padrao()
         doc.add_heading(f'{materia.tipo} {materia.numero}/{materia.ano}', 0)
         doc.add_paragraph(f'Ementa: {materia.ementa}')
         doc.add_paragraph('')
@@ -478,10 +478,10 @@ def docacessorio_onlyoffice_download(request, pk):
 
     # Fallback: Se python-docx não está instalado ou houve erro
     try:
-        from docx import Document
+        from sapl.utils_template import criar_documento_padrao
         from io import BytesIO
 
-        doc = Document()
+        doc = criar_documento_padrao()
         doc.add_heading(f'{documento.tipo} - {documento.nome}', 0)
         if documento.ementa:
             doc.add_paragraph(f'Ementa: {documento.ementa}')

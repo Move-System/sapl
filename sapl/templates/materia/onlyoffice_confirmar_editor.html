@@ -48,11 +48,13 @@
     </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script type="text/javascript" src="{{ onlyoffice_url }}/web-apps/apps/api/documents/api.js"></script>
 
 <script type="text/javascript">
     var docEditor = null;
     var documentSaved = false;
+    var documentModified = false;
     var returnUrl = "{{ voltar_url }}";
 
     function salvarEVoltar() {
@@ -84,7 +86,12 @@
                 },
                 'onError': function(event) {
                     console.error('Erro no OnlyOffice:', event);
-                    alert('Ocorreu um erro ao carregar o editor. Por favor, tente novamente.');
+                    Swal.fire({
+                        title: 'Erro',
+                        text: 'Ocorreu um erro ao carregar o editor. Por favor, tente novamente.',
+                        icon: 'error',
+                        confirmButtonColor: '#3085d6'
+                    });
                 },
                 'onWarning': function(event) {
                     console.warn('Aviso do OnlyOffice:', event);
@@ -92,6 +99,7 @@
                 'onDocumentStateChange': function(event) {
                     // event.data = true quando há alterações não salvas
                     console.log('Estado do documento:', event.data ? 'Alterações pendentes' : 'Salvo');
+                    if (event.data) documentModified = true;
                     documentSaved = !event.data;
                 },
                 'onRequestClose': function() {
@@ -113,7 +121,7 @@
 
     // Aviso antes de sair se houver alterações não salvas
     window.addEventListener('beforeunload', function(e) {
-        if (!documentSaved && docEditor) {
+        if (documentModified && !documentSaved && docEditor) {
             e.preventDefault();
             e.returnValue = 'Você tem alterações não salvas. Deseja realmente sair?';
             return e.returnValue;

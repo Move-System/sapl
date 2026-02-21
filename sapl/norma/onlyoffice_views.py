@@ -152,10 +152,10 @@ def norma_onlyoffice_download(request, pk):
 
     # Fallback: Se python-docx não está instalado ou houve erro
     try:
-        from docx import Document
+        from sapl.utils_template import criar_documento_padrao
         from io import BytesIO
 
-        doc = Document()
+        doc = criar_documento_padrao()
         doc.add_heading(f'{norma.tipo} {norma.numero}/{norma.ano}', 0)
         doc.add_paragraph(f'Ementa: {norma.ementa}')
         doc.add_paragraph('')

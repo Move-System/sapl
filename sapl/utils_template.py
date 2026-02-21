@@ -11,6 +11,49 @@ from django.core.files.base import ContentFile
 logger = logging.getLogger(__name__)
 
 
+def _forcar_fonte_estilo(style):
+    """Força Arial em todos os slots de fonte de um estilo,
+    sobrescrevendo qualquer fonte de tema."""
+    from docx.oxml.ns import qn
+
+    style.font.name = 'Arial'
+    rPr = style.element.get_or_add_rPr()
+    rFonts = rPr.get_or_add_rFonts()
+    rFonts.set(qn('w:ascii'), 'Arial')
+    rFonts.set(qn('w:hAnsi'), 'Arial')
+    rFonts.set(qn('w:eastAsia'), 'Arial')
+    rFonts.set(qn('w:cs'), 'Arial')
+
+
+def criar_documento_padrao():
+    """
+    Cria um Document python-docx com fonte Arial como padrão.
+    Configura o estilo 'Normal', 'Title' e os estilos de heading para usar Arial,
+    forçando em todos os slots de fonte (ascii, hAnsi, eastAsia, cs).
+    """
+    from docx import Document
+    from docx.shared import Pt
+
+    doc = Document()
+
+    # Define Arial como fonte padrão no estilo Normal
+    style = doc.styles['Normal']
+    style.font.size = Pt(12)
+    _forcar_fonte_estilo(style)
+
+    # Define Arial no estilo Title (usado por add_heading(text, 0))
+    if 'Title' in doc.styles:
+        _forcar_fonte_estilo(doc.styles['Title'])
+
+    # Define Arial nos estilos de heading
+    for i in range(1, 10):
+        heading_style_name = f'Heading {i}'
+        if heading_style_name in doc.styles:
+            _forcar_fonte_estilo(doc.styles[heading_style_name])
+
+    return doc
+
+
 def criar_documento_com_template(tipo_conteudo, tipo_especifico, dados):
     """
     Cria um novo documento usando um template existente.
@@ -126,10 +169,9 @@ def criar_documento_em_branco(titulo, descricao, tipo_documento='Documento'):
         BytesIO com o documento ou None em caso de erro
     """
     try:
-        from docx import Document
         from io import BytesIO
 
-        doc = Document()
+        doc = criar_documento_padrao()
         doc.add_heading(titulo, 0)
 
         if descricao:
@@ -257,6 +299,20 @@ def adicionar_cabecalho_materia(materia):
         from docx import Document
         from docx.shared import Pt, Inches
         from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.oxml.ns import qn
+
+        def _forcar_fonte_arial(run):
+            """Força Arial em todos os slots de fonte do run,
+            sobrescrevendo qualquer fonte de tema do documento."""
+            run.bold = True
+            run.font.name = 'Arial'
+            run.font.size = Pt(14)
+            rPr = run._element.get_or_add_rPr()
+            rFonts = rPr.get_or_add_rFonts()
+            rFonts.set(qn('w:ascii'), 'Arial')
+            rFonts.set(qn('w:hAnsi'), 'Arial')
+            rFonts.set(qn('w:eastAsia'), 'Arial')
+            rFonts.set(qn('w:cs'), 'Arial')
 
         # Carrega o documento
         doc = Document(arquivo_path)
@@ -276,8 +332,7 @@ def adicionar_cabecalho_materia(materia):
             # Formata o cabeçalho
             novo_paragrafo.alignment = WD_ALIGN_PARAGRAPH.CENTER
             for run in novo_paragrafo.runs:
-                run.bold = True
-                run.font.size = Pt(14)
+                _forcar_fonte_arial(run)
 
             # Adiciona linha em branco após o cabeçalho
             primeiro_paragrafo.insert_paragraph_before('')
@@ -286,8 +341,7 @@ def adicionar_cabecalho_materia(materia):
             paragrafo = doc.add_paragraph(cabecalho_texto)
             paragrafo.alignment = WD_ALIGN_PARAGRAPH.CENTER
             for run in paragrafo.runs:
-                run.bold = True
-                run.font.size = Pt(14)
+                _forcar_fonte_arial(run)
             doc.add_paragraph('')
 
         # Salva o documento modificado
