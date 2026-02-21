@@ -19,7 +19,8 @@
                 <a class="btn btn-sm btn-success" href="{% url 'sapl.materia:materia_pdf_assinado' object.pk %}" target="_blank">
                     <i class="fa fa-check-circle"></i> {% trans "Ver PDF Assinado" %}
                 </a>
-            {% elif is_autor %}
+            {% endif %}
+            {% if is_autor and not ja_assinou %}
                 <button type="button" class="btn btn-sm btn-warning" data-toggle="modal" data-target="#assinaturaModal">
                     <i class="fa fa-certificate"></i> {% trans "Assinar PDF Digitalmente" %}
                 </button>
@@ -180,32 +181,37 @@
           <div class="card border-success">
             <div class="card-header bg-success text-white">
               <i class="fa fa-certificate"></i> {% trans "Assinatura Digital" %}
+              {% if assinaturas|length > 1 %}
+                <span class="badge badge-light ml-1">{{ assinaturas|length }} {% trans "assinaturas" %}</span>
+              {% endif %}
             </div>
             <div class="card-body">
-              <div class="row">
-                <div class="col-md-6">
-                  <p class="mb-1"><strong>{% trans "Status:" %}</strong>
-                    <span class="badge badge-success">{% trans "Documento Assinado" %}</span>
-                  </p>
-                  {% if object.assinado_em %}
-                    <p class="mb-1"><strong>{% trans "Data/Hora:" %}</strong> {{ object.assinado_em|localtime|date:"d/m/Y H:i:s" }}</p>
-                  {% endif %}
-                  {% if object.assinado_por %}
-                    <p class="mb-1"><strong>{% trans "Assinado por:" %}</strong> {{ object.assinado_por.get_full_name|default:object.assinado_por.username }}</p>
-                  {% endif %}
+              <p class="mb-2"><strong>{% trans "Status:" %}</strong>
+                <span class="badge badge-success">{% trans "Documento Assinado" %}</span>
+              </p>
+              {% for assinatura in assinaturas %}
+                <div class="{% if not forloop.last %}mb-2 pb-2 border-bottom{% endif %}">
+                  <div class="row">
+                    <div class="col-md-6">
+                      <p class="mb-1"><strong>{% trans "Assinado por:" %}</strong> {{ assinatura.nome_assinante }}</p>
+                      <p class="mb-1"><strong>{% trans "Data/Hora:" %}</strong> {{ assinatura.data_assinatura }}</p>
+                    </div>
+                    <div class="col-md-6">
+                      <p class="mb-1"><strong>{% trans "Tipo de Certificado:" %}</strong> {{ assinatura.tipo_certificado_display|default:assinatura.tipo_certificado|default:"A1" }}</p>
+                      {% if assinatura.cargo %}
+                        <p class="mb-1"><strong>{% trans "Cargo:" %}</strong> {{ assinatura.cargo }}</p>
+                      {% endif %}
+                    </div>
+                  </div>
                 </div>
-                <div class="col-md-6">
-                  {% if object.assinatura_info %}
-                    <p class="mb-1"><strong>{% trans "Tipo de Certificado:" %}</strong> {{ object.assinatura_info.tipo_certificado|default:"A1" }}</p>
-                    {% if object.assinatura_info.subject %}
-                      <p class="mb-1"><strong>{% trans "Certificado:" %}</strong> {{ object.assinatura_info.subject|truncatechars:50 }}</p>
-                    {% endif %}
-                    {% if object.assinatura_info.valid_to %}
-                      <p class="mb-1"><strong>{% trans "Validade:" %}</strong> {{ object.assinatura_info.valid_to|slice:":10" }}</p>
-                    {% endif %}
-                  {% endif %}
-                </div>
-              </div>
+              {% empty %}
+                {% if object.assinado_por %}
+                  <p class="mb-1"><strong>{% trans "Assinado por:" %}</strong> {{ object.assinado_por.get_full_name|default:object.assinado_por.username }}</p>
+                {% endif %}
+                {% if object.assinado_em %}
+                  <p class="mb-1"><strong>{% trans "Data/Hora:" %}</strong> {{ object.assinado_em|localtime|date:"d/m/Y H:i:s" }}</p>
+                {% endif %}
+              {% endfor %}
               <div class="mt-2">
                 <a href="{% url 'sapl.materia:materia_pdf_assinado' object.pk %}" class="btn btn-sm btn-success" target="_blank">
                   <i class="fa fa-download"></i> {% trans "Baixar PDF Assinado" %}
@@ -223,7 +229,7 @@
 
 {% block extra_js %}
 {{ block.super }}
-{% if object.numero_protocolo and object.texto_original and not object.pdf_assinado %}
+{% if object.numero_protocolo and object.texto_original and is_autor and not ja_assinou %}
   {% include "materia/assinatura_modal.html" %}
   <script>
     document.addEventListener('DOMContentLoaded', function() {

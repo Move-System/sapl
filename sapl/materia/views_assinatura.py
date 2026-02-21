@@ -25,6 +25,28 @@ from sapl.materia.models import DocumentoAcessorio, MateriaLegislativa
 logger = logging.getLogger(__name__)
 
 
+def _normalizar_assinatura_info(info):
+    """Converte assinatura_info legado (dict) para lista de dicts."""
+    if info is None:
+        return []
+    if isinstance(info, dict):
+        return [info]
+    return info
+
+
+def _calcular_posicao_carimbo(n):
+    """
+    Calcula posição (x, y) do n-ésimo carimbo (n começa em 0).
+    Layout em grade: 2 colunas, múltiplas linhas.
+    """
+    from reportlab.lib.units import mm
+    col = n % 2
+    row = n // 2
+    x = (10 + col * 75) * mm
+    y = (15 + row * 25) * mm
+    return x, y
+
+
 def _gerar_pdf_da_materia(materia, request):
     """
     Gera o PDF da matéria para assinatura.
@@ -132,12 +154,15 @@ def materia_assinar_a1(request, pk):
     # Permissão: qualquer usuário autenticado pode assinar
     # (a autenticação é garantida pelo decorator @login_required)
 
-    # Verifica se já está assinada
-    if materia.pdf_assinado:
+    # Verifica se o usuário atual já assinou
+    assinaturas_existentes = _normalizar_assinatura_info(materia.assinatura_info)
+    if any(a.get('signed_by') == request.user.username for a in assinaturas_existentes):
         return JsonResponse({
             'success': False,
-            'error': 'Esta matéria já possui um PDF assinado.'
+            'error': 'Você já assinou esta matéria.'
         }, status=400)
+
+    ja_tem_pdf_assinado = bool(materia.pdf_assinado)
 
     # Obtém dados do formulário
     certificado_file = request.FILES.get('certificado')
@@ -232,7 +257,7 @@ def materia_assinar_a1(request, pk):
             temp_stamped_path = temp_stamped.name
 
         try:
-            from pyhanko.sign.fields import SigSeedSubFilter
+            from pyhanko.sign.fields import SigSeedSubFilter, SigFieldSpec
             from pyhanko.pdf_utils import text
             from pyhanko.sign.general import SigningError
             from PyPDF4 import PdfFileReader, PdfFileWriter
@@ -290,136 +315,208 @@ def materia_assinar_a1(request, pk):
             # Formata data
             data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
 
-            # ===== PASSO 1: Criar carimbo visual e adicionar ao PDF ANTES de assinar =====
+            # Número da assinatura (0-indexed)
+            n_assinatura = len(assinaturas_existentes)
+            sig_field_name = f'AssinaturaDigital_{n_assinatura + 1}' if n_assinatura > 0 else 'AssinaturaDigital'
 
-            # Lê o PDF original para obter as dimensões reais da última página
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-            page_box = last_page.mediaBox
-            page_width = float(page_box.getWidth())
-            page_height = float(page_box.getHeight())
+            if ja_tem_pdf_assinado:
+                # ===== ASSINATURA SUBSEQUENTE: Incremental sobre PDF já assinado =====
 
-            # Cria PDF com o carimbo usando as mesmas dimensões da página original
-            stamp_buffer = io.BytesIO()
-            c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
+                with open(materia.pdf_assinado.path, 'rb') as f:
+                    existing_pdf_bytes = f.read()
 
-            # Posição do carimbo (canto inferior esquerdo)
-            y_pos = 15 * mm
-            x_pos = 10 * mm
-            largura_carimbo = 70 * mm
-            altura_carimbo = 22 * mm
-            logo_width = 18 * mm
+                # Criar carimbo visual via pyhanko TextStampStyle + SigFieldSpec
+                x_pos, y_pos = _calcular_posicao_carimbo(n_assinatura)
+                largura_carimbo = 70 * mm
+                altura_carimbo = 22 * mm
 
-            # Desenha borda fina do carimbo
-            c.setStrokeColorRGB(0.5, 0.5, 0.5)
-            c.setLineWidth(0.5)
-            c.rect(x_pos, y_pos, largura_carimbo, altura_carimbo)
+                # Converter para pontos (pyhanko usa pontos)
+                x1 = x_pos
+                y1 = y_pos
+                x2 = x_pos + largura_carimbo
+                y2 = y_pos + altura_carimbo
 
-            # Texto do carimbo (lado esquerdo)
-            c.setFont("Helvetica", 6)
-            c.setFillColorRGB(0.3, 0.3, 0.3)
-            c.drawString(x_pos + 3*mm, y_pos + 17*mm, "Assinado digitalmente por")
+                nome_upper = nome_assinante.upper()
+                if len(nome_upper) > 28:
+                    nome_upper = nome_upper[:28] + "..."
 
-            c.setFont("Helvetica-Bold", 7)
-            c.setFillColorRGB(0, 0, 0)
-            nome_upper = nome_assinante.upper()
-            if len(nome_upper) > 28:
-                nome_upper = nome_upper[:28] + "..."
-            c.drawString(x_pos + 3*mm, y_pos + 12*mm, nome_upper)
+                signed_buffer = io.BytesIO()
+                with io.BytesIO(existing_pdf_bytes) as inf:
+                    w = IncrementalPdfFileWriter(inf)
 
-            c.setFont("Helvetica", 6)
-            c.setFillColorRGB(0.3, 0.3, 0.3)
-            if cpf:
-                c.drawString(x_pos + 3*mm, y_pos + 7*mm, f"CPF: {cpf}")
-                c.drawString(x_pos + 3*mm, y_pos + 3*mm, f"Data: {data_simples}")
+                    # Determina a última página
+                    from pyhanko.pdf_utils.reader import PdfFileReader as PyhankoReader
+                    temp_reader = PyhankoReader(io.BytesIO(existing_pdf_bytes))
+                    last_page_idx = temp_reader.root['/Pages']['/Count'] - 1
+
+                    # Adiciona campo de assinatura com posição visual
+                    sig_field = SigFieldSpec(
+                        sig_field_name=sig_field_name,
+                        on_page=last_page_idx,
+                        box=(x1, y1, x2, y2)
+                    )
+                    fields.append_signature_field(w, sig_field)
+
+                    # Cria stamp style para o carimbo visual
+                    from pyhanko.stamp import TextStampStyle
+
+                    stamp_text = f"Assinado digitalmente por\n{nome_upper}"
+                    if cpf:
+                        stamp_text += f"\nCPF: {cpf}"
+                    stamp_text += f"\nData: {data_simples}"
+
+                    stamp_style = TextStampStyle(
+                        stamp_text=stamp_text,
+                        background=None,
+                    )
+
+                    meta = signers.PdfSignatureMetadata(
+                        field_name=sig_field_name,
+                        location='Câmara Municipal',
+                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                        name=nome_assinante
+                    )
+
+                    signers.sign_pdf(
+                        w,
+                        meta,
+                        signer=signer,
+                        output=signed_buffer,
+                        existing_fields_only=True
+                    )
+
+                signed_buffer.seek(0)
+                signed_pdf_content = signed_buffer.read()
+
             else:
-                c.drawString(x_pos + 3*mm, y_pos + 5*mm, f"Data: {data_simples}")
+                # ===== PRIMEIRA ASSINATURA: Carimbo ReportLab + pyhanko sign =====
 
-            # Logo da câmara (lado direito)
-            try:
-                logo_path = None
-                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                # Lê o PDF original para obter as dimensões reais da última página
+                original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+                last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+                page_box = last_page.mediaBox
+                page_width = float(page_box.getWidth())
+                page_height = float(page_box.getHeight())
 
-                possible_paths = [
-                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
-                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
-                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
-                    os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
-                    os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
-                ]
+                # Cria PDF com o carimbo usando as mesmas dimensões da página original
+                stamp_buffer = io.BytesIO()
+                c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
 
-                logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
-                if os.path.exists(logo_dir):
-                    for f in os.listdir(logo_dir):
-                        if f.lower().endswith(('.png', '.jpg', '.jpeg')):
-                            possible_paths.insert(0, os.path.join(logo_dir, f))
+                # Posição do carimbo (canto inferior esquerdo) — posição 0
+                x_pos, y_pos = _calcular_posicao_carimbo(0)
+                largura_carimbo = 70 * mm
+                altura_carimbo = 22 * mm
+                logo_width = 18 * mm
 
-                for path in possible_paths:
-                    if os.path.exists(path):
-                        logo_path = path
-                        break
+                # Desenha borda fina do carimbo
+                c.setStrokeColorRGB(0.5, 0.5, 0.5)
+                c.setLineWidth(0.5)
+                c.rect(x_pos, y_pos, largura_carimbo, altura_carimbo)
 
-                if logo_path:
-                    logo = ImageReader(logo_path)
-                    logo_x = x_pos + largura_carimbo - logo_width - 2*mm
-                    logo_y = y_pos + 2*mm
-                    c.drawImage(logo, logo_x, logo_y,
-                               width=logo_width, height=logo_width,
-                               preserveAspectRatio=True, mask='auto')
-            except Exception as logo_error:
-                logger.warning(f"Não foi possível adicionar logo: {logo_error}")
+                # Texto do carimbo (lado esquerdo)
+                c.setFont("Helvetica", 6)
+                c.setFillColorRGB(0.3, 0.3, 0.3)
+                c.drawString(x_pos + 3*mm, y_pos + 17*mm, "Assinado digitalmente por")
 
-            c.save()
-            stamp_buffer.seek(0)
+                c.setFont("Helvetica-Bold", 7)
+                c.setFillColorRGB(0, 0, 0)
+                nome_upper = nome_assinante.upper()
+                if len(nome_upper) > 28:
+                    nome_upper = nome_upper[:28] + "..."
+                c.drawString(x_pos + 3*mm, y_pos + 12*mm, nome_upper)
 
-            # Mescla o carimbo com o PDF original (ANTES de assinar)
-            stamp_pdf = PdfFileReader(stamp_buffer)
-            output_pdf = PdfFileWriter()
+                c.setFont("Helvetica", 6)
+                c.setFillColorRGB(0.3, 0.3, 0.3)
+                if cpf:
+                    c.drawString(x_pos + 3*mm, y_pos + 7*mm, f"CPF: {cpf}")
+                    c.drawString(x_pos + 3*mm, y_pos + 3*mm, f"Data: {data_simples}")
+                else:
+                    c.drawString(x_pos + 3*mm, y_pos + 5*mm, f"Data: {data_simples}")
 
-            for page_num in range(original_pdf.getNumPages()):
-                page = original_pdf.getPage(page_num)
-                if page_num == original_pdf.getNumPages() - 1:  # Última página
-                    page.mergePage(stamp_pdf.getPage(0))
-                output_pdf.addPage(page)
+                # Logo da câmara (lado direito)
+                try:
+                    logo_path = None
+                    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-            # Salva o PDF com carimbo em arquivo temporário
-            with open(temp_stamped_path, 'wb') as f:
-                output_pdf.write(f)
+                    possible_paths = [
+                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
+                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
+                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
+                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
+                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
+                    ]
 
-            # ===== PASSO 2: Assinar o PDF que já contém o carimbo =====
+                    logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
+                    if os.path.exists(logo_dir):
+                        for f in os.listdir(logo_dir):
+                            if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+                                possible_paths.insert(0, os.path.join(logo_dir, f))
 
-            with open(temp_stamped_path, 'rb') as stamped_file:
-                stamped_bytes = stamped_file.read()
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            logo_path = path
+                            break
 
-            signed_buffer = io.BytesIO()
-            with io.BytesIO(stamped_bytes) as inf:
-                w = IncrementalPdfFileWriter(inf)
+                    if logo_path:
+                        logo = ImageReader(logo_path)
+                        logo_x = x_pos + largura_carimbo - logo_width - 2*mm
+                        logo_y = y_pos + 2*mm
+                        c.drawImage(logo, logo_x, logo_y,
+                                   width=logo_width, height=logo_width,
+                                   preserveAspectRatio=True, mask='auto')
+                except Exception as logo_error:
+                    logger.warning(f"Não foi possível adicionar logo: {logo_error}")
 
-                # Metadados da assinatura
-                meta = signers.PdfSignatureMetadata(
-                    field_name='AssinaturaDigital',
-                    location='Câmara Municipal',
-                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    name=nome_assinante
-                )
+                c.save()
+                stamp_buffer.seek(0)
 
-                # Executa assinatura
-                signers.sign_pdf(
-                    w,
-                    meta,
-                    signer=signer,
-                    output=signed_buffer
-                )
+                # Mescla o carimbo com o PDF original (ANTES de assinar)
+                stamp_pdf = PdfFileReader(stamp_buffer)
+                output_pdf = PdfFileWriter()
 
-            signed_buffer.seek(0)
-            signed_pdf_content = signed_buffer.read()
+                for page_num in range(original_pdf.getNumPages()):
+                    page = original_pdf.getPage(page_num)
+                    if page_num == original_pdf.getNumPages() - 1:  # Última página
+                        page.mergePage(stamp_pdf.getPage(0))
+                    output_pdf.addPage(page)
+
+                # Salva o PDF com carimbo em arquivo temporário
+                with open(temp_stamped_path, 'wb') as f:
+                    output_pdf.write(f)
+
+                # Assinar o PDF que já contém o carimbo
+                with open(temp_stamped_path, 'rb') as stamped_file:
+                    stamped_bytes = stamped_file.read()
+
+                signed_buffer = io.BytesIO()
+                with io.BytesIO(stamped_bytes) as inf:
+                    w = IncrementalPdfFileWriter(inf)
+
+                    # Metadados da assinatura
+                    meta = signers.PdfSignatureMetadata(
+                        field_name='AssinaturaDigital',
+                        location='Câmara Municipal',
+                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                        name=nome_assinante
+                    )
+
+                    # Executa assinatura
+                    signers.sign_pdf(
+                        w,
+                        meta,
+                        signer=signer,
+                        output=signed_buffer
+                    )
+
+                signed_buffer.seek(0)
+                signed_pdf_content = signed_buffer.read()
 
             # Salva o PDF assinado no modelo
             filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
             materia.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
 
-            # Salva informações da assinatura
-            materia.assinatura_info = {
+            # Salva informações da assinatura (lista de dicts)
+            nova_assinatura = {
                 'tipo_certificado': 'A1',
                 'tipo_certificado_display': f'{tipo_cert} – A1',
                 'subject': str(cert_info.subject),
@@ -433,6 +530,8 @@ def materia_assinar_a1(request, pk):
                 'data_assinatura': data_formatada,
                 'validade_juridica': 'Assinatura Eletrônica Qualificada'
             }
+            assinaturas_existentes.append(nova_assinatura)
+            materia.assinatura_info = assinaturas_existentes
             materia.assinado_em = timezone.now()
             materia.assinado_por = request.user
             materia.save()
@@ -917,11 +1016,15 @@ def docacessorio_assinar_a1(request, pk):
     """
     docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
 
-    if docacessorio.pdf_assinado:
+    # Verifica se o usuário atual já assinou
+    assinaturas_existentes = _normalizar_assinatura_info(docacessorio.assinatura_info)
+    if any(a.get('signed_by') == request.user.username for a in assinaturas_existentes):
         return JsonResponse({
             'success': False,
-            'error': 'Este documento já possui um PDF assinado.'
+            'error': 'Você já assinou este documento.'
         }, status=400)
+
+    ja_tem_pdf_assinado = bool(docacessorio.pdf_assinado)
 
     certificado_file = request.FILES.get('certificado')
     senha = request.POST.get('senha', '')
@@ -1007,7 +1110,7 @@ def docacessorio_assinar_a1(request, pk):
             temp_stamped_path = temp_stamped.name
 
         try:
-            from pyhanko.sign.fields import SigSeedSubFilter
+            from pyhanko.sign.fields import SigSeedSubFilter, SigFieldSpec
             from pyhanko.pdf_utils import text
             from pyhanko.sign.general import SigningError
             from PyPDF4 import PdfFileReader, PdfFileWriter
@@ -1058,122 +1161,190 @@ def docacessorio_assinar_a1(request, pk):
 
             data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
 
-            # Criar carimbo visual e adicionar ao PDF ANTES de assinar
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-            page_box = last_page.mediaBox
-            page_width = float(page_box.getWidth())
-            page_height = float(page_box.getHeight())
+            # Número da assinatura (0-indexed)
+            n_assinatura = len(assinaturas_existentes)
+            sig_field_name = f'AssinaturaDigital_{n_assinatura + 1}' if n_assinatura > 0 else 'AssinaturaDigital'
 
-            stamp_buffer = io.BytesIO()
-            c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
+            if ja_tem_pdf_assinado:
+                # ===== ASSINATURA SUBSEQUENTE: Incremental sobre PDF já assinado =====
 
-            y_pos = 15 * mm
-            x_pos = 10 * mm
-            largura_carimbo = 70 * mm
-            altura_carimbo = 22 * mm
-            logo_width = 18 * mm
+                with open(docacessorio.pdf_assinado.path, 'rb') as f:
+                    existing_pdf_bytes = f.read()
 
-            c.setStrokeColorRGB(0.5, 0.5, 0.5)
-            c.setLineWidth(0.5)
-            c.rect(x_pos, y_pos, largura_carimbo, altura_carimbo)
+                x_pos, y_pos = _calcular_posicao_carimbo(n_assinatura)
+                largura_carimbo = 70 * mm
+                altura_carimbo = 22 * mm
 
-            c.setFont("Helvetica", 6)
-            c.setFillColorRGB(0.3, 0.3, 0.3)
-            c.drawString(x_pos + 3*mm, y_pos + 17*mm, "Assinado digitalmente por")
+                x1 = x_pos
+                y1 = y_pos
+                x2 = x_pos + largura_carimbo
+                y2 = y_pos + altura_carimbo
 
-            c.setFont("Helvetica-Bold", 7)
-            c.setFillColorRGB(0, 0, 0)
-            nome_upper = nome_assinante.upper()
-            if len(nome_upper) > 28:
-                nome_upper = nome_upper[:28] + "..."
-            c.drawString(x_pos + 3*mm, y_pos + 12*mm, nome_upper)
+                nome_upper = nome_assinante.upper()
+                if len(nome_upper) > 28:
+                    nome_upper = nome_upper[:28] + "..."
 
-            c.setFont("Helvetica", 6)
-            c.setFillColorRGB(0.3, 0.3, 0.3)
-            if cpf:
-                c.drawString(x_pos + 3*mm, y_pos + 7*mm, f"CPF: {cpf}")
-                c.drawString(x_pos + 3*mm, y_pos + 3*mm, f"Data: {data_simples}")
+                signed_buffer = io.BytesIO()
+                with io.BytesIO(existing_pdf_bytes) as inf:
+                    w = IncrementalPdfFileWriter(inf)
+
+                    from pyhanko.pdf_utils.reader import PdfFileReader as PyhankoReader
+                    temp_reader = PyhankoReader(io.BytesIO(existing_pdf_bytes))
+                    last_page_idx = temp_reader.root['/Pages']['/Count'] - 1
+
+                    sig_field = SigFieldSpec(
+                        sig_field_name=sig_field_name,
+                        on_page=last_page_idx,
+                        box=(x1, y1, x2, y2)
+                    )
+                    fields.append_signature_field(w, sig_field)
+
+                    from pyhanko.stamp import TextStampStyle
+
+                    stamp_text = f"Assinado digitalmente por\n{nome_upper}"
+                    if cpf:
+                        stamp_text += f"\nCPF: {cpf}"
+                    stamp_text += f"\nData: {data_simples}"
+
+                    stamp_style = TextStampStyle(
+                        stamp_text=stamp_text,
+                        background=None,
+                    )
+
+                    meta = signers.PdfSignatureMetadata(
+                        field_name=sig_field_name,
+                        location='Câmara Municipal',
+                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                        name=nome_assinante
+                    )
+
+                    signers.sign_pdf(
+                        w,
+                        meta,
+                        signer=signer,
+                        output=signed_buffer,
+                        existing_fields_only=True
+                    )
+
+                signed_buffer.seek(0)
+                signed_pdf_content = signed_buffer.read()
+
             else:
-                c.drawString(x_pos + 3*mm, y_pos + 5*mm, f"Data: {data_simples}")
+                # ===== PRIMEIRA ASSINATURA: Carimbo ReportLab + pyhanko sign =====
 
-            try:
-                logo_path = None
-                base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+                last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+                page_box = last_page.mediaBox
+                page_width = float(page_box.getWidth())
+                page_height = float(page_box.getHeight())
 
-                possible_paths = [
-                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
-                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
-                    os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
-                    os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
-                    os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
-                ]
+                stamp_buffer = io.BytesIO()
+                c = canvas.Canvas(stamp_buffer, pagesize=(page_width, page_height))
 
-                logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
-                if os.path.exists(logo_dir):
-                    for f in os.listdir(logo_dir):
-                        if f.lower().endswith(('.png', '.jpg', '.jpeg')):
-                            possible_paths.insert(0, os.path.join(logo_dir, f))
+                x_pos, y_pos = _calcular_posicao_carimbo(0)
+                largura_carimbo = 70 * mm
+                altura_carimbo = 22 * mm
+                logo_width = 18 * mm
 
-                for path in possible_paths:
-                    if os.path.exists(path):
-                        logo_path = path
-                        break
+                c.setStrokeColorRGB(0.5, 0.5, 0.5)
+                c.setLineWidth(0.5)
+                c.rect(x_pos, y_pos, largura_carimbo, altura_carimbo)
 
-                if logo_path:
-                    logo = ImageReader(logo_path)
-                    logo_x = x_pos + largura_carimbo - logo_width - 2*mm
-                    logo_y = y_pos + 2*mm
-                    c.drawImage(logo, logo_x, logo_y,
-                               width=logo_width, height=logo_width,
-                               preserveAspectRatio=True, mask='auto')
-            except Exception as logo_error:
-                logger.warning(f"Não foi possível adicionar logo: {logo_error}")
+                c.setFont("Helvetica", 6)
+                c.setFillColorRGB(0.3, 0.3, 0.3)
+                c.drawString(x_pos + 3*mm, y_pos + 17*mm, "Assinado digitalmente por")
 
-            c.save()
-            stamp_buffer.seek(0)
+                c.setFont("Helvetica-Bold", 7)
+                c.setFillColorRGB(0, 0, 0)
+                nome_upper = nome_assinante.upper()
+                if len(nome_upper) > 28:
+                    nome_upper = nome_upper[:28] + "..."
+                c.drawString(x_pos + 3*mm, y_pos + 12*mm, nome_upper)
 
-            stamp_pdf = PdfFileReader(stamp_buffer)
-            output_pdf = PdfFileWriter()
+                c.setFont("Helvetica", 6)
+                c.setFillColorRGB(0.3, 0.3, 0.3)
+                if cpf:
+                    c.drawString(x_pos + 3*mm, y_pos + 7*mm, f"CPF: {cpf}")
+                    c.drawString(x_pos + 3*mm, y_pos + 3*mm, f"Data: {data_simples}")
+                else:
+                    c.drawString(x_pos + 3*mm, y_pos + 5*mm, f"Data: {data_simples}")
 
-            for page_num in range(original_pdf.getNumPages()):
-                page = original_pdf.getPage(page_num)
-                if page_num == original_pdf.getNumPages() - 1:
-                    page.mergePage(stamp_pdf.getPage(0))
-                output_pdf.addPage(page)
+                try:
+                    logo_path = None
+                    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-            with open(temp_stamped_path, 'wb') as f:
-                output_pdf.write(f)
+                    possible_paths = [
+                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo-camara-padrao.png'),
+                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/logo.png'),
+                        os.path.join(base_dir, 'sapl/static/sapl/frontend/img/pdflogo.png'),
+                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logo.png'),
+                        os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo/logotipo.png'),
+                    ]
 
-            # Assinar o PDF que já contém o carimbo
-            with open(temp_stamped_path, 'rb') as stamped_file:
-                stamped_bytes = stamped_file.read()
+                    logo_dir = os.path.join(settings.MEDIA_ROOT, 'sapl/public/casa/logotipo')
+                    if os.path.exists(logo_dir):
+                        for f in os.listdir(logo_dir):
+                            if f.lower().endswith(('.png', '.jpg', '.jpeg')):
+                                possible_paths.insert(0, os.path.join(logo_dir, f))
 
-            signed_buffer = io.BytesIO()
-            with io.BytesIO(stamped_bytes) as inf:
-                w = IncrementalPdfFileWriter(inf)
+                    for path in possible_paths:
+                        if os.path.exists(path):
+                            logo_path = path
+                            break
 
-                meta = signers.PdfSignatureMetadata(
-                    field_name='AssinaturaDigital',
-                    location='Câmara Municipal',
-                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    name=nome_assinante
-                )
+                    if logo_path:
+                        logo = ImageReader(logo_path)
+                        logo_x = x_pos + largura_carimbo - logo_width - 2*mm
+                        logo_y = y_pos + 2*mm
+                        c.drawImage(logo, logo_x, logo_y,
+                                   width=logo_width, height=logo_width,
+                                   preserveAspectRatio=True, mask='auto')
+                except Exception as logo_error:
+                    logger.warning(f"Não foi possível adicionar logo: {logo_error}")
 
-                signers.sign_pdf(
-                    w,
-                    meta,
-                    signer=signer,
-                    output=signed_buffer
-                )
+                c.save()
+                stamp_buffer.seek(0)
 
-            signed_buffer.seek(0)
-            signed_pdf_content = signed_buffer.read()
+                stamp_pdf = PdfFileReader(stamp_buffer)
+                output_pdf = PdfFileWriter()
+
+                for page_num in range(original_pdf.getNumPages()):
+                    page = original_pdf.getPage(page_num)
+                    if page_num == original_pdf.getNumPages() - 1:
+                        page.mergePage(stamp_pdf.getPage(0))
+                    output_pdf.addPage(page)
+
+                with open(temp_stamped_path, 'wb') as f:
+                    output_pdf.write(f)
+
+                with open(temp_stamped_path, 'rb') as stamped_file:
+                    stamped_bytes = stamped_file.read()
+
+                signed_buffer = io.BytesIO()
+                with io.BytesIO(stamped_bytes) as inf:
+                    w = IncrementalPdfFileWriter(inf)
+
+                    meta = signers.PdfSignatureMetadata(
+                        field_name='AssinaturaDigital',
+                        location='Câmara Municipal',
+                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                        name=nome_assinante
+                    )
+
+                    signers.sign_pdf(
+                        w,
+                        meta,
+                        signer=signer,
+                        output=signed_buffer
+                    )
+
+                signed_buffer.seek(0)
+                signed_pdf_content = signed_buffer.read()
 
             filename = f"docacessorio_{docacessorio.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
             docacessorio.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
 
-            docacessorio.assinatura_info = {
+            nova_assinatura = {
                 'tipo_certificado': 'A1',
                 'tipo_certificado_display': f'{tipo_cert} – A1',
                 'subject': str(cert_info.subject),
@@ -1187,6 +1358,8 @@ def docacessorio_assinar_a1(request, pk):
                 'data_assinatura': data_formatada,
                 'validade_juridica': 'Assinatura Eletrônica Qualificada'
             }
+            assinaturas_existentes.append(nova_assinatura)
+            docacessorio.assinatura_info = assinaturas_existentes
             docacessorio.assinado_em = timezone.now()
             docacessorio.assinado_por = request.user
             docacessorio.save()

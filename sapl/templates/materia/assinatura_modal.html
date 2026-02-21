@@ -473,6 +473,9 @@ document.addEventListener('DOMContentLoaded', function() {
             btnBaixar.style.display = 'inline-block';
 
             document.getElementById('btn-fechar-modal').textContent = 'Fechar';
+
+            // Recarrega a página após 1.5s para atualizar os botões/card
+            setTimeout(function() { location.reload(); }, 1500);
         },
 
         mostrarErro: function(mensagem) {

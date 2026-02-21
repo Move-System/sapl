@@ -1819,6 +1819,16 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
                     )
                 )
             )
+
+            # Normaliza assinatura_info para lista (backward-compatible)
+            from sapl.materia.views_assinatura import _normalizar_assinatura_info
+            assinaturas = _normalizar_assinatura_info(self.object.assinatura_info)
+            context['assinaturas'] = assinaturas
+            context['ja_assinou'] = any(
+                a.get('signed_by') == u.username
+                for a in assinaturas
+            ) if u.is_authenticated else False
+
             return context
 
     class ListView(MasterDetailCrud.ListView):
@@ -2183,6 +2193,15 @@ class MateriaLegislativaCrud(Crud):
                     self.request.user.has_perm('materia.change_materialegislativa')
                 )
             )
+
+            # Normaliza assinatura_info para lista (backward-compatible)
+            from sapl.materia.views_assinatura import _normalizar_assinatura_info
+            assinaturas = _normalizar_assinatura_info(self.object.assinatura_info)
+            context['assinaturas'] = assinaturas
+            context['ja_assinou'] = any(
+                a.get('signed_by') == self.request.user.username
+                for a in assinaturas
+            ) if self.request.user.is_authenticated else False
 
             return context
 
