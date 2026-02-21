@@ -3343,6 +3343,83 @@ def get_zip_completo(request, pk):
     return response
 
 
+def create_pdf_completo(materia):
+    """
+        Creates a unified in memory PDF with materia PDF + all documentos acessórios
+    """
+    logger = logging.getLogger(__name__)
+
+    pdf_files = []
+
+    # PDF da matéria: prefere pdf_assinado, fallback texto_original
+    if materia.pdf_assinado:
+        pdf_files.append(os.path.join(MEDIA_ROOT, str(materia.pdf_assinado)))
+    elif materia.texto_original:
+        f = os.path.join(MEDIA_ROOT, str(materia.texto_original))
+        if f.lower().endswith('pdf'):
+            pdf_files.append(f)
+
+    # Documentos acessórios: prefere pdf_assinado, fallback arquivo (somente PDF)
+    for doc in materia.documentoacessorio_set.all():
+        if doc.pdf_assinado:
+            pdf_files.append(os.path.join(MEDIA_ROOT, str(doc.pdf_assinado)))
+        elif doc.arquivo:
+            f = os.path.join(MEDIA_ROOT, str(doc.arquivo))
+            if f.lower().endswith('pdf'):
+                pdf_files.append(f)
+
+    # Filtra apenas arquivos que existem no disco
+    pdf_files = [f for f in pdf_files if os.path.exists(f)]
+
+    if not pdf_files:
+        raise FileNotFoundError(
+            "Nenhum arquivo PDF encontrado para a matéria.")
+
+    logger.info(
+        "Gerando PDF completo da matéria com {} arquivos: {}".format(
+            len(pdf_files), pdf_files))
+
+    merger = PdfFileMerger(strict=False)
+    for f in pdf_files:
+        merger.append(fileobj=f)
+
+    data = BytesIO()
+    merger.write(data)
+    merger.close()
+
+    external_name = "mat_{}_{}_completo.pdf".format(
+        materia.numero, materia.ano)
+    return external_name, data.getvalue()
+
+
+def get_pdf_completo(request, pk):
+    logger = logging.getLogger(__name__)
+    username = 'Usuário anônimo' if request.user.is_anonymous else request.user.username
+    materia = get_object_or_404(MateriaLegislativa, pk=pk)
+    try:
+        external_name, data = create_pdf_completo(materia)
+        logger.info(
+            "user= {}. Gerou o PDF completo da matéria {}".format(username, pk))
+    except FileNotFoundError:
+        logger.error("user= {}.Arquivos PDF não encontrados para matéria {}".format(username, pk))
+        msg = _('Não há arquivos PDF disponíveis para download nesta matéria.')
+        messages.add_message(request, messages.ERROR, msg)
+        return redirect(reverse('sapl.materia:materialegislativa_detail',
+                                kwargs={'pk': pk}))
+    except Exception as e:
+        logger.error("user={}. Erro ao criar PDF completo da matéria {}: {}"
+                     .format(username, pk, str(e)))
+        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SGVP.')
+        messages.add_message(request, messages.ERROR, msg)
+        return redirect(reverse('sapl.materia:materialegislativa_detail',
+                                kwargs={'pk': pk}))
+
+    response = HttpResponse(data, content_type='application/pdf')
+    response['Content-Disposition'] = ('attachment; filename="%s"'
+                                       % external_name)
+    return response
+
+
 def create_pdf_docacessorios(materia):
     """
         Creates a unified in memory PDF file

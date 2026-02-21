@@ -167,17 +167,28 @@
       strong.parentNode.insertBefore(document.createTextNode(' '), strong.nextSibling);
       strong.parentNode.insertBefore(btn, strong.nextSibling);
 
-      // Botão "Baixar Todos" (ZIP com matéria + acessórios)
+      // Botões "Baixar Todos" quando há documentos acessórios
       const materiaPk = link.getAttribute('data-materia-pk');
       if (materiaPk) {
+        // Botão PDF unificado
+        const pdfBtn = document.createElement('a');
+        pdfBtn.setAttribute('data-sapl-download-all-btn', '1');
+        pdfBtn.className = 'btn btn-sm btn-info ml-1';
+        pdfBtn.title = 'Baixar todos em PDF único';
+        pdfBtn.href = '/materia/pdf-completo/' + materiaPk;
+        pdfBtn.innerHTML = '<i class="fas fa-file-pdf"></i>';
+        strong.parentNode.insertBefore(document.createTextNode(' '), btn.nextSibling);
+        strong.parentNode.insertBefore(pdfBtn, btn.nextSibling.nextSibling);
+
+        // Botão ZIP
         const zipBtn = document.createElement('a');
         zipBtn.setAttribute('data-sapl-download-all-btn', '1');
         zipBtn.className = 'btn btn-sm btn-info ml-1';
-        zipBtn.title = 'Baixar todos os documentos (ZIP)';
+        zipBtn.title = 'Baixar todos em ZIP';
         zipBtn.href = '/materia/zip-completo/' + materiaPk;
         zipBtn.innerHTML = '<i class="fas fa-file-archive"></i>';
-        strong.parentNode.insertBefore(document.createTextNode(' '), btn.nextSibling);
-        strong.parentNode.insertBefore(zipBtn, btn.nextSibling.nextSibling);
+        strong.parentNode.insertBefore(document.createTextNode(' '), pdfBtn.nextSibling);
+        strong.parentNode.insertBefore(zipBtn, pdfBtn.nextSibling.nextSibling);
       }
     });
   }
