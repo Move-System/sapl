@@ -3256,6 +3256,93 @@ def get_zip_docacessorios(request, pk):
     return response
 
 
+def create_zip_completo(materia):
+    """
+        Creates in memory zip file with materia PDF + all documentos acessórios
+    """
+    logger = logging.getLogger(__name__)
+
+    files_to_zip = []
+
+    # PDF da matéria: prefere pdf_assinado, fallback texto_original
+    if materia.pdf_assinado:
+        files_to_zip.append(os.path.join(MEDIA_ROOT, str(materia.pdf_assinado)))
+    elif materia.texto_original:
+        files_to_zip.append(os.path.join(MEDIA_ROOT, str(materia.texto_original)))
+
+    # Documentos acessórios: prefere pdf_assinado, fallback arquivo
+    for doc in materia.documentoacessorio_set.all():
+        if doc.pdf_assinado:
+            files_to_zip.append(os.path.join(MEDIA_ROOT, str(doc.pdf_assinado)))
+        elif doc.arquivo:
+            files_to_zip.append(os.path.join(MEDIA_ROOT, str(doc.arquivo)))
+
+    if not files_to_zip:
+        return None, None
+
+    logger.info(
+        "Gerando zip completo da matéria com {} arquivos: {}".format(
+            len(files_to_zip), files_to_zip))
+
+    _zipfile = BytesIO()
+    added = 0
+
+    try:
+        with zipfile.ZipFile(_zipfile, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for f in files_to_zip:
+                if os.path.exists(f):
+                    zipf.write(f, f.split(os.sep)[-1])
+                    added += 1
+                else:
+                    logger.warning("Arquivo não encontrado: {}".format(f))
+    except Exception as e:
+        logger.error(e)
+        raise e
+
+    if not added:
+        raise FileNotFoundError(
+            "Nenhum arquivo encontrado no disco para a matéria.")
+
+    external_name = "mat_{}_{}_completo.zip".format(
+        materia.numero, materia.ano)
+    return external_name, _zipfile.getvalue()
+
+
+def get_zip_completo(request, pk):
+    logger = logging.getLogger(__name__)
+    username = 'Usuário anônimo' if request.user.is_anonymous else request.user.username
+    materia = get_object_or_404(MateriaLegislativa, pk=pk)
+    data = None
+    try:
+        external_name, data = create_zip_completo(materia)
+        logger.info(
+            "user= {}. Gerou o zip completo da matéria {}".format(username, pk))
+    except FileNotFoundError:
+        logger.error("user= {}.Arquivos não encontrados para matéria {}".format(username, pk))
+        msg = _('Não há arquivos disponíveis para download nesta matéria.')
+        messages.add_message(request, messages.ERROR, msg)
+        return redirect(reverse('sapl.materia:materialegislativa_detail',
+                                kwargs={'pk': pk}))
+    except Exception as e:
+        logger.error("user={}. Erro ao criar zip completo da matéria {}: {}"
+                     .format(username, pk, str(e)))
+        msg = _('Um erro inesperado ocorreu. Entre em contato com o suporte do SGVP.')
+        messages.add_message(request, messages.ERROR, msg)
+        return redirect(reverse('sapl.materia:materialegislativa_detail',
+                                kwargs={'pk': pk}))
+
+    if not data:
+        msg = _('Não há nenhum documento cadastrado para esta matéria.')
+        messages.add_message(request, messages.ERROR, msg)
+        return redirect(reverse('sapl.materia:materialegislativa_detail',
+                                kwargs={'pk': pk}))
+
+    response = HttpResponse(data, content_type='application/zip')
+    response['Content-Disposition'] = ('attachment; filename="%s"'
+                                       % external_name)
+    return response
+
+
 def create_pdf_docacessorios(materia):
     """
         Creates a unified in memory PDF file

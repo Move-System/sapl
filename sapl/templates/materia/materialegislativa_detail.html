@@ -28,6 +28,13 @@
             {% endif %}
         </div>
     {% endif %}
+    {% if object.documentoacessorio_set.all.exists %}
+        <div class="actions btn-group btn-group-sm" role="group">
+            <a class="btn btn-info" href="{% url 'sapl.materia:zip_completo_materia' object.pk %}">
+                <i class="fa fa-file-archive-o"></i> {% trans "Baixar Todos os Documentos" %}
+            </a>
+        </div>
+    {% endif %}
 {% endblock sub_actions %}
 
 {% block editions %}

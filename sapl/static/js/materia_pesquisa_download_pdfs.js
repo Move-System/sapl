@@ -166,6 +166,19 @@
       // insere logo após o </strong>
       strong.parentNode.insertBefore(document.createTextNode(' '), strong.nextSibling);
       strong.parentNode.insertBefore(btn, strong.nextSibling);
+
+      // Botão "Baixar Todos" (ZIP com matéria + acessórios)
+      const materiaPk = link.getAttribute('data-materia-pk');
+      if (materiaPk) {
+        const zipBtn = document.createElement('a');
+        zipBtn.setAttribute('data-sapl-download-all-btn', '1');
+        zipBtn.className = 'btn btn-sm btn-info ml-1';
+        zipBtn.title = 'Baixar todos os documentos (ZIP)';
+        zipBtn.href = '/materia/zip-completo/' + materiaPk;
+        zipBtn.innerHTML = '<i class="fas fa-file-archive"></i>';
+        strong.parentNode.insertBefore(document.createTextNode(' '), btn.nextSibling);
+        strong.parentNode.insertBefore(zipBtn, btn.nextSibling.nextSibling);
+      }
     });
   }
 

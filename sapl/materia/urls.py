@@ -29,7 +29,7 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 RetornarProposicao,
                                 MateriaPesquisaSimplesView,
                                 DespachoInicialMultiCreateView,
-                                get_zip_docacessorios, get_pdf_docacessorios,
+                                get_zip_docacessorios, get_pdf_docacessorios, get_zip_completo,
                                 configEtiquetaMateriaLegislativaCrud,
                                 PesquisarStatusTramitacaoView, HistoricoProposicaoView)
 from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_download,
@@ -147,6 +147,8 @@ urlpatterns_materia = [
         name='compress_docacessorios'),
     url(r'^materia/docacessorio/pdf/(?P<pk>\d+)$', get_pdf_docacessorios,
         name='merge_docacessorios'),
+    url(r'^materia/zip-completo/(?P<pk>\d+)$', get_zip_completo,
+        name='zip_completo_materia'),
 
     # OnlyOffice endpoints para Matéria Legislativa
     url(r'^materia/(?P<pk>\d+)/onlyoffice/editor$', materia_onlyoffice_editor,

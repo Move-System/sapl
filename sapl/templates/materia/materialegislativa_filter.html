@@ -209,8 +209,9 @@
                   {% endif %}
                   {% if m.texto_original %}
                     <strong>
-                      <a href="{{m.texto_original.url}}" 
-                         {% if m.pdf_assinado %}data-pdf-assinado="{{m.pdf_assinado.url}}"{% endif %}>
+                      <a href="{{m.texto_original.url}}"
+                         {% if m.pdf_assinado %}data-pdf-assinado="{{m.pdf_assinado.url}}"{% endif %}
+                         {% if m.documentoacessorio_set.all.exists %}data-materia-pk="{{ m.id }}"{% endif %}>
                         Texto Original
                       </a>
                     </strong>
