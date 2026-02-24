@@ -2334,6 +2334,71 @@ class DevolverProposicaoForm(forms.ModelForm):
         return self.instance
 
 
+class RevisaoSetorForm(forms.ModelForm):
+
+    observacao_setor = forms.CharField(
+        required=False,
+        label=_('Observações da revisão'),
+        widget=widgets.Textarea(attrs={'rows': 5}))
+
+    logger = logging.getLogger(__name__)
+
+    class Meta:
+        model = Proposicao
+        fields = [
+            'observacao_setor',
+            'user',
+            'ip'
+        ]
+        widgets = {
+            'user': forms.HiddenInput(),
+            'ip': forms.HiddenInput(),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super(RevisaoSetorForm, self).__init__(*args, **kwargs)
+        fields = []
+
+        fields.append(
+            Fieldset(
+                _('Revisão do Setor Legislativo'),
+                to_column(('observacao_setor', 12)),
+                to_column(
+                    (form_actions(label=_('Devolver ao Autor'),
+                                  name='devolver_setor',
+                                  css_class='btn-success float-right'), 12)
+                )
+            )
+        )
+
+        self.helper = SaplFormHelper()
+        self.helper.layout = Layout(*fields)
+
+    @transaction.atomic
+    def save(self, commit=False):
+        cd = self.cleaned_data
+
+        self.instance.data_retorno_setor = timezone.now()
+        self.instance.usuario_retorno_setor = self.initial['user']
+        self.instance.save()
+
+        observacao = cd.get('observacao_setor', '')
+        HistoricoProposicao.objects.create(
+            proposicao=self.instance,
+            status='V',
+            user=self.initial['user'],
+            ip=self.initial['ip'],
+            observacao=observacao)
+
+        self.instance.results = {
+            'messages': {
+                'success': [_('Proposição revisada e devolvida ao autor com sucesso.'), ]
+            },
+            'url': reverse('sapl.materia:proposicao-pendente-setor')
+        }
+        return self.instance
+
+
 class ConfirmarProposicaoForm(ProposicaoForm):
 
     tipo_readonly = forms.CharField(

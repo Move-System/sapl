@@ -49,6 +49,7 @@ from sapl.materia.forms import (AnexadaForm, AutoriaForm, AutoriaMultiCreateForm
                                 ConfirmarProposicaoForm, DevolverProposicaoForm,
                                 DespachoInicialCreateForm, LegislacaoCitadaForm,
                                 MateriaPesquisaSimplesForm, OrgaoForm, ProposicaoForm,
+                                RevisaoSetorForm,
                                 TipoProposicaoForm, TramitacaoForm, TramitacaoUpdateForm, ConfigEtiquetaMateriaLegislativaForms)
 from sapl.norma.models import LegislacaoCitada
 from sapl.parlamentares.models import (
@@ -613,6 +614,73 @@ class ProposicaoRecebida(PermissionRequiredMixin, ListView):
         return context
 
 
+class ProposicaoPendenteSetor(PermissionRequiredMixin, ListView):
+    template_name = 'materia/prop_pendentes_setor_list.html'
+    model = Proposicao
+    ordering = ['data_envio_setor', 'autor', 'tipo', 'descricao']
+    paginate_by = 10
+    permission_required = ('materia.detail_proposicao_em_revisao_setor', )
+
+    def get_queryset(self):
+        return Proposicao.objects.filter(
+            data_envio_setor__isnull=False,
+            data_retorno_setor__isnull=True,
+            data_envio__isnull=True)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        paginator = context['paginator']
+        page_obj = context['page_obj']
+        context['AppConfig'] = sapl.base.models.AppConfig.objects.all().last()
+        context['page_range'] = make_pagination(
+            page_obj.number, paginator.num_pages)
+        context['NO_ENTRIES_MSG'] = 'Nenhuma proposição pendente de revisão pelo setor.'
+        qr = self.request.GET.copy()
+        context['filter_url'] = ('&o=' + qr['o']) if 'o' in qr.keys() else ''
+        return context
+
+
+class RevisarProposicaoSetor(PermissionRequiredMixin, UpdateView):
+    template_name = "materia/revisar_proposicao_setor.html"
+    model = Proposicao
+    form_class = RevisaoSetorForm
+    permission_required = ('materia.detail_proposicao_em_revisao_setor', )
+    logger = logging.getLogger(__name__)
+
+    def get_initial(self):
+        initial = super().get_initial()
+        initial['ip'] = get_client_ip(self.request)
+        initial['user'] = self.request.user
+        return initial
+
+    def get_success_url(self):
+        msgs = self.object.results['messages']
+        for key, value in msgs.items():
+            for item in value:
+                getattr(messages, key)(self.request, item)
+        return self.object.results['url']
+
+    def dispatch(self, request, *args, **kwargs):
+        username = request.user.username
+        try:
+            p = Proposicao.objects.get(id=kwargs['pk'])
+        except Exception:
+            raise Http404()
+
+        if not p.data_envio_setor or p.data_envio:
+            messages.error(request,
+                           _('Esta proposição não está pendente de revisão pelo setor.'))
+            return redirect(reverse('sapl.materia:proposicao-pendente-setor'))
+
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['subnav_template_name'] = ''
+        context['proposicao'] = self.object
+        return context
+
+
 class ReceberProposicao(PermissionRequiredForAppCrudMixin, FormView):
     app_label = sapl.protocoloadm.apps.AppConfig.label
     template_name = "materia/receber_proposicao.html"
@@ -884,7 +952,8 @@ class ProposicaoCrud(Crud):
         def get_context_data(self, **kwargs):
             context = super().get_context_data(**kwargs)
             context['subnav_template_name'] = ''
-            context['AppConfig'] = sapl.base.models.AppConfig.objects.all().last()
+            app_config = sapl.base.models.AppConfig.objects.all().last()
+            context['AppConfig'] = app_config
 
             context['title'] = '%s <small>(%s)</small>' % (
                 self.object, self.object.autor)
@@ -892,6 +961,17 @@ class ProposicaoCrud(Crud):
             context['user'] = self.request.user
             context['proposicao'] = Proposicao.objects.get(
                 pk=self.kwargs['pk']
+            )
+            context['revisao_setor_legislativo'] = (
+                app_config.revisao_setor_legislativo if app_config else False
+            )
+
+            # Check if current user is member of the Setor Legislativo group
+            from sapl.rules import SGVP_GROUP_SETOR_LEGISLATIVO
+            context['is_setor_legislativo'] = (
+                self.request.user.groups.filter(
+                    name=SGVP_GROUP_SETOR_LEGISLATIVO
+                ).exists()
             )
             return context
 
@@ -935,6 +1015,8 @@ class ProposicaoCrud(Crud):
                                 str(p.pk))
 
                         p.data_devolucao = None
+                        p.data_envio_setor = None
+                        p.data_retorno_setor = None
                         p.data_envio = timezone.now()
                         p.save()
                         HistoricoProposicao.objects.create(
@@ -1000,6 +1082,46 @@ class ProposicaoCrud(Crud):
                         messages.success(request, _(
                             'Proposição Retornada com sucesso.'))
 
+                elif action == 'send_setor':
+                    app_config = sapl.base.models.AppConfig.objects.all().last()
+                    if not app_config or not app_config.revisao_setor_legislativo:
+                        msg_error = _('Revisão pelo Setor Legislativo não está habilitada.')
+                    elif p.data_envio:
+                        msg_error = _('Proposição já foi enviada ao protocolo.')
+                    elif not p.texto_original and not p.texto_articulado.exists():
+                        msg_error = _(
+                            'Proposição não possui texto. Crie o documento antes de enviar ao setor.')
+                    else:
+                        p.data_envio_setor = timezone.now()
+                        p.data_retorno_setor = None
+                        p.usuario_envio_setor = request.user
+                        p.save()
+                        HistoricoProposicao.objects.create(
+                            proposicao=p,
+                            status='S',
+                            ip=get_client_ip(self.request),
+                            user=self.request.user)
+                        self.logger.info("User={}. Proposição (id={}) enviada ao Setor Legislativo."
+                                         .format(username, p.pk))
+                        messages.success(request, _(
+                            'Proposição enviada ao Setor Legislativo com sucesso.'))
+
+                elif action == 'return_from_setor':
+                    app_config = sapl.base.models.AppConfig.objects.all().last()
+                    if not app_config or not app_config.revisao_setor_legislativo:
+                        msg_error = _('Revisão pelo Setor Legislativo não está habilitada.')
+                    elif not p.data_envio_setor:
+                        msg_error = _('Proposição não está com o Setor Legislativo.')
+                    elif p.data_retorno_setor:
+                        msg_error = _('Proposição já foi devolvida pelo setor.')
+                    else:
+                        p.data_envio_setor = None
+                        p.save()
+                        self.logger.info("User={}. Proposição (id={}) retornada do Setor Legislativo."
+                                         .format(username, p.pk))
+                        messages.success(request, _(
+                            'Proposição retornada do Setor Legislativo com sucesso.'))
+
                 if msg_error:
                     messages.error(request, msg_error)
 
@@ -1021,17 +1143,22 @@ class ProposicaoCrud(Crud):
                 return self.handle_no_permission()
 
             if not p.autor.operadores.filter(id=request.user.id).exists():
-                if not p.data_envio and not p.data_devolucao:
-                    raise Http404()
+                # Allow Setor Legislativo users to access proposições sent to them
+                from sapl.rules import SGVP_GROUP_SETOR_LEGISLATIVO
+                is_setor = request.user.groups.filter(
+                    name=SGVP_GROUP_SETOR_LEGISLATIVO).exists()
 
-                if p.data_devolucao and not request.user.has_perm('materia.detail_proposicao_devolvida'):
+                if is_setor and p.data_envio_setor and not p.data_envio:
+                    # Setor Legislativo can view proposições sent to them
+                    pass
+                elif not p.data_envio and not p.data_devolucao:
                     raise Http404()
-
-                if p.data_envio and not p.data_recebimento \
+                elif p.data_devolucao and not request.user.has_perm('materia.detail_proposicao_devolvida'):
+                    raise Http404()
+                elif p.data_envio and not p.data_recebimento \
                         and not request.user.has_perm('materia.detail_proposicao_enviada'):
                     raise Http404()
-
-                if p.data_envio and p.data_recebimento \
+                elif p.data_envio and p.data_recebimento \
                         and not request.user.has_perm('materia.detail_proposicao_incorporada'):
                     raise Http404()
 

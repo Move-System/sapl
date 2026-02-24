@@ -855,6 +855,42 @@ class Proposicao(models.Model):
         verbose_name=_('Data de Devolução')
     )
 
+    data_envio_setor = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_('Data de Envio ao Setor Legislativo')
+    )
+
+    data_retorno_setor = models.DateTimeField(
+        blank=True,
+        null=True,
+        verbose_name=_('Data de Retorno do Setor Legislativo')
+    )
+
+    usuario_envio_setor = models.ForeignKey(
+        get_settings_auth_user_model(),
+        verbose_name=_('Usuário Responsável pelo Envio ao Setor'),
+        on_delete=models.PROTECT,
+        related_name='proposicoes_enviadas_setor',
+        blank=True,
+        null=True
+    )
+
+    usuario_retorno_setor = models.ForeignKey(
+        get_settings_auth_user_model(),
+        verbose_name=_('Usuário Responsável pelo Retorno do Setor'),
+        on_delete=models.PROTECT,
+        related_name='proposicoes_retornadas_setor',
+        blank=True,
+        null=True
+    )
+
+    observacao_setor = models.TextField(
+        blank=True,
+        default='',
+        verbose_name=_('Observação do Setor Legislativo')
+    )
+
     usuario_envio = models.ForeignKey(
         get_settings_auth_user_model(),
         verbose_name=_('Usuário Responsável pelo Envio'),
@@ -1057,6 +1093,8 @@ class Proposicao(models.Model):
              _('Pode acessar detalhes de uma proposição devolvida.')),
             ('detail_proposicao_incorporada',
              _('Pode acessar detalhes de uma proposição incorporada.')),
+            ('detail_proposicao_em_revisao_setor',
+             _('Pode acessar detalhes de uma proposição em revisão pelo setor.')),
         )
 
     def __str__(self):
@@ -1123,7 +1161,9 @@ class HistoricoProposicao(models.Model):
     STATUS_PROPOSICAO = Choices(('E', 'ENVIADA', _('Enviada')),
                                 ('R', 'RECEBIDA', _('Recebida')),
                                 ('T', 'RETORNADA', _('Retornada')),
-                                ('D', 'DEVOLVIDA', _('Devolvida')))
+                                ('D', 'DEVOLVIDA', _('Devolvida')),
+                                ('S', 'ENVIADA_SETOR', _('Enviada ao Setor Legislativo')),
+                                ('V', 'REVISADA_SETOR', _('Revisada pelo Setor Legislativo')))
 
     proposicao = models.ForeignKey(Proposicao,
                                    verbose_name=_('Proposição'),

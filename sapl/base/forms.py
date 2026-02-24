@@ -1073,6 +1073,7 @@ class ConfiguracoesAppForm(ModelForm):
                   'assinatura_ata',
                   'estatisticas_acesso_normas',
                   'escolher_numero_materia_proposicao',
+                  'revisao_setor_legislativo',
                   'tramitacao_origem_fixa',
                   'tramitacao_materia',
                   'ordenacao_pesquisa_materia',

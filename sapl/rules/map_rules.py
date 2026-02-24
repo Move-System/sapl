@@ -9,6 +9,7 @@ from sapl.rules.group_materia import rules_group_materia
 from sapl.rules.group_norma import rules_group_norma
 from sapl.rules.group_painel import rules_group_painel
 from sapl.rules.group_protocolo import rules_group_protocolo
+from sapl.rules.group_setor_legislativo import rules_group_setor_legislativo
 from sapl.rules.group_sessao import rules_group_sessao
 from sapl.rules.group_votante import rules_group_votante
 
@@ -84,6 +85,7 @@ rules_group_geral['rules'] = (rules_group_geral['rules'] +
                               rules_group_norma['rules'] +
                               rules_group_sessao['rules'] +
                               rules_group_painel['rules'] +
+                              rules_group_setor_legislativo['rules'] +
                               rules_group_login_social['rules'])
 
 rules_patterns = [
@@ -99,6 +101,7 @@ rules_patterns = [
     rules_group_autor,
     rules_group_votante,
     rules_group_presidente_mesa,
+    rules_group_setor_legislativo,
 
     rules_group_anonymous,  # anotação para validação do teste de rules
     rules_group_login_social  # TODO não implementado

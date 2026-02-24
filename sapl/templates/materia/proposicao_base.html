@@ -27,6 +27,13 @@
         <i class="fas fa-check-circle"></i>
         <span>Incorporadas</span>
       </a>
+      {% if perms.materia.detail_proposicao_em_revisao_setor %}
+      <a href="{% url 'sapl.materia:proposicao-pendente-setor' %}"
+         class="proposicao-nav-item{% if '/proposicao/pendente-setor/' in request.path %} active{% endif %}">
+        <i class="fas fa-building"></i>
+        <span>Revisão Setor</span>
+      </a>
+      {% endif %}
       <a href="{% url 'sapl.materia:historico-proposicao' %}"
          class="proposicao-nav-item{% if request.path == '/proposicao/historico' %} active{% endif %}">
         <i class="fas fa-history"></i>

@@ -40,9 +40,21 @@ def onlyoffice_config(request, pk):
     proposicao = get_object_or_404(Proposicao, pk=pk)
 
     # Verifica se o usuário tem permissão para editar
+    is_autor_operador = proposicao.autor.operadores.filter(id=request.user.id).exists()
+
+    # Setor Legislativo pode editar quando a proposição está com o setor
+    from sapl.rules import SGVP_GROUP_SETOR_LEGISLATIVO
+    is_setor = request.user.groups.filter(name=SGVP_GROUP_SETOR_LEGISLATIVO).exists()
+    setor_can_edit = (
+        is_setor and
+        proposicao.data_envio_setor is not None and
+        proposicao.data_retorno_setor is None and
+        proposicao.data_envio is None
+    )
+
     can_edit = (
         not proposicao.data_envio and
-        proposicao.autor.operadores.filter(id=request.user.id).exists()
+        (is_autor_operador or setor_can_edit)
     )
 
     # URLs para o OnlyOffice acessar (dentro da rede Docker)
@@ -358,7 +370,18 @@ def onlyoffice_editor(request, pk):
     proposicao = get_object_or_404(Proposicao, pk=pk)
 
     # Verifica se o usuário tem permissão
-    if not proposicao.autor.operadores.filter(id=request.user.id).exists():
+    is_autor_operador = proposicao.autor.operadores.filter(id=request.user.id).exists()
+
+    from sapl.rules import SGVP_GROUP_SETOR_LEGISLATIVO
+    is_setor = request.user.groups.filter(name=SGVP_GROUP_SETOR_LEGISLATIVO).exists()
+    setor_can_edit = (
+        is_setor and
+        proposicao.data_envio_setor is not None and
+        proposicao.data_retorno_setor is None and
+        proposicao.data_envio is None
+    )
+
+    if not is_autor_operador and not setor_can_edit:
         from django.contrib import messages
         from django.shortcuts import redirect
         messages.error(request, 'Você não tem permissão para editar esta proposição.')

@@ -1,0 +1,80 @@
+{% extends "materia/proposicao_base.html" %}
+{% load i18n %}
+{% load tz %}
+{% load crispy_forms_tags %}
+
+{% block base_content %}
+<div class="proposicao-content">
+  <div class="proposicao-header">
+    <h2>{% trans "Revisar Proposição" %}</h2>
+    <p class="text-muted">{{ proposicao.tipo }} — {{ proposicao.descricao|truncatechars:80 }}</p>
+  </div>
+
+  <!-- Informações da proposição -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row">
+        <div class="col-md-3">
+          <strong>{% trans "Tipo" %}</strong><br>
+          {{ proposicao.tipo }}
+        </div>
+        <div class="col-md-3">
+          <strong>{% trans "Autor" %}</strong><br>
+          {{ proposicao.autor }}
+        </div>
+        <div class="col-md-3">
+          <strong>{% trans "Envio ao Setor" %}</strong><br>
+          {{ proposicao.data_envio_setor|date:"d/m/Y H:i" }}
+        </div>
+        <div class="col-md-3">
+          <strong>{% trans "Documento" %}</strong><br>
+          {% if proposicao.texto_original %}
+            <i class="fa fa-check-circle" style="color: #28a745;"></i> {% trans "Criado" %}
+          {% else %}
+            <i class="fa fa-times-circle" style="color: #dc3545;"></i> {% trans "Não criado" %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ementa -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <strong>{% trans "Ementa" %}</strong>
+    </div>
+    <div class="card-body">
+      {{ proposicao.descricao }}
+    </div>
+  </div>
+
+  <!-- Ações do documento -->
+  <div class="card mb-3">
+    <div class="card-header">
+      <strong>{% trans "Documento" %}</strong>
+    </div>
+    <div class="card-body text-center">
+      {% if proposicao.texto_original %}
+        <a href="{% url 'sapl.materia:onlyoffice_editor' proposicao.pk %}" class="btn btn-primary mr-2">
+          <i class="fa fa-edit"></i> {% trans "Editar com OnlyOffice" %}
+        </a>
+        <a href="{% url 'sapl.materia:proposicao_texto' proposicao.pk %}" class="btn btn-outline-secondary" target="_blank">
+          <i class="fa fa-download"></i> {% trans "Baixar Documento" %}
+        </a>
+      {% else %}
+        <p class="text-muted">{% trans "Nenhum documento anexado." %}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Formulário de revisão -->
+  <div class="card mb-3">
+    <div class="card-body">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {% crispy form %}
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

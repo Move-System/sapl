@@ -185,6 +185,10 @@ class AppConfig(models.Model):
         verbose_name=_(
             'Indicar número da matéria a ser gerada na proposição?'),
         choices=YES_NO_CHOICES, default=False)
+    revisao_setor_legislativo = models.BooleanField(
+        verbose_name=_(
+            'Habilitar etapa de revisão pelo Setor Legislativo?'),
+        choices=YES_NO_CHOICES, default=False)
 
     # MÓDULO MATÉRIA LEGISLATIVA
     # Linha 1 ------------------

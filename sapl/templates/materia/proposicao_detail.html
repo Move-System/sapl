@@ -64,6 +64,8 @@
   .prop-status-badge.incorporada { background: #e8f5e9; color: #388e3c; }
   .prop-status-badge.devolvida { background: #fff3e0; color: #f57c00; }
   .prop-status-badge.cancelada { background: #f5f5f5; color: #999; }
+  .prop-status-badge.aguardando-setor { background: #f3e5f5; color: #7b1fa2; }
+  .prop-status-badge.revisada-setor { background: #e0f2f1; color: #00695c; }
 
   .prop-alert {
     padding: 14px 18px;
@@ -283,6 +285,10 @@
           <span class="prop-status-badge incorporada">Incorporada</span>
         {% elif object.data_envio %}
           <span class="prop-status-badge aguardando">Aguardando Recebimento</span>
+        {% elif revisao_setor_legislativo and object.data_envio_setor and not object.data_retorno_setor %}
+          <span class="prop-status-badge aguardando-setor">Aguardando Revisão do Setor</span>
+        {% elif revisao_setor_legislativo and object.data_retorno_setor %}
+          <span class="prop-status-badge revisada-setor">Revisada pelo Setor</span>
         {% else %}
           <span class="prop-status-badge elaboracao">Em Elaboração</span>
         {% endif %}
@@ -306,23 +312,63 @@
       </div>
     {% endif %}
 
+    {% if revisao_setor_legislativo and object.data_retorno_setor and not object.data_envio %}
+      <div class="prop-alert info">
+        <strong><i class="fa fa-check-circle"></i> {% trans "Proposição revisada pelo Setor Legislativo" %}</strong>
+        {% if object.observacao_setor %}
+          {{ object.observacao_setor }}
+        {% else %}
+          {% trans "O setor legislativo revisou esta proposição. Você pode agora enviar ao protocolo ou reenviar ao setor." %}
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if revisao_setor_legislativo and object.data_envio_setor and not object.data_retorno_setor and not object.data_envio %}
+      <div class="prop-alert info">
+        <i class="fa fa-clock-o"></i> {% trans "Proposição enviada ao Setor Legislativo e aguardando revisão." %}
+      </div>
+    {% endif %}
+
     <!-- Ações principais -->
     <div class="prop-actions-bar">
       {% if not object.data_envio %}
-        <a href="{% url 'sapl.materia:onlyoffice_editor' object.pk %}" class="btn btn-primary">
-          <i class="fa fa-edit"></i> {% trans "Editar Documento" %}
-        </a>
-        {% if object.texto_original or object.texto_articulado.exists %}
-          <a href="{{ view.detail_url }}?action=send" class="btn btn-success">
-            <i class="fa fa-paper-plane"></i> {% trans "Enviar Proposição" %}
-          </a>
+        {% if object.data_envio_setor and not object.data_retorno_setor %}
+          {# Proposição está com o setor - autor pode retirar #}
+          {% if user in object.autor.operadores.all or user.is_superuser %}
+            <a href="{{ view.detail_url }}?action=return_from_setor" class="btn btn-outline-warning">
+              <i class="fa fa-undo"></i> {% trans "Retirar do Setor" %}
+            </a>
+          {% endif %}
+          {# Setor Legislativo pode revisar #}
+          {% if is_setor_legislativo %}
+            <a href="{% url 'sapl.materia:revisao-proposicao-setor' object.pk %}" class="btn btn-primary">
+              <i class="fa fa-pencil-square-o"></i> {% trans "Revisar Proposição" %}
+            </a>
+          {% endif %}
+        {% else %}
+          {# Proposição em elaboração ou revisada pelo setor #}
+          {% if user in object.autor.operadores.all or user.is_superuser %}
+            <a href="{% url 'sapl.materia:onlyoffice_editor' object.pk %}" class="btn btn-primary">
+              <i class="fa fa-edit"></i> {% trans "Editar Documento" %}
+            </a>
+            {% if object.texto_original or object.texto_articulado.exists %}
+              <a href="{{ view.detail_url }}?action=send" class="btn btn-success">
+                <i class="fa fa-paper-plane"></i> {% trans "Enviar Proposição" %}
+              </a>
+              {% if revisao_setor_legislativo %}
+                <a href="{{ view.detail_url }}?action=send_setor" class="btn btn-info">
+                  <i class="fa fa-building"></i> {% trans "Enviar ao Setor Legislativo" %}
+                </a>
+              {% endif %}
+            {% endif %}
+            <a href="{{ view.update_url }}" class="btn btn-outline-secondary">
+              <i class="fa fa-pencil"></i> {% trans "Editar Dados" %}
+            </a>
+            <a href="{{ view.delete_url }}" class="btn btn-outline-danger">
+              <i class="fa fa-trash"></i> {% trans "Excluir" %}
+            </a>
+          {% endif %}
         {% endif %}
-        <a href="{{ view.update_url }}" class="btn btn-outline-secondary">
-          <i class="fa fa-pencil"></i> {% trans "Editar Dados" %}
-        </a>
-        <a href="{{ view.delete_url }}" class="btn btn-outline-danger">
-          <i class="fa fa-trash"></i> {% trans "Excluir" %}
-        </a>
       {% else %}
         <a href="#" onclick="window.open('{% url 'sapl.materia:recibo-proposicao' object.pk %}','Recibo','width=1100, height=600, scrollbars=yes'); return false;" class="btn btn-outline-primary">
           <i class="fa fa-file-text-o"></i> {% trans "Ver Recibo" %}
@@ -377,6 +423,18 @@
         <div class="prop-meta-item">
           <label>{% trans "Data de Devolução" %}</label>
           <span>{{ object.data_devolucao|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+        {% if revisao_setor_legislativo and object.data_envio_setor %}
+        <div class="prop-meta-item">
+          <label>{% trans "Envio ao Setor" %}</label>
+          <span>{{ object.data_envio_setor|date:"d/m/Y H:i" }}</span>
+        </div>
+        {% endif %}
+        {% if revisao_setor_legislativo and object.data_retorno_setor %}
+        <div class="prop-meta-item">
+          <label>{% trans "Retorno do Setor" %}</label>
+          <span>{{ object.data_retorno_setor|date:"d/m/Y H:i" }}</span>
         </div>
         {% endif %}
         <div class="prop-meta-item">
