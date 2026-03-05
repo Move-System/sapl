@@ -2,6 +2,7 @@ import logging
 
 from django.conf import settings
 from django.http import HttpResponse, JsonResponse
+from django.views.generic import TemplateView
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
@@ -20,6 +21,67 @@ def recria_token(request, pk):
     token = Token.objects.create(user_id=pk)
 
     return Response({"message": "Token recriado com sucesso!", "token": token.key})
+
+
+class ApiDocView(TemplateView):
+    template_name = 'api/api_doc.html'
+
+
+@api_view(['GET'])
+@permission_classes([])
+def api_doc_data(request):
+    """Retorna metadados de todos os endpoints da API para a pagina de documentacao."""
+    apps_data = {}
+
+    for app_config, models_dict in ApiViewSetConstrutor._built_sets.items():
+        app_label = app_config.label
+        models_data = {}
+
+        for model, viewset_class in models_dict.items():
+            model_name = model._meta.model_name
+
+            # Determine allowed HTTP methods
+            allowed = getattr(viewset_class, 'http_method_names',
+                              ['get', 'post', 'put', 'patch', 'delete', 'head', 'options'])
+            relevant_methods = {'get': 'GET', 'post': 'POST', 'put': 'PUT',
+                                'patch': 'PATCH', 'delete': 'DELETE'}
+            methods = [relevant_methods[m] for m in allowed if m in relevant_methods]
+
+            # Discover custom @action endpoints
+            actions = []
+            for attr_name in dir(viewset_class):
+                attr = getattr(viewset_class, attr_name, None)
+                if attr and hasattr(attr, 'mapping'):
+                    url_path = getattr(attr, 'url_path', attr_name)
+                    detail = getattr(attr, 'detail', False)
+                    action_methods = [m.upper() for m in attr.mapping.keys() if m != '']
+                    if not action_methods:
+                        action_methods = ['GET']
+
+                    if detail:
+                        action_url = f'{app_label}/{model_name}/{{pk}}/{url_path}/'
+                    else:
+                        action_url = f'{app_label}/{model_name}/{url_path}/'
+
+                    actions.append({
+                        'name': attr_name,
+                        'url': action_url,
+                        'detail': detail,
+                        'methods': action_methods,
+                    })
+
+            models_data[model_name] = {
+                'url': f'{app_label}/{model_name}',
+                'methods': methods,
+                'verbose_name': str(model._meta.verbose_name),
+                'verbose_name_plural': str(model._meta.verbose_name_plural),
+                'actions': actions,
+            }
+
+        if models_data:
+            apps_data[app_label] = models_data
+
+    return Response({'apps': apps_data})
 
 
 SaplApiViewSetConstrutor = ApiViewSetConstrutor

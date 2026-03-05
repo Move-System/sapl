@@ -4,7 +4,8 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, \
 from rest_framework.authtoken.views import obtain_auth_token
 
 from sapl.api.deprecated import SessaoPlenariaViewSet
-from sapl.api.views import recria_token, SaplApiViewSetConstrutor
+from sapl.api.views import recria_token, SaplApiViewSetConstrutor, \
+    ApiDocView, api_doc_data
 
 from .apps import AppConfig
 from .views_health import HealthzView, ReadyzView
@@ -33,6 +34,9 @@ urlpatterns_api_doc = [
 ]
 
 urlpatterns = [
+    url(r'^api/doc/$', ApiDocView.as_view(), name='api_doc'),
+    url(r'^api/doc/data/$', api_doc_data, name='api_doc_data'),
+
     url(r'^api/', include(urlpatterns_api_doc)),
     url(r'^api/', include(urlpatterns_router)),
 
