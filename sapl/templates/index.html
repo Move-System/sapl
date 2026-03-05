@@ -183,6 +183,23 @@
           </a>
         </div>
       </div>
+
+      <!-- API REST -->
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-plug"></i>
+        </div>
+        <h3 class="card-title">API REST</h3>
+        <p class="card-description">Endpoints para integração com sistemas externos</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.api:swagger_ui_schema_api' %}" class="btn-action" title="Swagger UI" target="_blank">
+            <i class="fas fa-flask"></i> Swagger
+          </a>
+          <a href="{% url 'sapl.api:redoc_schema_api' %}" class="btn-action" title="ReDoc" target="_blank">
+            <i class="fas fa-file-alt"></i> ReDoc
+          </a>
+        </div>
+      </div>
       {% endif %}
 
       <!-- Minhas Matérias (Documentos de autoria do Vereador) -->

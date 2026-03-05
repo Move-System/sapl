@@ -202,6 +202,7 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'Sapl API - docs',
     'DESCRIPTION': 'Sapl API  - Docs',
     'VERSION': '1.0.0',
+    'REDOC_DIST': '//cdn.jsdelivr.net/npm/redoc@2.1.5',
 }
 
 CACHES = {
