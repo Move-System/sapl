@@ -266,6 +266,34 @@ def _gerar_pagina_autenticacao(assinaturas_info, codigo, url_verificacao,
     return buf.read()
 
 
+def _criar_stamp_style(nome_assinante, cargo):
+    """
+    Cria um TextStampStyle customizado para assinaturas subsequentes,
+    mantendo visual consistente com a página de autenticação gerada
+    na primeira assinatura.
+    """
+    from pyhanko.stamp import TextStampStyle, TextBoxStyle
+
+    # Monta texto do carimbo com cargo (se houver)
+    linhas = ['Assinado digitalmente por', '%(signer)s']
+    if cargo:
+        linhas.append(cargo)
+    linhas.append('Data: %(ts)s')
+
+    return TextStampStyle(
+        stamp_text='\n'.join(linhas),
+        text_box_style=TextBoxStyle(
+            font_size=7,
+            leading=10,
+            border_width=1,
+        ),
+        border_width=1,
+        background=None,
+        background_opacity=0,
+        timestamp_format='%d/%m/%Y %H:%M',
+    )
+
+
 def _obter_info_assinante(request, cert_info):
     """
     Obtém informações do assinante (nome, cargo, tipo_cert).
@@ -674,6 +702,7 @@ def materia_assinar_a1(request, pk):
 
                     # Determina a última página
                     from pyhanko.pdf_utils.reader import PdfFileReader as PyhankoReader
+                    from pyhanko.sign.signers.pdf_signer import PdfSigner
                     temp_reader = PyhankoReader(io.BytesIO(existing_pdf_bytes))
                     last_page_idx = temp_reader.root['/Pages']['/Count'] - 1
 
@@ -692,12 +721,19 @@ def materia_assinar_a1(request, pk):
                         name=nome_assinante
                     )
 
-                    signers.sign_pdf(
-                        w,
+                    # Usa PdfSigner com stamp_style customizado para
+                    # manter visual consistente com a página de autenticação
+                    stamp_style = _criar_stamp_style(nome_assinante, cargo)
+                    pdf_signer = PdfSigner(
                         meta,
                         signer=signer,
+                        stamp_style=stamp_style,
+                    )
+                    pdf_signer.sign_pdf(
+                        w,
+                        existing_fields_only=True,
+                        appearance_text_params={'signer': nome_assinante},
                         output=signed_buffer,
-                        existing_fields_only=True
                     )
 
                 signed_buffer.seek(0)
@@ -1279,6 +1315,7 @@ def docacessorio_assinar_a1(request, pk):
                     w = IncrementalPdfFileWriter(inf)
 
                     from pyhanko.pdf_utils.reader import PdfFileReader as PyhankoReader
+                    from pyhanko.sign.signers.pdf_signer import PdfSigner
                     temp_reader = PyhankoReader(io.BytesIO(existing_pdf_bytes))
                     last_page_idx = temp_reader.root['/Pages']['/Count'] - 1
 
@@ -1296,12 +1333,19 @@ def docacessorio_assinar_a1(request, pk):
                         name=nome_assinante
                     )
 
-                    signers.sign_pdf(
-                        w,
+                    # Usa PdfSigner com stamp_style customizado para
+                    # manter visual consistente com a página de autenticação
+                    stamp_style = _criar_stamp_style(nome_assinante, cargo)
+                    pdf_signer = PdfSigner(
                         meta,
                         signer=signer,
+                        stamp_style=stamp_style,
+                    )
+                    pdf_signer.sign_pdf(
+                        w,
+                        existing_fields_only=True,
+                        appearance_text_params={'signer': nome_assinante},
                         output=signed_buffer,
-                        existing_fields_only=True
                     )
 
                 signed_buffer.seek(0)
