@@ -115,6 +115,42 @@ def _encontrar_logo():
     return None
 
 
+def _calcular_blocks_y_start(page_height):
+    """Calcula posição Y onde blocos de assinatura começam na página de autenticação."""
+    from reportlab.lib.units import mm
+    y = page_height - 40 * mm
+    if _encontrar_logo():
+        y -= 3 * mm
+    y -= 6 * mm   # título
+    y -= 4 * mm   # subtítulo
+    y -= 10 * mm  # gap separador
+    return y
+
+
+def _posicao_bloco_assinatura(idx, page_width, page_height):
+    """
+    Calcula posição (x1, y1, x2, y2) para bloco de assinatura no índice dado.
+    Usa o mesmo grid da página de autenticação (ReportLab).
+    """
+    from reportlab.lib.units import mm
+
+    margin = 20 * mm
+    col_width = (page_width - 3 * margin) / 2
+    block_height = 20 * mm
+    block_spacing = 2 * mm
+    col_x = [margin, margin + col_width + margin]
+
+    y_start = _calcular_blocks_y_start(page_height)
+
+    col = idx % 2
+    row = idx // 2
+
+    x = col_x[col]
+    y_top = y_start - row * (block_height + block_spacing)
+
+    return (x, y_top - block_height, x + col_width, y_top)
+
+
 def _gerar_pagina_autenticacao(assinaturas_info, codigo, url_verificacao,
                                page_width, page_height):
     """
@@ -172,36 +208,41 @@ def _gerar_pagina_autenticacao(assinaturas_info, codigo, url_verificacao,
     y -= 10 * mm
 
     # ---- Blocos de assinatura (grade 2 colunas) ----
+    # Usa mesmas dimensões de _posicao_bloco_assinatura para consistência
+    # com os stamps pyhanko das assinaturas subsequentes.
     col_width = (page_width - 3 * margin) / 2
-    block_height = 22 * mm
-    block_spacing = 5 * mm
+    block_height = 20 * mm
+    block_spacing = 2 * mm
     col_x = [margin, margin + col_width + margin]
+
+    # Posição mínima Y: footer fixo no rodapé
+    footer_y = 68 * mm
 
     for idx, assinatura in enumerate(assinaturas_info):
         col = idx % 2
         row = idx // 2
 
         bx = col_x[col]
-        by = y - row * (block_height + block_spacing)
+        by_top = y - row * (block_height + block_spacing)
 
-        # Se vai ultrapassar a área útil, para
-        if by - block_height < 80 * mm:
+        # Se vai ultrapassar a área do footer, para
+        if by_top - block_height < footer_y:
             break
 
         # Borda do bloco
         c.setStrokeColorRGB(0.6, 0.6, 0.6)
         c.setLineWidth(0.5)
-        c.rect(bx, by - block_height, col_width, block_height)
+        c.rect(bx, by_top - block_height, col_width, block_height)
 
         # Conteúdo do bloco
         text_x = bx + 3 * mm
-        text_y = by - 5 * mm
+        text_y = by_top - 3.5 * mm
 
         c.setFont("Helvetica", 6)
         c.setFillColorRGB(0.3, 0.3, 0.3)
         c.drawString(text_x, text_y, "Assinado digitalmente por")
 
-        text_y -= 4 * mm
+        text_y -= 3.5 * mm
         c.setFont("Helvetica-Bold", 7)
         c.setFillColorRGB(0, 0, 0)
         nome = assinatura.get('nome_assinante', 'N/A').upper()
@@ -209,56 +250,58 @@ def _gerar_pagina_autenticacao(assinaturas_info, codigo, url_verificacao,
             nome = nome[:40] + "..."
         c.drawString(text_x, text_y, nome)
 
-        text_y -= 4 * mm
+        text_y -= 3 * mm
         c.setFont("Helvetica", 6)
         c.setFillColorRGB(0.3, 0.3, 0.3)
         cargo = assinatura.get('cargo', '')
         if cargo:
             c.drawString(text_x, text_y, cargo)
-            text_y -= 3.5 * mm
+            text_y -= 3 * mm
 
         data = assinatura.get('data_assinatura', '')
         c.drawString(text_x, text_y, f"Data: {data}")
 
-    # Ajusta y para depois dos blocos
-    n_rows = (len(assinaturas_info) + 1) // 2
-    y -= n_rows * (block_height + block_spacing) + 5 * mm
+        text_y -= 3 * mm
+        c.setFont("Helvetica", 5)
+        c.setFillColorRGB(0.4, 0.4, 0.4)
+        c.drawString(text_x, text_y, f"Hash: {codigo}")
 
-    # Piso mínimo para evitar sobreposição com rodapé
-    if y < 95 * mm:
-        y = 95 * mm
+    # ---- Footer fixo no rodapé ----
+    y_footer = footer_y
 
-    # ---- Código de Autenticação ----
+    # Código de Autenticação
     c.setFont("Helvetica-Bold", 11)
     c.setFillColorRGB(0, 0, 0)
-    c.drawCentredString(center_x, y, f"Código de Autenticação: {codigo}")
-    y -= 10 * mm
+    c.drawCentredString(center_x, y_footer,
+                        f"Código de Autenticação: {codigo}")
+    y_footer -= 8 * mm
 
-    # ---- QR Code ----
+    # QR Code
     try:
         qr_buf = _gerar_qrcode_image(url_verificacao)
         qr_img = ImageReader(qr_buf)
-        qr_size = 30 * mm
-        c.drawImage(qr_img, center_x - qr_size / 2, y - qr_size,
+        qr_size = 25 * mm
+        c.drawImage(qr_img, center_x - qr_size / 2, y_footer - qr_size,
                     width=qr_size, height=qr_size)
-        y -= qr_size + 5 * mm
+        y_footer -= qr_size + 3 * mm
     except Exception as e:
         logger.warning(f"Não foi possível gerar QR Code: {e}")
-        y -= 5 * mm
+        y_footer -= 3 * mm
 
-    # ---- URL de verificação ----
+    # URL de verificação
     c.setFont("Helvetica", 7)
     c.setFillColorRGB(0.2, 0.2, 0.8)
-    c.drawCentredString(center_x, y, f"Verifique em: {url_verificacao}")
-    y -= 12 * mm
+    c.drawCentredString(center_x, y_footer,
+                        f"Verifique em: {url_verificacao}")
+    y_footer -= 8 * mm
 
-    # ---- Aviso legal ----
+    # Aviso legal
     c.setFont("Helvetica", 7)
     c.setFillColorRGB(0.4, 0.4, 0.4)
-    c.drawCentredString(center_x, y,
+    c.drawCentredString(center_x, y_footer,
                         "Documento assinado digitalmente nos termos da")
-    y -= 3.5 * mm
-    c.drawCentredString(center_x, y,
+    y_footer -= 3.5 * mm
+    c.drawCentredString(center_x, y_footer,
                         "Medida Provisória nº 2.200-2/2001.")
 
     c.save()
@@ -266,19 +309,31 @@ def _gerar_pagina_autenticacao(assinaturas_info, codigo, url_verificacao,
     return buf.read()
 
 
-def _criar_stamp_style(nome_assinante, cargo):
+def _criar_stamp_style(nome_assinante, cargo, hash_doc=''):
     """
     Cria um TextStampStyle customizado para assinaturas subsequentes,
     mantendo visual consistente com a página de autenticação gerada
-    na primeira assinatura.
+    na primeira assinatura (Helvetica, borda simples, mesmo layout).
     """
     from pyhanko.stamp import TextStampStyle, TextBoxStyle
 
-    # Monta texto do carimbo com cargo (se houver)
+    # Monta texto do carimbo com cargo (se houver) + hash
     linhas = ['Assinado digitalmente por', '%(signer)s']
     if cargo:
         linhas.append(cargo)
     linhas.append('Data: %(ts)s')
+    if hash_doc:
+        linhas.append(f'Hash: {hash_doc}')
+
+    # Usa Helvetica para consistência com a página de autenticação (ReportLab)
+    font_kwargs = {}
+    try:
+        from pyhanko.pdf_utils.font import SimpleFontEngineFactory
+        font_kwargs['font'] = SimpleFontEngineFactory(
+            name='/Helvetica', avg_width=600
+        )
+    except (ImportError, Exception):
+        pass  # Usa fonte padrão se Helvetica não disponível
 
     return TextStampStyle(
         stamp_text='\n'.join(linhas),
@@ -286,8 +341,9 @@ def _criar_stamp_style(nome_assinante, cargo):
             font_size=7,
             leading=10,
             border_width=1,
+            **font_kwargs,
         ),
-        border_width=1,
+        border_width=0,
         background=None,
         background_opacity=0,
         timestamp_format='%d/%m/%Y %H:%M',
@@ -679,22 +735,15 @@ def materia_assinar_a1(request, pk):
                     existing_pdf_bytes = f.read()
 
                 # Calcular posição do campo de assinatura na página de autenticação
-                # Grade 2 colunas para blocos de assinatura
-                col = n_assinatura % 2
-                row = n_assinatura // 2
-                margin = 20 * mm
-                largura_carimbo = 70 * mm
-                altura_carimbo = 22 * mm
+                # Usa o mesmo grid da página gerada na primeira assinatura
+                temp_pypdf = PdfFileReader(io.BytesIO(existing_pdf_bytes))
+                auth_page = temp_pypdf.getPage(temp_pypdf.getNumPages() - 1)
+                auth_page_width = float(auth_page.mediaBox.getWidth())
+                auth_page_height = float(auth_page.mediaBox.getHeight())
 
-                x_pos = margin + col * (largura_carimbo + margin)
-                # Posição a partir do topo da página de autenticação
-                y_base = 500  # Posição base aproximada para os blocos (em pontos)
-                y_pos = y_base - row * (altura_carimbo + 5 * mm)
-
-                x1 = x_pos
-                y1 = y_pos - altura_carimbo
-                x2 = x_pos + largura_carimbo
-                y2 = y_pos
+                x1, y1, x2, y2 = _posicao_bloco_assinatura(
+                    n_assinatura, auth_page_width, auth_page_height
+                )
 
                 signed_buffer = io.BytesIO()
                 with io.BytesIO(existing_pdf_bytes) as inf:
@@ -723,7 +772,10 @@ def materia_assinar_a1(request, pk):
 
                     # Usa PdfSigner com stamp_style customizado para
                     # manter visual consistente com a página de autenticação
-                    stamp_style = _criar_stamp_style(nome_assinante, cargo)
+                    hash_doc = materia.codigo_autenticacao or ''
+                    stamp_style = _criar_stamp_style(
+                        nome_assinante, cargo, hash_doc
+                    )
                     pdf_signer = PdfSigner(
                         meta,
                         signer=signer,
@@ -1295,20 +1347,15 @@ def docacessorio_assinar_a1(request, pk):
                     existing_pdf_bytes = f.read()
 
                 # Calcular posição na página de autenticação
-                col = n_assinatura % 2
-                row = n_assinatura // 2
-                margin = 20 * mm
-                largura_carimbo = 70 * mm
-                altura_carimbo = 22 * mm
+                # Usa o mesmo grid da página gerada na primeira assinatura
+                temp_pypdf = PdfFileReader(io.BytesIO(existing_pdf_bytes))
+                auth_page = temp_pypdf.getPage(temp_pypdf.getNumPages() - 1)
+                auth_page_width = float(auth_page.mediaBox.getWidth())
+                auth_page_height = float(auth_page.mediaBox.getHeight())
 
-                x_pos = margin + col * (largura_carimbo + margin)
-                y_base = 500
-                y_pos = y_base - row * (altura_carimbo + 5 * mm)
-
-                x1 = x_pos
-                y1 = y_pos - altura_carimbo
-                x2 = x_pos + largura_carimbo
-                y2 = y_pos
+                x1, y1, x2, y2 = _posicao_bloco_assinatura(
+                    n_assinatura, auth_page_width, auth_page_height
+                )
 
                 signed_buffer = io.BytesIO()
                 with io.BytesIO(existing_pdf_bytes) as inf:
@@ -1335,7 +1382,10 @@ def docacessorio_assinar_a1(request, pk):
 
                     # Usa PdfSigner com stamp_style customizado para
                     # manter visual consistente com a página de autenticação
-                    stamp_style = _criar_stamp_style(nome_assinante, cargo)
+                    hash_doc = docacessorio.codigo_autenticacao or ''
+                    stamp_style = _criar_stamp_style(
+                        nome_assinante, cargo, hash_doc
+                    )
                     pdf_signer = PdfSigner(
                         meta,
                         signer=signer,
