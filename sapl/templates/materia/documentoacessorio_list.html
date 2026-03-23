@@ -1,5 +1,54 @@
 {% extends "crud/list.html" %}
 {% load i18n %}
+
+{% block extra_content %}
+{% if pode_upload %}
+<div class="card mb-3" id="upload-card">
+  <div class="card-header d-flex justify-content-between align-items-center"
+       style="cursor:pointer" onclick="document.getElementById('upload-body').classList.toggle('d-none')">
+    <strong><i class="fa fa-cloud-upload"></i> {% trans 'Upload Rápido de Anexos' %}</strong>
+    <small class="text-muted">{% trans 'clique para expandir' %}</small>
+  </div>
+  <div class="card-body d-none" id="upload-body">
+    <div class="form-group row mb-3">
+      <label class="col-sm-2 col-form-label">{% trans 'Tipo' %}</label>
+      <div class="col-sm-4">
+        <select id="upload-tipo" class="form-control">
+          {% for tipo in tipos_documento %}
+            <option value="{{ tipo.pk }}">{{ tipo.descricao }}</option>
+          {% empty %}
+            <option value="">{% trans 'Anexo (será criado automaticamente)' %}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <div id="dropzone"
+         style="border: 2px dashed #007bff; border-radius: 8px; padding: 40px;
+                text-align: center; cursor: pointer; transition: all 0.2s;
+                background: #f8f9fa;">
+      <i class="fa fa-cloud-upload fa-3x text-primary mb-2" style="display:block"></i>
+      <p class="mb-1"><strong>{% trans 'Arraste arquivos aqui' %}</strong></p>
+      <p class="text-muted mb-0">{% trans 'ou clique para selecionar (fotos, PDFs, documentos)' %}</p>
+      <input type="file" id="upload-input" multiple
+             accept="image/*,.pdf,.doc,.docx,.odt,.txt,.xml"
+             style="display:none">
+    </div>
+
+    <div id="upload-progress" class="mt-3 d-none">
+      <div class="progress">
+        <div class="progress-bar progress-bar-striped progress-bar-animated"
+             role="progressbar" style="width: 0%" id="progress-bar"></div>
+      </div>
+      <small id="upload-status" class="text-muted mt-1 d-block"></small>
+    </div>
+
+    <div id="upload-results" class="mt-3"></div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
 {% block base_content %}
   {{ block.super }}
   <div style="display:flex;padding-left: 600px;padding-top: 10px;">
@@ -10,4 +59,114 @@
         <a href="{% url 'sapl.materia:compress_docacessorios' root_pk %}" class="btn btn-outline-primary">{% trans 'Baixar documentos compactados' %}</a>
     </div>
   </div>
+
+{% if pode_upload %}
+<script>
+(function() {
+  var dropzone = document.getElementById('dropzone');
+  var input = document.getElementById('upload-input');
+  var progressDiv = document.getElementById('upload-progress');
+  var progressBar = document.getElementById('progress-bar');
+  var statusEl = document.getElementById('upload-status');
+  var resultsDiv = document.getElementById('upload-results');
+  var uploadUrl = '{% url "sapl.materia:upload_anexos_materia" root_pk %}';
+  var csrfToken = '{{ csrf_token }}';
+
+  dropzone.addEventListener('click', function() { input.click(); });
+
+  dropzone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropzone.style.borderColor = '#28a745';
+    dropzone.style.background = '#e8f5e9';
+  });
+
+  dropzone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    dropzone.style.borderColor = '#007bff';
+    dropzone.style.background = '#f8f9fa';
+  });
+
+  dropzone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropzone.style.borderColor = '#007bff';
+    dropzone.style.background = '#f8f9fa';
+    if (e.dataTransfer.files.length > 0) {
+      uploadFiles(e.dataTransfer.files);
+    }
+  });
+
+  input.addEventListener('change', function() {
+    if (input.files.length > 0) {
+      uploadFiles(input.files);
+    }
+  });
+
+  function uploadFiles(files) {
+    var formData = new FormData();
+    var tipo = document.getElementById('upload-tipo').value;
+    if (tipo) formData.append('tipo', tipo);
+    for (var i = 0; i < files.length; i++) {
+      formData.append('arquivos', files[i]);
+    }
+
+    progressDiv.classList.remove('d-none');
+    progressBar.style.width = '0%';
+    statusEl.textContent = 'Enviando ' + files.length + ' arquivo(s)...';
+    resultsDiv.innerHTML = '';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', uploadUrl, true);
+    xhr.setRequestHeader('X-CSRFToken', csrfToken);
+
+    xhr.upload.addEventListener('progress', function(e) {
+      if (e.lengthComputable) {
+        var pct = Math.round((e.loaded / e.total) * 100);
+        progressBar.style.width = pct + '%';
+        statusEl.textContent = 'Enviando... ' + pct + '%';
+      }
+    });
+
+    xhr.onload = function() {
+      progressBar.style.width = '100%';
+      if (xhr.status === 200) {
+        var data = JSON.parse(xhr.responseText);
+        progressBar.classList.remove('progress-bar-animated');
+        progressBar.classList.add('bg-success');
+
+        var html = '<div class="alert alert-success">' +
+          '<strong>' + data.total + ' arquivo(s) enviado(s) com sucesso!</strong></div>';
+
+        if (data.erros && data.erros.length > 0) {
+          html += '<div class="alert alert-warning"><strong>Erros:</strong><ul>';
+          for (var i = 0; i < data.erros.length; i++) {
+            html += '<li>' + data.erros[i] + '</li>';
+          }
+          html += '</ul></div>';
+        }
+
+        resultsDiv.innerHTML = html;
+
+        if (data.total > 0) {
+          setTimeout(function() { location.reload(); }, 1500);
+        }
+      } else {
+        progressBar.classList.add('bg-danger');
+        var errMsg = 'Erro ao enviar arquivos.';
+        try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch(e) {}
+        resultsDiv.innerHTML = '<div class="alert alert-danger">' + errMsg + '</div>';
+      }
+      input.value = '';
+    };
+
+    xhr.onerror = function() {
+      progressBar.classList.add('bg-danger');
+      resultsDiv.innerHTML = '<div class="alert alert-danger">Erro de conexão.</div>';
+      input.value = '';
+    };
+
+    xhr.send(formData);
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -2746,6 +2746,26 @@ class ConfirmarProposicaoForm(ProposicaoForm):
                 'Autoria registrada para (%s)'
             ) % str(autoria.autor))
 
+            # Transferir anexos da proposição para DocumentoAcessorio
+            from sapl.materia.models import AnexoProposicao
+            anexos = AnexoProposicao.objects.filter(
+                proposicao=proposicao)
+            if anexos.exists():
+                for anexo in anexos:
+                    doc_acessorio = DocumentoAcessorio()
+                    doc_acessorio.materia = materia
+                    doc_acessorio.tipo = anexo.tipo
+                    doc_acessorio.nome = anexo.nome
+                    doc_acessorio.data = anexo.data
+                    doc_acessorio.arquivo = File(
+                        anexo.arquivo,
+                        os.path.basename(anexo.arquivo.name))
+                    doc_acessorio.save()
+                self.instance.results['messages']['success'].append(_(
+                    '%d anexo(s) transferido(s) como Documento(s) Acessório(s)'
+                ) % anexos.count())
+                anexos.delete()
+
             # Matéria de vinlculo
             if proposicao.materia_de_vinculo:
                 anexada = Anexada()

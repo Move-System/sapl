@@ -17,7 +17,8 @@ from sapl.compilacao.models import (PerfilEstruturalTextoArticulado,
                                     TextoArticulado)
 from sapl.parlamentares.models import Parlamentar
 from sapl.utils import (RANGE_ANOS, YES_NO_CHOICES, SaplGenericForeignKey,
-                        SaplGenericRelation, restringe_tipos_de_arquivo_txt,
+                        SaplGenericRelation, restringe_tipos_de_arquivo_doc_img,
+                        restringe_tipos_de_arquivo_txt,
                         texto_upload_path, get_settings_auth_user_model,
                         OverwriteStorage)
 
@@ -590,7 +591,7 @@ class DocumentoAcessorio(models.Model):
         upload_to=anexo_upload_path,
         verbose_name=_('Texto Integral'),
         storage=OverwriteStorage(),
-        validators=[restringe_tipos_de_arquivo_txt])
+        validators=[restringe_tipos_de_arquivo_doc_img])
     proposicao = GenericRelation('Proposicao', related_query_name='proposicao')
     data_ultima_atualizacao = models.DateTimeField(
         blank=True, null=True, auto_now=True, verbose_name=_('Data'))
@@ -1202,6 +1203,62 @@ class HistoricoProposicao(models.Model):
 
     def __str__(self):
         return f'{self.data_hora} - {self.STATUS_PROPOSICAO[self.status]} - {str(self.proposicao)}'
+
+
+def anexo_proposicao_upload_path(instance, filename):
+    return texto_upload_path(instance, filename,
+                             subpath=instance.proposicao.ano)
+
+
+class AnexoProposicao(models.Model):
+    proposicao = models.ForeignKey(
+        Proposicao, on_delete=models.CASCADE,
+        related_name='anexos',
+        verbose_name=_('Proposição'))
+    arquivo = models.FileField(
+        max_length=300,
+        upload_to=anexo_proposicao_upload_path,
+        storage=OverwriteStorage(),
+        validators=[restringe_tipos_de_arquivo_doc_img],
+        verbose_name=_('Arquivo'))
+    nome = models.CharField(
+        max_length=50, verbose_name=_('Nome'))
+    tipo = models.ForeignKey(
+        TipoDocumento, on_delete=models.PROTECT,
+        verbose_name=_('Tipo'))
+    data = models.DateField(verbose_name=_('Data'))
+    data_ultima_atualizacao = models.DateTimeField(
+        blank=True, null=True, auto_now=True)
+
+    class Meta:
+        verbose_name = _('Anexo de Proposição')
+        verbose_name_plural = _('Anexos de Proposição')
+        ordering = ('data', 'id')
+
+    def __str__(self):
+        return f'{self.nome} ({self.proposicao})'
+
+    def delete(self, using=None, keep_parents=False):
+        arquivo = self.arquivo
+        result = super().delete(using=using, keep_parents=keep_parents)
+        if arquivo:
+            arquivo.delete(save=False)
+        return result
+
+    def save(self, force_insert=False, force_update=False, using=None,
+             update_fields=None):
+        if not self.pk and self.arquivo:
+            arquivo = self.arquivo
+            self.arquivo = None
+            models.Model.save(self, force_insert=force_insert,
+                              force_update=force_update,
+                              using=using,
+                              update_fields=update_fields)
+            self.arquivo = arquivo
+        return models.Model.save(self, force_insert=force_insert,
+                                 force_update=force_update,
+                                 using=using,
+                                 update_fields=update_fields)
 
 
 class StatusTramitacao(models.Model):

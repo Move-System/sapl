@@ -45,6 +45,70 @@
             </div>
         </div>
     </div>
+
+    {# ===== SEÇÃO DE ANEXOS ===== #}
+    {% if upload_anexos_url %}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <strong><i class="fa fa-paperclip"></i> {% trans "Documentos Anexos" %}</strong>
+                    <small class="text-muted">{% trans "Fotos, mapas, plantas e outros arquivos que acompanham esta proposição" %}</small>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="col-form-label"><strong>{% trans "Tipo do Documento" %}</strong></label>
+                            <select id="anexo-tipo" class="form-control">
+                                {% for tipo in tipos_documento %}
+                                    <option value="{{ tipo.pk }}">{{ tipo.descricao }}</option>
+                                {% empty %}
+                                    <option value="">{% trans "Anexo" %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="anexo-dropzone"
+                         style="border: 2px dashed #007bff; border-radius: 8px; padding: 30px;
+                                text-align: center; cursor: pointer; transition: all 0.2s;
+                                background: #f8f9fa;">
+                        <i class="fa fa-cloud-upload fa-2x text-primary mb-2" style="display:block"></i>
+                        <p class="mb-1"><strong>{% trans "Arraste arquivos aqui" %}</strong></p>
+                        <p class="text-muted mb-0">{% trans "ou clique para selecionar (fotos, PDFs, documentos)" %}</p>
+                        <input type="file" id="anexo-input" multiple
+                               accept="image/*,.pdf,.doc,.docx,.odt,.txt,.xml"
+                               style="display:none">
+                    </div>
+
+                    <div id="anexo-progress" class="mt-3 d-none">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated"
+                                 role="progressbar" style="width: 0%" id="anexo-progress-bar"></div>
+                        </div>
+                        <small id="anexo-status" class="text-muted mt-1 d-block"></small>
+                    </div>
+
+                    <div id="anexo-messages" class="mt-2"></div>
+
+                    {# Lista de anexos existentes #}
+                    <div id="anexos-lista" class="mt-3">
+                        <table class="table table-sm table-striped d-none" id="anexos-table">
+                            <thead>
+                                <tr>
+                                    <th>{% trans "Nome" %}</th>
+                                    <th>{% trans "Tipo" %}</th>
+                                    <th style="width:80px">{% trans "Ações" %}</th>
+                                </tr>
+                            </thead>
+                            <tbody id="anexos-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -199,4 +263,172 @@
         }
     });
 </script>
+
+{% if upload_anexos_url %}
+<script type="text/javascript">
+(function() {
+    var dropzone = document.getElementById('anexo-dropzone');
+    var input = document.getElementById('anexo-input');
+    var progressDiv = document.getElementById('anexo-progress');
+    var progressBar = document.getElementById('anexo-progress-bar');
+    var statusEl = document.getElementById('anexo-status');
+    var messagesDiv = document.getElementById('anexo-messages');
+    var uploadUrl = '{{ upload_anexos_url }}';
+
+    // Carregar anexos existentes ao abrir a página
+    carregarAnexos();
+
+    dropzone.addEventListener('click', function() { input.click(); });
+
+    dropzone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropzone.style.borderColor = '#28a745';
+        dropzone.style.background = '#e8f5e9';
+    });
+
+    dropzone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        dropzone.style.borderColor = '#007bff';
+        dropzone.style.background = '#f8f9fa';
+    });
+
+    dropzone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropzone.style.borderColor = '#007bff';
+        dropzone.style.background = '#f8f9fa';
+        if (e.dataTransfer.files.length > 0) {
+            uploadFiles(e.dataTransfer.files);
+        }
+    });
+
+    input.addEventListener('change', function() {
+        if (input.files.length > 0) {
+            uploadFiles(input.files);
+        }
+    });
+
+    function uploadFiles(files) {
+        var formData = new FormData();
+        var tipo = document.getElementById('anexo-tipo').value;
+        if (tipo) formData.append('tipo', tipo);
+        for (var i = 0; i < files.length; i++) {
+            formData.append('arquivos', files[i]);
+        }
+
+        progressDiv.classList.remove('d-none');
+        progressBar.style.width = '0%';
+        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated';
+        statusEl.textContent = 'Enviando ' + files.length + ' arquivo(s)...';
+        messagesDiv.innerHTML = '';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl, true);
+        xhr.setRequestHeader('X-CSRFToken', csrfToken);
+
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                var pct = Math.round((e.loaded / e.total) * 100);
+                progressBar.style.width = pct + '%';
+                statusEl.textContent = 'Enviando... ' + pct + '%';
+            }
+        });
+
+        xhr.onload = function() {
+            progressBar.style.width = '100%';
+            if (xhr.status === 200) {
+                var data = JSON.parse(xhr.responseText);
+                progressBar.classList.remove('progress-bar-animated');
+                progressBar.classList.add('bg-success');
+
+                var html = '<div class="alert alert-success alert-dismissible fade show">' +
+                    '<strong>' + data.total + ' arquivo(s) anexado(s)!</strong>' +
+                    '<button type="button" class="close" data-dismiss="alert">&times;</button></div>';
+
+                if (data.erros && data.erros.length > 0) {
+                    html += '<div class="alert alert-warning"><ul class="mb-0">';
+                    for (var i = 0; i < data.erros.length; i++) {
+                        html += '<li>' + data.erros[i] + '</li>';
+                    }
+                    html += '</ul></div>';
+                }
+                messagesDiv.innerHTML = html;
+                carregarAnexos();
+            } else {
+                progressBar.classList.add('bg-danger');
+                var errMsg = 'Erro ao enviar.';
+                try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch(e) {}
+                messagesDiv.innerHTML = '<div class="alert alert-danger">' + errMsg + '</div>';
+            }
+            input.value = '';
+            setTimeout(function() {
+                progressDiv.classList.add('d-none');
+            }, 3000);
+        };
+
+        xhr.onerror = function() {
+            progressBar.classList.add('bg-danger');
+            messagesDiv.innerHTML = '<div class="alert alert-danger">Erro de conexão.</div>';
+            input.value = '';
+        };
+
+        xhr.send(formData);
+    }
+
+    function carregarAnexos() {
+        fetch(uploadUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var tbody = document.getElementById('anexos-tbody');
+                var table = document.getElementById('anexos-table');
+                tbody.innerHTML = '';
+                if (data.anexos && data.anexos.length > 0) {
+                    table.classList.remove('d-none');
+                    for (var i = 0; i < data.anexos.length; i++) {
+                        var a = data.anexos[i];
+                        var tr = document.createElement('tr');
+                        var nomeLink = a.arquivo_url
+                            ? '<a href="' + a.arquivo_url + '" target="_blank">' + a.nome + '</a>'
+                            : a.nome;
+                        tr.innerHTML =
+                            '<td>' + nomeLink + '</td>' +
+                            '<td><span class="badge badge-secondary">' + a.tipo + '</span></td>' +
+                            '<td><button class="btn btn-sm btn-outline-danger" ' +
+                            'onclick="removerAnexo(' + a.id + ', this)" title="Remover">' +
+                            '<i class="fa fa-trash"></i></button></td>';
+                        tbody.appendChild(tr);
+                    }
+                } else {
+                    table.classList.add('d-none');
+                }
+            });
+    }
+
+    window.removerAnexo = function(id, btn) {
+        if (!confirm('Remover este anexo?')) return;
+        btn.disabled = true;
+        fetch(uploadUrl, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify({id: id})
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.ok) {
+                carregarAnexos();
+            } else {
+                alert(data.error || 'Erro ao remover.');
+                btn.disabled = false;
+            }
+        })
+        .catch(function() {
+            alert('Erro de conexão.');
+            btn.disabled = false;
+        });
+    };
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -8,6 +8,8 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 CriarProtocoloMateriaView, DespachoInicialCrud,
                                 DocumentoAcessorioCrud,
                                 DocumentoAcessorioEmLoteView,
+                                DocumentoAcessorioUploadView,
+                                AnexoProposicaoUploadView,
                                 MateriaAnexadaEmLoteView,
                                 EtiquetaPesquisaView, FichaPesquisaView,
                                 FichaSelecionaView, ImpressosView,
@@ -134,6 +136,9 @@ urlpatterns_materia = [
         name='autoria_multicreate'),
 
 
+    url(r'^materia/(?P<pk>\d+)/upload-anexos/$',
+        DocumentoAcessorioUploadView.as_view(),
+        name='upload_anexos_materia'),
     url(r'^materia/acessorio-em-lote', DocumentoAcessorioEmLoteView.as_view(),
         name='acessorio_em_lote'),
     url(r'^materia/(?P<pk>\d+)/anexada-em-lote', MateriaAnexadaEmLoteView.as_view(),
@@ -257,6 +262,10 @@ urlpatterns_proposicao = [
         name='retornar-proposicao'),
     url(r'^proposicao/historico', HistoricoProposicaoView.as_view(),
         name='historico-proposicao'),
+
+    url(r'^proposicao/(?P<pk>\d+)/upload-anexos/$',
+        AnexoProposicaoUploadView.as_view(),
+        name='upload_anexos_proposicao'),
 
     # OnlyOffice endpoints
     url(r'^proposicao/(?P<pk>\d+)/onlyoffice/editor$', onlyoffice_editor,

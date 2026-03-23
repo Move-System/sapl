@@ -75,7 +75,8 @@ from .forms import (AcessorioEmLoteFilterSet, AcompanhamentoMateriaForm,
                     ReceberProposicaoForm, RelatoriaForm,
                     TramitacaoEmLoteFilterSet, TramitacaoEmLoteForm,
                     UnidadeTramitacaoForm, StatusTramitacaoFilterSet)
-from .models import (AcompanhamentoMateria, Anexada, AssuntoMateria, Autoria, DespachoInicial,
+from .models import (AcompanhamentoMateria, Anexada, AnexoProposicao, AssuntoMateria,
+                     Autoria, DespachoInicial,
                      DocumentoAcessorio, MateriaAssunto, MateriaLegislativa, Numeracao, Orgao,
                      Origem, Proposicao, RegimeTramitacao, Relatoria, StatusTramitacao,
                      TipoDocumento, TipoFimRelatoria, TipoMateriaLegislativa, TipoProposicao,
@@ -1960,6 +1961,16 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
 
     class ListView(MasterDetailCrud.ListView):
 
+        def get_context_data(self, **kwargs):
+            context = super().get_context_data(**kwargs)
+            u = self.request.user
+            context['pode_upload'] = u.is_authenticated and (
+                u.is_superuser or
+                u.has_perm('materia.add_documentoacessorio')
+            )
+            context['tipos_documento'] = TipoDocumento.objects.all()
+            return context
+
         def hook_arquivo(self, obj, default, url):
             u = self.request.user
             can_edit = u.is_authenticated and (
@@ -1978,6 +1989,155 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
                     f'<i class="fa fa-file-word-o"></i></a>'
                 )
             return html, url
+
+
+class DocumentoAcessorioUploadView(PermissionRequiredMixin, TemplateView):
+    """Upload múltiplo de arquivos como Documentos Acessórios."""
+    permission_required = ('materia.add_documentoacessorio',)
+
+    def post(self, request, *args, **kwargs):
+        materia = get_object_or_404(
+            MateriaLegislativa, pk=kwargs['pk'])
+        arquivos = request.FILES.getlist('arquivos')
+        tipo_id = request.POST.get('tipo')
+
+        if not arquivos:
+            return JsonResponse(
+                {'error': 'Nenhum arquivo enviado.'}, status=400)
+
+        tipo = None
+        if tipo_id:
+            tipo = TipoDocumento.objects.filter(pk=tipo_id).first()
+        if not tipo:
+            tipo, _ = TipoDocumento.objects.get_or_create(
+                descricao='Anexo')
+
+        criados = []
+        erros = []
+        for arq in arquivos:
+            if arq.size > MAX_DOC_UPLOAD_SIZE:
+                erros.append(f'{arq.name}: arquivo excede o tamanho máximo.')
+                continue
+
+            nome = os.path.splitext(arq.name)[0][:50]
+            doc = DocumentoAcessorio(
+                materia=materia,
+                tipo=tipo,
+                nome=nome,
+                data=timezone.now().date(),
+                arquivo=arq
+            )
+            try:
+                doc.save()
+                criados.append({
+                    'id': doc.id,
+                    'nome': doc.nome,
+                    'arquivo': arq.name
+                })
+            except Exception as e:
+                erros.append(f'{arq.name}: {str(e)}')
+
+        return JsonResponse({
+            'criados': criados,
+            'erros': erros,
+            'total': len(criados)
+        })
+
+
+class AnexoProposicaoUploadView(PermissionRequiredMixin, TemplateView):
+    """Upload múltiplo de anexos para uma Proposição."""
+    permission_required = ('materia.add_proposicao',)
+
+    def post(self, request, *args, **kwargs):
+        proposicao = get_object_or_404(Proposicao, pk=kwargs['pk'])
+
+        # Verifica se o usuário é operador do autor
+        if not proposicao.autor.operadores.filter(
+                id=request.user.id).exists():
+            return JsonResponse(
+                {'error': 'Sem permissão.'}, status=403)
+
+        # Não permite upload se já foi enviada
+        if proposicao.data_envio:
+            return JsonResponse(
+                {'error': 'Proposição já enviada.'}, status=400)
+
+        arquivos = request.FILES.getlist('arquivos')
+        tipo_id = request.POST.get('tipo')
+
+        if not arquivos:
+            return JsonResponse(
+                {'error': 'Nenhum arquivo enviado.'}, status=400)
+
+        tipo = None
+        if tipo_id:
+            tipo = TipoDocumento.objects.filter(pk=tipo_id).first()
+        if not tipo:
+            tipo, _ = TipoDocumento.objects.get_or_create(
+                descricao='Anexo')
+
+        criados = []
+        erros = []
+        for arq in arquivos:
+            if arq.size > MAX_DOC_UPLOAD_SIZE:
+                erros.append(f'{arq.name}: arquivo excede o tamanho máximo.')
+                continue
+
+            nome = os.path.splitext(arq.name)[0][:50]
+            anexo = AnexoProposicao(
+                proposicao=proposicao,
+                tipo=tipo,
+                nome=nome,
+                data=timezone.now().date(),
+                arquivo=arq
+            )
+            try:
+                anexo.save()
+                criados.append({
+                    'id': anexo.id,
+                    'nome': anexo.nome,
+                    'arquivo': arq.name
+                })
+            except Exception as e:
+                erros.append(f'{arq.name}: {str(e)}')
+
+        return JsonResponse({
+            'criados': criados,
+            'erros': erros,
+            'total': len(criados)
+        })
+
+    def delete(self, request, *args, **kwargs):
+        import json
+        data = json.loads(request.body)
+        anexo_id = data.get('id')
+        proposicao = get_object_or_404(Proposicao, pk=kwargs['pk'])
+
+        if not proposicao.autor.operadores.filter(
+                id=request.user.id).exists():
+            return JsonResponse(
+                {'error': 'Sem permissão.'}, status=403)
+
+        anexo = get_object_or_404(
+            AnexoProposicao, pk=anexo_id, proposicao=proposicao)
+        anexo.delete()
+        return JsonResponse({'ok': True})
+
+    def get(self, request, *args, **kwargs):
+        proposicao = get_object_or_404(Proposicao, pk=kwargs['pk'])
+        anexos = proposicao.anexos.all()
+        return JsonResponse({
+            'anexos': [
+                {
+                    'id': a.id,
+                    'nome': a.nome,
+                    'tipo': str(a.tipo),
+                    'arquivo': a.arquivo.name,
+                    'arquivo_url': a.arquivo.url if a.arquivo else '',
+                }
+                for a in anexos
+            ]
+        })
 
 
 class AutoriaCrud(MasterDetailCrud):

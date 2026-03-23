@@ -688,8 +688,9 @@ def fabrica_validador_de_tipos_de_arquivo(lista, nome):
         except FileNotFoundError:
             raise ValidationError(_('Arquivo não encontrado'))
 
-    # o nome é importante para as migrations
+    # o nome e qualname são importantes para as migrations
     restringe_tipos_de_arquivo.__name__ = nome
+    restringe_tipos_de_arquivo.__qualname__ = nome
     return restringe_tipos_de_arquivo
 
 
@@ -698,6 +699,10 @@ restringe_tipos_de_arquivo_txt = fabrica_validador_de_tipos_de_arquivo(
 
 restringe_tipos_de_arquivo_img = fabrica_validador_de_tipos_de_arquivo(
     TIPOS_IMG_PERMITIDOS, 'restringe_tipos_de_arquivo_img')
+
+restringe_tipos_de_arquivo_doc_img = fabrica_validador_de_tipos_de_arquivo(
+    TIPOS_TEXTO_PERMITIDOS + TIPOS_IMG_PERMITIDOS,
+    'restringe_tipos_de_arquivo_doc_img')
 
 
 def intervalos_tem_intersecao(a_inicio, a_fim, b_inicio, b_fim):

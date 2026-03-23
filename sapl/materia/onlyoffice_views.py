@@ -397,10 +397,13 @@ def onlyoffice_editor(request, pk):
     # URL do OnlyOffice acessível pelo navegador do usuário
     onlyoffice_url = get_onlyoffice_browser_url(request)
 
+    from sapl.materia.models import TipoDocumento
     context = {
         'proposicao': proposicao,
         'onlyoffice_url': onlyoffice_url,
         'config_url': reverse('sapl.materia:onlyoffice_config', kwargs={'pk': pk}),
+        'upload_anexos_url': reverse('sapl.materia:upload_anexos_proposicao', kwargs={'pk': pk}),
+        'tipos_documento': TipoDocumento.objects.all(),
     }
 
     return render(request, 'materia/onlyoffice_editor.html', context)
