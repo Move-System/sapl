@@ -330,7 +330,7 @@ def _criar_stamp_style(nome_assinante, cargo, hash_doc=''):
     try:
         from pyhanko.pdf_utils.font import SimpleFontEngineFactory
         font_kwargs['font'] = SimpleFontEngineFactory(
-            name='/Helvetica', avg_width=0.5
+            name='Helvetica', avg_width=0.5
         )
     except (ImportError, Exception):
         pass  # Usa fonte padrão se Helvetica não disponível
