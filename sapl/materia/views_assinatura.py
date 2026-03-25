@@ -316,6 +316,7 @@ def _criar_stamp_style(nome_assinante, cargo, hash_doc=''):
     na primeira assinatura (Helvetica, borda simples, mesmo layout).
     """
     from pyhanko.stamp import TextStampStyle, TextBoxStyle
+    from pyhanko.pdf_utils.layout import SimpleBoxLayoutRule, AxisAlignment, Margins
 
     # Monta texto do carimbo com cargo (se houver) + hash
     linhas = ['Assinado digitalmente por', '%(signer)s']
@@ -340,10 +341,19 @@ def _criar_stamp_style(nome_assinante, cargo, hash_doc=''):
         text_box_style=TextBoxStyle(
             font_size=7,
             leading=10,
-            border_width=1,
+            border_width=0,
             **font_kwargs,
         ),
-        border_width=0,
+        # Borda externa = tamanho completo da annotation box (mesmo tamanho
+        # dos blocos desenhados pelo ReportLab na página de autenticação)
+        border_width=1,
+        # Texto alinhado no topo-esquerdo com margem interna,
+        # consistente com o layout do ReportLab
+        inner_content_layout=SimpleBoxLayoutRule(
+            x_align=AxisAlignment.ALIGN_MIN,
+            y_align=AxisAlignment.ALIGN_MAX,
+            margins=Margins(left=8, right=8, top=5, bottom=5),
+        ),
         background=None,
         background_opacity=0,
         timestamp_format='%d/%m/%Y %H:%M',
