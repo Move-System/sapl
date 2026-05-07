@@ -979,11 +979,25 @@ class AnexadaForm(ModelForm):
         fields = ['tipo', 'numero', 'ano', 'data_anexacao', 'data_desanexacao']
 
 
+CHOICE_STATUS_ASSINATURA = [
+    ('', _('Todas')),
+    ('pendente', _('⚠ Pendente de Assinatura')),
+    ('assinada', _('✔ Assinada')),
+]
+
+
 class MateriaLegislativaFilterSet(django_filters.FilterSet):
 
     ano = django_filters.ChoiceFilter(required=False,
                                       label='Ano da Matéria',
                                       choices=choice_anos_com_materias)
+
+    status_assinatura = django_filters.ChoiceFilter(
+        required=False,
+        label=_('Status de Assinatura'),
+        choices=CHOICE_STATUS_ASSINATURA,
+        method='filter_status_assinatura'
+    )
 
     autoria__autor = django_filters.CharFilter(widget=forms.HiddenInput())
 
@@ -1074,6 +1088,17 @@ class MateriaLegislativaFilterSet(django_filters.FilterSet):
         self.filters['o'].label = _('Ordenação')
         self.form.fields['tipo_listagem'] = self.tipo_listagem
 
+        row_assinatura = to_row([
+            (HTML('''
+                <div class="alert alert-warning d-flex align-items-center py-2 mb-0"
+                     style="border-left: 4px solid #f0ad4e; background:#fffbf0;">
+                  <span class="mr-2" style="font-size:1.2em;">✍️</span>
+                  <strong class="mr-2">Assinatura Digital:</strong>
+                </div>
+            '''), 3),
+            ('status_assinatura', 4),
+        ])
+
         row1 = to_row(
             [('tipo', 5), ('ementa', 7)])
         row2 = to_row(
@@ -1131,6 +1156,7 @@ class MateriaLegislativaFilterSet(django_filters.FilterSet):
                      HTML(autor_label),
                      HTML(autor_modal),
                      row4,
+                     row_assinatura,
                      ),
             Button('btn_pesquisa_avancada', 'Pesquisa Avançada >>>',
                    css_id='btn_pesquisa_avancada_id',
@@ -1157,6 +1183,30 @@ class MateriaLegislativaFilterSet(django_filters.FilterSet):
             form_actions(label=_('Pesquisar')),
             )
          )
+
+    def filter_status_assinatura(self, queryset, name, value):
+        if value == 'pendente':
+            # Tem texto original mas não tem PDF assinado
+            return queryset.filter(
+                texto_original__isnull=False
+            ).exclude(
+                texto_original=''
+            ).filter(
+                pdf_assinado__isnull=True
+            ) | queryset.filter(
+                texto_original__isnull=False
+            ).exclude(
+                texto_original=''
+            ).filter(
+                pdf_assinado=''
+            )
+        elif value == 'assinada':
+            return queryset.exclude(
+                pdf_assinado__isnull=True
+            ).exclude(
+                pdf_assinado=''
+            )
+        return queryset
 
     @property
     def qs(self):

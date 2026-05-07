@@ -19,6 +19,23 @@
     </div>
   {% endif %}
 
+  {# ── Filtro rápido de assinatura ─────────────────────────────────── #}
+  <div class="d-inline-flex align-items-center ml-2" style="vertical-align:middle;">
+    <label class="mb-0 mr-1 font-weight-bold text-secondary" style="white-space:nowrap;font-size:.85rem;">
+      <i class="fas fa-signature mr-1"></i> Assinatura:
+    </label>
+    {% with status_atual=request.GET.status_assinatura %}
+    <select id="select-status-assinatura"
+            class="custom-select custom-select-sm"
+            style="min-width:210px;">
+      <option value="" {% if not status_atual %}selected{% endif %}>Todas as matérias</option>
+      <option value="pendente" {% if status_atual == 'pendente' %}selected{% endif %}>⚠ Pendente de Assinatura</option>
+      <option value="assinada" {% if status_atual == 'assinada' %}selected{% endif %}>✔ Assinada</option>
+    </select>
+    {% endwith %}
+  </div>
+  {# ─────────────────────────────────────────────────────────────────── #}
+
     <div class="actions btn-group float-right pb-4" role="group">
       {% switch "SOLR_SWITCH" %}
       <a href="{% url 'sapl.base:haystack_search' %}" class="btn btn-outline-primary">
@@ -37,6 +54,7 @@
   {% endblock %}
 
   {% block detail_content %}
+
     {% if not show_results %}
       {% crispy filter.form %}
     {% endif %}
@@ -215,6 +233,19 @@
                         Texto Original
                       </a>
                     </strong>
+                    &nbsp;
+                    {% if m.pdf_assinado %}
+                      <a href="{% url 'sapl.materia:materia_pdf_assinado' m.pk %}" target="_blank"
+                         class="badge badge-success"
+                         title="PDF assinado disponível — clique para baixar">
+                        <i class="fas fa-signature"></i> Assinado{% if m.assinado_em %} em {{ m.assinado_em|date:"d/m/Y" }}{% endif %}
+                      </a>
+                    {% elif m.texto_original %}
+                      <span class="badge badge-warning text-dark"
+                            title="Documento ainda não possui assinatura digital">
+                        <i class="fas fa-clock"></i> Pendente de Assinatura
+                      </span>
+                    {% endif %}
                     </br>
                   {% endif %}
                   {% if m.texto_articulado.exists %}<strong><a href="{% url 'sapl.materia:materia_ta' m.id%}">Texto Articulado</a></strong></br>{% endif %}
@@ -256,7 +287,7 @@
   {% block extra_js %}
   <script src="{% static 'js/materia_pesquisa_download_pdfs.js' %}"></script>
 
-  <script type="text/javascript" >
+  <script type="text/javascript">
   $( document ).ready(function() {
       $('.link_votacao_nominal').on('click', function(event) {
         event.preventDefault();
@@ -265,7 +296,6 @@
 
   function pesquisaAvancada(){
      $('.pesquisa_avancada').toggle();
-
      var id_btn = "#btn_pesquisa_avancada_id";
      if ($(id_btn).val().endsWith('>>>')){
        $(id_btn).val($(id_btn).val().replace('>>>', '<<<'))
@@ -276,7 +306,6 @@
 
   function votacaoNominal(id){
      $('#div_' + id).toggle();
-
      var id_link = "#link_votacao_nominal_" + id;
      if ($(id_link).text().indexOf('>>>') > -1){
        $(id_link).text($(id_link).text().replace('>>>', '<<<'))

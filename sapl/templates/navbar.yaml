@@ -49,6 +49,8 @@
       check_permission: materia.can_access_impressos {% comment %} FIXME transformar para checagens de menu_[funcionalidade]{% endcomment%}
     - title: {% trans 'Matérias Legislativas' %}
       url: sapl.materia:pesquisar_materia
+    - title: {% trans 'Matérias Pendentes de Assinatura' %}
+      url: sapl.materia:materias_pendentes_assinatura
     - title: {% trans 'Pautas das Sessões' %}
       url: sapl.sessao:pauta_sessao
     - title: {% trans 'Proposições' %}

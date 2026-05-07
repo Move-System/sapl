@@ -15,7 +15,7 @@ from crispy_forms.layout import Div, HTML, Submit
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
-from django.contrib.auth.mixins import PermissionRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned, ValidationError
 from django.db.models import Max, Q
@@ -38,7 +38,7 @@ from django.utils.decorators import method_decorator
 
 import sapl
 from sapl.base.email_utils import do_envia_email_confirmacao
-from sapl.base.models import Autor, CasaLegislativa, AppConfig as BaseAppConfig
+from sapl.base.models import Autor, CasaLegislativa, AppConfig as BaseAppConfig, OperadorAutor
 from sapl.comissoes.models import Participacao
 from sapl.compilacao.models import STATUS_TA_IMMUTABLE_RESTRICT, STATUS_TA_PRIVATE
 from sapl.compilacao.views import IntegracaoTaView
@@ -638,6 +638,53 @@ class ProposicaoPendenteSetor(PermissionRequiredMixin, ListView):
         context['NO_ENTRIES_MSG'] = 'Nenhuma proposição pendente de revisão pelo setor.'
         qr = self.request.GET.copy()
         context['filter_url'] = ('&o=' + qr['o']) if 'o' in qr.keys() else ''
+        return context
+
+
+class MateriasPendentesAssinaturaView(LoginRequiredMixin, ListView):
+    template_name = 'materia/materias_pendentes_assinatura_list.html'
+    model = MateriaLegislativa
+    paginate_by = 20
+    login_url = '/login/'
+
+    def get_autor(self):
+        try:
+            return OperadorAutor.objects.get(user=self.request.user).autor
+        except OperadorAutor.DoesNotExist:
+            return None
+
+    def get_queryset(self):
+        autor = self.get_autor()
+        qs = MateriaLegislativa.objects.filter(
+            texto_original__isnull=False
+        ).exclude(
+            texto_original=''
+        ).filter(
+            Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
+        )
+        if autor:
+            qs = qs.filter(autoria__autor=autor)
+        return qs.order_by('-data_apresentacao', '-id').distinct()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        autor = self.get_autor()
+        context['autor'] = autor
+        paginator = context['paginator']
+        page_obj = context['page_obj']
+        context['page_range'] = make_pagination(page_obj.number, paginator.num_pages)
+        context['total'] = paginator.count
+        # URL para pesquisar todas filtrando por autor + pendente
+        if autor:
+            context['url_pesquisa_completa'] = (
+                reverse('sapl.materia:pesquisar_materia')
+                + f'?autoria__autor={autor.pk}&status_assinatura=pendente'
+            )
+        else:
+            context['url_pesquisa_completa'] = (
+                reverse('sapl.materia:pesquisar_materia')
+                + '?status_assinatura=pendente'
+            )
         return context
 
 

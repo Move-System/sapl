@@ -16,6 +16,7 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 LegislacaoCitadaCrud, MateriaAssuntoCrud,
                                 MateriaLegislativaCrud,
                                 MateriaLegislativaPesquisaView, MateriaTaView,
+                                MateriasPendentesAssinaturaView,
                                 NumeracaoCrud, OrgaoCrud, OrigemCrud,
                                 PrimeiraTramitacaoEmLoteView, ProposicaoCrud,
                                 ProposicaoDevolvida, ProposicaoPendente,
@@ -122,6 +123,10 @@ urlpatterns_materia = [
 
     url(r'^materia/pesquisar-materia$',
         MateriaLegislativaPesquisaView.as_view(), name='pesquisar_materia'),
+
+    url(r'^materia/pendentes-assinatura$',
+        MateriasPendentesAssinaturaView.as_view(), name='materias_pendentes_assinatura'),
+
     url(r'^materia/(?P<pk>\d+)/acompanhar-materia/$',
         AcompanhamentoMateriaView.as_view(), name='acompanhar_materia'),
     url(r'^materia/(?P<pk>\d+)/acompanhar-confirmar$',
