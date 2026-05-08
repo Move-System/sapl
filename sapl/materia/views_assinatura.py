@@ -21,7 +21,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from sapl.base.models import AppConfig
+from sapl.base.models import AppConfig, OperadorAutor
 from sapl.materia.models import DocumentoAcessorio, MateriaLegislativa
 from sapl.utils import build_onlyoffice_url
 
@@ -900,6 +900,10 @@ def materia_assinar_a1(request, pk):
             materia.assinado_por = request.user
             materia.save()
 
+            # Invalida cache de pendências para atualizar sino na navbar
+            from django.core.cache import cache as _cache
+            _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
+
             logger.info(f"Matéria {materia.pk} assinada por {request.user.username}")
 
             return JsonResponse({
@@ -1762,3 +1766,252 @@ def docacessorio_verificar_documento(request, pk):
     }
 
     return render(request, 'materia/verificar_assinatura.html', context)
+
+
+# =============================================================================
+# Assinatura em Lote de Matérias Legislativas
+# =============================================================================
+
+@login_required
+@csrf_exempt
+@require_http_methods(["POST"])
+def materia_assinar_lote(request):
+    """
+    Assina em lote matérias pendentes com certificado A1.
+
+    POST multipart:
+      - certificado: arquivo .pfx / .p12
+      - senha: senha do certificado
+      - ids: JSON array com os PKs das matérias  ex: "[1,2,3]"
+             OU múltiplos campos ids[] (form-data)
+
+    Retorna JSON com resultado por matéria:
+    {
+        "total": 3, "sucesso": 2, "erros": 1,
+        "resultados": [
+            {"pk": 1, "success": true,  "descricao": "PL 1/2025"},
+            {"pk": 2, "success": false, "descricao": "PL 2/2025", "error": "..."}
+        ]
+    }
+    """
+    # Permite acesso se o usuário tem permissão Django OU é OperadorAutor de algum autor
+    _tem_perm_django = request.user.has_perm('materia.change_materialegislativa')
+    try:
+        _autor_lote = OperadorAutor.objects.get(user=request.user).autor
+    except OperadorAutor.DoesNotExist:
+        _autor_lote = None
+
+    if not (_tem_perm_django or _autor_lote):
+        return JsonResponse(
+            {'success': False, 'error': 'Sem permissão para assinar matérias.'},
+            status=403
+        )
+
+    # ── IDs das matérias ─────────────────────────────────────────────────────
+    ids_raw = request.POST.get('ids', '')
+    ids_multi = request.POST.getlist('ids[]')
+
+    if ids_multi:
+        pks = [int(i) for i in ids_multi if str(i).isdigit()]
+    elif ids_raw:
+        try:
+            parsed = json.loads(ids_raw)
+            pks = [int(i) for i in parsed if str(i).isdigit() or isinstance(i, int)]
+        except (json.JSONDecodeError, ValueError):
+            return JsonResponse(
+                {'success': False, 'error': 'Parâmetro "ids" inválido. Envie um array JSON.'},
+                status=400
+            )
+    else:
+        return JsonResponse({'success': False, 'error': 'Nenhuma matéria selecionada.'}, status=400)
+
+    if not pks:
+        return JsonResponse({'success': False, 'error': 'Lista de IDs vazia.'}, status=400)
+
+    if len(pks) > 200:
+        return JsonResponse(
+            {'success': False, 'error': 'Limite máximo de 200 matérias por lote.'},
+            status=400
+        )
+
+    # ── Certificado ──────────────────────────────────────────────────────────
+    certificado_file = request.FILES.get('certificado')
+    senha = request.POST.get('senha', '')
+
+    if not certificado_file:
+        return JsonResponse({'success': False, 'error': 'Certificado não informado.'}, status=400)
+    if not senha:
+        return JsonResponse({'success': False, 'error': 'Senha do certificado não informada.'}, status=400)
+
+    cert_bytes = certificado_file.read()
+
+    import tempfile as tmp_module
+    with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
+        tmp_cert.write(cert_bytes)
+        tmp_cert_path = tmp_cert.name
+
+    try:
+        from pyhanko.sign import signers
+        signer = signers.SimpleSigner.load_pkcs12(
+            pfx_file=tmp_cert_path,
+            passphrase=senha.encode('utf-8')
+        )
+    except Exception as cert_error:
+        logger.error(f"[lote] Erro ao carregar certificado: {cert_error}")
+        err_msg = str(cert_error)
+        if 'password' in err_msg.lower() or 'mac' in err_msg.lower():
+            detail = 'Senha incorreta ou arquivo inválido.'
+        elif 'decode' in err_msg.lower() or 'parse' in err_msg.lower():
+            detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
+        else:
+            detail = f'Detalhes: {err_msg}'
+        return JsonResponse({'success': False, 'error': f'Erro ao carregar certificado: {detail}'}, status=400)
+    finally:
+        if os.path.exists(tmp_cert_path):
+            os.unlink(tmp_cert_path)
+
+    cert_info = signer.signing_cert
+    error_response = _validar_certificado(cert_info)
+    if error_response:
+        data = json.loads(error_response.content)
+        return JsonResponse({'success': False, 'error': data.get('error', 'Certificado inválido.')}, status=400)
+
+    # ── Assinatura por matéria ────────────────────────────────────────────────
+    materias = MateriaLegislativa.objects.filter(pk__in=pks)
+    materias_map = {m.pk: m for m in materias}
+
+    resultados = []
+    sucesso_count = 0
+    erro_count = 0
+
+    for pk in pks:
+        materia = materias_map.get(pk)
+        if not materia:
+            resultados.append({'pk': pk, 'success': False, 'descricao': f'ID {pk}', 'error': 'Matéria não encontrada.'})
+            erro_count += 1
+            continue
+
+        descricao = f'{materia.tipo.sigla} {materia.numero}/{materia.ano}'
+
+        if materia.pdf_assinado:
+            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': 'Já possui PDF assinado. Ignorada.'})
+            erro_count += 1
+            continue
+
+        assinaturas_existentes = _normalizar_assinatura_info(materia.assinatura_info)
+        if any(a.get('signed_by') == request.user.username for a in assinaturas_existentes):
+            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': 'Você já assinou esta matéria.'})
+            erro_count += 1
+            continue
+
+        pdf_bytes, error = _gerar_pdf_da_materia(materia, request)
+        if error:
+            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': error})
+            erro_count += 1
+            continue
+
+        temp_stamped_path = None
+        try:
+            from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+            from PyPDF4 import PdfFileReader, PdfFileWriter as PyPDF4Writer
+
+            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
+            data_assinatura = timezone.localtime(timezone.now())
+            data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
+            data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+
+            codigo = _gerar_codigo_autenticacao(pdf_bytes)
+            url_verificacao = _construir_url_verificacao(request, 'materia', pk, codigo)
+
+            nova_assinatura_info = {
+                'nome_assinante': nome_assinante,
+                'cargo': cargo,
+                'data_assinatura': data_simples,
+            }
+
+            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+            page_box = last_page.mediaBox
+            page_width = float(page_box.getWidth())
+            page_height = float(page_box.getHeight())
+
+            auth_page_bytes = _gerar_pagina_autenticacao(
+                [nova_assinatura_info], codigo, url_verificacao,
+                page_width, page_height
+            )
+
+            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
+            output_pdf = PyPDF4Writer()
+            for page_num in range(original_pdf.getNumPages()):
+                output_pdf.addPage(original_pdf.getPage(page_num))
+            output_pdf.addPage(auth_page_pdf.getPage(0))
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_f:
+                temp_stamped_path = tmp_f.name
+                output_pdf.write(tmp_f)
+
+            with open(temp_stamped_path, 'rb') as f:
+                stamped_bytes = f.read()
+
+            signed_buffer = io.BytesIO()
+            with io.BytesIO(stamped_bytes) as inf:
+                w = IncrementalPdfFileWriter(inf)
+                meta = signers.PdfSignatureMetadata(
+                    field_name='AssinaturaDigital',
+                    location='Câmara Municipal',
+                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                    name=nome_assinante
+                )
+                signers.sign_pdf(w, meta, signer=signer, output=signed_buffer)
+
+            signed_buffer.seek(0)
+            signed_pdf_content = signed_buffer.read()
+
+            filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+            materia.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
+            materia.codigo_autenticacao = codigo
+
+            nova_assinatura_record = {
+                'tipo_certificado': 'A1',
+                'tipo_certificado_display': f'{tipo_cert} – A1',
+                'subject': str(cert_info.subject),
+                'issuer': str(cert_info.issuer),
+                'serial': str(cert_info.serial_number),
+                'valid_from': cert_info.not_valid_before.isoformat(),
+                'valid_to': cert_info.not_valid_after.isoformat(),
+                'signed_by': request.user.username,
+                'nome_assinante': nome_assinante,
+                'cargo': cargo,
+                'data_assinatura': data_formatada,
+                'validade_juridica': 'Assinatura Eletrônica Qualificada'
+            }
+            assinaturas_existentes.append(nova_assinatura_record)
+            materia.assinatura_info = assinaturas_existentes
+            materia.assinado_em = timezone.now()
+            materia.assinado_por = request.user
+            materia.save()
+
+            logger.info(f"[lote] Matéria {pk} assinada por {request.user.username}")
+            resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
+            sucesso_count += 1
+
+        except Exception as e:
+            logger.error(f"[lote] Erro ao assinar matéria {pk}: {e}")
+            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
+            erro_count += 1
+        finally:
+            if temp_stamped_path and os.path.exists(temp_stamped_path):
+                os.unlink(temp_stamped_path)
+
+    # Invalida cache de pendências uma vez ao final do lote
+    if sucesso_count > 0:
+        from django.core.cache import cache as _cache
+        _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
+
+    return JsonResponse({
+        'success': True,
+        'total': len(pks),
+        'sucesso': sucesso_count,
+        'erros': erro_count,
+        'resultados': resultados,
+    })

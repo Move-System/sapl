@@ -1,0 +1,17 @@
+{{ casa_legislativa }} — SGVP
+=====================================================
+
+Olá, {{ nome_autor }}.
+
+Você possui {{ total }} matéria(s) aguardando assinatura digital:
+
+{% for m in materias %}  {{ forloop.counter }}. {{ m.tipo.sigla }} {{ m.numero }}/{{ m.ano }} — {{ m.ementa|truncatechars:80 }}
+{% endfor %}
+{% if total_omitidas %}
+  ... e mais {{ total_omitidas }} outra(s) matéria(s).
+{% endif %}
+
+Acesse: {{ base_url }}{{ url_pesquisa }}
+
+---
+Esta é uma mensagem automática. Por favor, não a responda.

@@ -2789,6 +2789,24 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
 
         context['show_results'] = show_results_filter_set(qr)
 
+        # Matérias pendentes de assinatura para o botão de lote
+        status_assinatura = self.request.GET.get('status_assinatura')
+        if status_assinatura == 'pendente' and context['show_results']:
+            from django.db.models import Q as _Q
+            qs_lote = self.object_list.filter(
+                texto_original__isnull=False,
+            ).filter(
+                _Q(pdf_assinado__isnull=True) | _Q(pdf_assinado='')
+            ).exclude(texto_original='').select_related('tipo').values_list(
+                'id', 'tipo__sigla', 'numero', 'ano'
+            )[:200]
+            context['materias_pendentes_lote'] = [
+                {'id': pk, 'descricao': f'{sigla} {numero}/{ano}'}
+                for pk, sigla, numero, ano in qs_lote
+            ]
+        else:
+            context['materias_pendentes_lote'] = []
+
         return context
 
 

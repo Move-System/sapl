@@ -1,3 +1,11 @@
+# Ambiente de desenvolvimento: código montado como volume (hot-reload),
+# banco controlado pelo DATABASE_URL definido em sapl/.env.
+#
+# Uso:
+#   docker compose -f docker/docker-compose-dev.yml --env-file sapl/.env up --build
+#
+# Troque o banco a qualquer momento editando apenas o DATABASE_URL no sapl/.env
+
 version: '3.7'
 
 services:
@@ -12,30 +20,22 @@ services:
       - ..:/sapl-dev
     ports:
       - "8000:8000"
+    env_file:
+      - ../sapl/.env          # Lê DATABASE_URL, SECRET_KEY, DEBUG, etc.
     environment:
-      SECRET_KEY: '$dkhxm-$zvxdox$g2-&w^1i!_z1juq0xwox6e3#gy6w_88!3t^'
-      DJANGO_DEBUG: 'True'
-      DATABASE_URL: postgresql://sapl:sapl@host.docker.internal:5432/sapl
+      # Garante que DEBUG do .env seja reconhecido pelo settings.py
+      DJANGO_DEBUG: '${DEBUG:-True}'
       TZ: America/Sao_Paulo
-      ONLYOFFICE_URL: 'http://onlyoffice:80'
-    depends_on:
-      - onlyoffice
+    extra_hosts:
+      # Permite alcançar bancos externos (ex: legisinc.com.br, sgvp.com.br)
+      - "host.docker.internal:host-gateway"
 
-  onlyoffice:
-    container_name: onlyoffice-documentserver
-    image: onlyoffice/documentserver:latest
-    ports:
-      - "8001:80"
-    environment:
-      - JWT_ENABLED=false
-      - JWT_SECRET=your-secret-key-change-this
-    volumes:
-      - onlyoffice_data:/var/www/onlyoffice/Data
-      - onlyoffice_log:/var/log/onlyoffice
-      - onlyoffice_fonts:/usr/share/fonts/truetype/custom
-    restart: unless-stopped
-
-volumes:
-  onlyoffice_data:
-  onlyoffice_log:
-  onlyoffice_fonts:
+  # Descomente para usar OnlyOffice localmente
+  # onlyoffice:
+  #   container_name: onlyoffice-documentserver
+  #   image: onlyoffice/documentserver:latest
+  #   ports:
+  #     - "8001:80"
+  #   environment:
+  #     - JWT_ENABLED=false
+  #   restart: unless-stopped

@@ -34,8 +34,8 @@ PROJECT_DIR = Path(__file__).ancestor(2)
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='32jk1h412l3kjh421lkj4hlkj234')
 # SECURITY WARNING: don't run with debug turned on in production!
-#DEBUG = config('DEBUG', default=False, cast=bool)
-DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
+# Aceita tanto DEBUG quanto DJANGO_DEBUG (compatibilidade com docker-compose legado)
+DEBUG = config('DEBUG', default=False, cast=bool) or config('DJANGO_DEBUG', default=False, cast=bool)
 
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
@@ -234,6 +234,7 @@ TEMPLATES = [
                 'sapl.context_processors.mail_service_configured',
                 'sapl.context_processors.google_recaptcha_configured',
                 'sapl.context_processors.enable_sapn',
+                'sapl.context_processors.pendencias_assinatura',
             ],
             'debug': DEBUG
         },

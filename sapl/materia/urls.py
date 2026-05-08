@@ -52,7 +52,7 @@ from sapl.materia.onlyoffice_materia_views import (
 from sapl.materia.views_assinatura import (
     materia_assinar_a1, materia_assinar_a3_preparar, materia_assinar_a3_finalizar,
     materia_pdf_assinado, materia_verificar_assinatura, materia_remover_assinatura,
-    detectar_aplicacao_a3,
+    detectar_aplicacao_a3, materia_assinar_lote,
     docacessorio_assinar_a1, docacessorio_pdf_assinado,
     docacessorio_verificar_assinatura, docacessorio_remover_assinatura,
     materia_verificar_documento, docacessorio_verificar_documento
@@ -187,6 +187,8 @@ urlpatterns_materia = [
         name='materia_assinar_a3_preparar'),
     url(r'^materia/(?P<pk>\d+)/assinar/a3/finalizar/$', materia_assinar_a3_finalizar,
         name='materia_assinar_a3_finalizar'),
+    url(r'^materia/assinar-em-lote/$', materia_assinar_lote,
+        name='materia_assinar_lote'),
     url(r'^materia/(?P<pk>\d+)/pdf-assinado/$', materia_pdf_assinado,
         name='materia_pdf_assinado'),
     url(r'^materia/(?P<pk>\d+)/verificar-assinatura/$', materia_verificar_assinatura,
