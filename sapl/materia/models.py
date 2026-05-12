@@ -1158,6 +1158,40 @@ class Proposicao(models.Model):
                                  update_fields=update_fields)
 
 
+class AutoriaProposicao(models.Model):
+    """
+    Modelo para co-autores de uma Proposição.
+    Permite que o autor da proposição indique múltiplos co-autores
+    que serão transferidos para a Autoria da matéria ao incorporar.
+    """
+    proposicao = models.ForeignKey(
+        Proposicao,
+        on_delete=models.CASCADE,
+        verbose_name=_('Proposição'),
+        related_name='coautores'
+    )
+    autor = models.ForeignKey(
+        Autor,
+        on_delete=models.PROTECT,
+        verbose_name=_('Co-autor')
+    )
+    primeiro_autor = models.BooleanField(
+        verbose_name=_('Primeiro Autor'),
+        choices=YES_NO_CHOICES,
+        default=False
+    )
+
+    class Meta:
+        verbose_name = _('Co-autoria da Proposição')
+        verbose_name_plural = _('Co-autorias da Proposição')
+        unique_together = (('proposicao', 'autor'),)
+        ordering = ('-primeiro_autor', 'autor__nome')
+
+    def __str__(self):
+        return _('Co-autoria: %(autor)s - %(proposicao)s') % {
+            'autor': self.autor, 'proposicao': self.proposicao}
+
+
 class HistoricoProposicao(models.Model):
     STATUS_PROPOSICAO = Choices(('E', 'ENVIADA', _('Enviada')),
                                 ('R', 'RECEBIDA', _('Recebida')),

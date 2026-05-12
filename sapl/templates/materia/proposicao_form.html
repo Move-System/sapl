@@ -2,8 +2,46 @@
 {% load i18n %}
 {% load crispy_forms_tags %}
 
-{% block extra_js %}
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <style>
+    /* Select2 co-autores */
+    .select2-container--default .select2-selection--multiple {
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        min-height: 38px;
+        padding: 2px 6px;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice {
+        background-color: #007bff;
+        border: none;
+        color: #fff;
+        border-radius: 3px;
+        padding: 2px 8px;
+        font-size: 0.9em;
+    }
+    .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+        color: #fff;
+        margin-right: 5px;
+    }
+    #div_id_coautores {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        margin-bottom: 15px;
+    }
+    #div_id_coautores > label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+        display: block;
+    }
+    #div_id_coautores .form-text {
+        color: #6c757d;
+        font-size: 0.875em;
+        margin-top: 5px;
+    }
     /* =====================================================
        Estilo para o container do tipo de proposição
        ===================================================== */
@@ -188,9 +226,22 @@
         padding: 8px 25px;
     }
 </style>
+{% endblock %}
 
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script type="text/javascript">
 $(document).ready(function(){
+
+    // =====================================================
+    // Inicializar Select2 para co-autores
+    // =====================================================
+    $('.select2-coautores').select2({
+        placeholder: '{% trans "Selecione os co-autores..." %}',
+        allowClear: true,
+        language: 'pt-BR',
+        width: '100%'
+    });
 
     // =====================================================
     // Configuração do botão "Novo Tipo"

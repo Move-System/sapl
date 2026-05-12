@@ -45,7 +45,7 @@ from sapl.utils import (autor_label, autor_modal, timing,
                         GoogleRecapthaMixin, get_client_ip)
 from sapl.utils_template import adicionar_cabecalho_materia
 
-from .models import (AcompanhamentoMateria, Anexada, Autoria,
+from .models import (AcompanhamentoMateria, Anexada, Autoria, AutoriaProposicao,
                      DespachoInicial, DocumentoAcessorio, Numeracao,
                      Proposicao, Relatoria, TipoMateriaLegislativa,
                      Tramitacao, UnidadeTramitacao)
@@ -1999,6 +1999,19 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
     numero_materia_futuro = forms.IntegerField(
         label='Número (Opcional)', required=False)
 
+    coautores = forms.ModelMultipleChoiceField(
+        label=_('Co-autores'),
+        required=False,
+        queryset=Autor.objects.all(),
+        widget=forms.SelectMultiple(attrs={
+            'class': 'select2-coautores',
+            'style': 'width: 100%',
+            'data-placeholder': _('Selecione os co-autores...')
+        }),
+        help_text=_('Selecione os demais autores deste documento. '
+                    'Eles serão adicionados como co-autores ao incorporar a proposição.')
+    )
+
     class Meta:
         model = Proposicao
         fields = ['tipo',
@@ -2044,6 +2057,7 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
                        dismiss=False), 12)),
             to_column(('descricao', 12)),
             to_column(('observacao', 12)),
+            to_column(('coautores', 12)),
 
         ]
 
@@ -2181,6 +2195,13 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
                     'ano_materia'
                 ].initial = self.instance.materia_de_vinculo.ano
 
+            # Pré-popular co-autores existentes
+            coautores_pks = list(
+                self.instance.coautores.values_list('autor_id', flat=True)
+            )
+            if coautores_pks:
+                self.fields['coautores'].initial = coautores_pks
+
     def clean_texto_original(self):
         texto_original = self.cleaned_data.get('texto_original', False)
 
@@ -2272,7 +2293,9 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
                         inst.texto_original.delete()
             self.gerar_hash(inst, receber_recibo)
 
-            return super().save(commit)
+            result = super().save(commit)
+            self._salvar_coautores(result)
+            return result
 
         inst.ano = timezone.now().year
         sequencia_numeracao = BaseAppConfig.attr(
@@ -2291,8 +2314,26 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
         self.gerar_hash(inst, receber_recibo)
 
         inst.save()
+        self._salvar_coautores(inst)
 
         return inst
+
+    def _salvar_coautores(self, inst):
+        """Sincroniza os co-autores selecionados no formulário com AutoriaProposicao."""
+        coautores = self.cleaned_data.get('coautores', [])
+        # Remove co-autores não mais selecionados
+        inst.coautores.exclude(autor__in=coautores).delete()
+        # Adiciona novos co-autores
+        autores_existentes = set(
+            inst.coautores.values_list('autor_id', flat=True)
+        )
+        for autor in coautores:
+            if autor.pk not in autores_existentes:
+                AutoriaProposicao.objects.create(
+                    proposicao=inst,
+                    autor=autor,
+                    primeiro_autor=False
+                )
 
 
 class DevolverProposicaoForm(forms.ModelForm):
@@ -2795,6 +2836,21 @@ class ConfirmarProposicaoForm(ProposicaoForm):
             self.instance.results['messages']['success'].append(_(
                 'Autoria registrada para (%s)'
             ) % str(autoria.autor))
+
+            # Transferir co-autores da proposição para Autoria da matéria
+            for coautoria in proposicao.coautores.all():
+                # Não duplicar se o co-autor for o mesmo que o autor principal
+                if coautoria.autor != proposicao.autor:
+                    Autoria.objects.get_or_create(
+                        autor=coautoria.autor,
+                        materia=materia,
+                        defaults={
+                            'primeiro_autor': coautoria.primeiro_autor
+                        }
+                    )
+                    self.instance.results['messages']['success'].append(_(
+                        'Co-autoria registrada para (%s)'
+                    ) % str(coautoria.autor))
 
             # Transferir anexos da proposição para DocumentoAcessorio
             from sapl.materia.models import AnexoProposicao
