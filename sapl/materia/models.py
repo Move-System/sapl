@@ -345,7 +345,10 @@ class MateriaLegislativa(models.Model):
         verbose_name_plural = _('Matérias Legislativas')
         unique_together = (("tipo", "numero", "ano"),)
         ordering = ['-ano', 'tipo', 'numero']
-        permissions = (("can_access_impressos", "Can access impressos"),)
+        permissions = (
+            ("can_access_impressos", "Can access impressos"),
+            ("can_remove_assinatura", "Pode remover assinatura digital"),
+        )
 
     def __str__(self):
         return _('%(tipo)s nº %(numero)s de %(ano)s') % {
@@ -634,6 +637,9 @@ class DocumentoAcessorio(models.Model):
         verbose_name = _('Documento Acessório')
         verbose_name_plural = _('Documentos Acessórios')
         ordering = ('data', 'id')
+        permissions = (
+            ("can_remove_assinatura_doc", "Pode remover assinatura digital de documento acessório"),
+        )
 
     def __str__(self):
         return _('%(tipo)s - %(nome)s de %(data)s por %(autor)s') % {

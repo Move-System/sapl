@@ -230,6 +230,13 @@
                   <i class="fa fa-qrcode"></i> {% trans "Verificar Autenticidade" %}
                 </a>
                 {% endif %}
+                {% if pode_remover_assinatura %}
+                <button type="button" class="btn btn-sm btn-danger btn-remover-assinatura"
+                        data-url="{% url 'sapl.materia:materia_remover_assinatura' object.pk %}"
+                        data-nome="{{ object }}">
+                  <i class="fa fa-trash"></i> {% trans "Remover Assinatura" %}
+                </button>
+                {% endif %}
               </div>
             </div>
           </div>
@@ -249,5 +256,8 @@
       }
     });
   </script>
+{% endif %}
+{% if pode_remover_assinatura and object.pdf_assinado %}
+  {% include "materia/remover_assinatura_modal.html" %}
 {% endif %}
 {% endblock extra_js %}

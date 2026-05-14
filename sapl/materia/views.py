@@ -1996,13 +1996,16 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
             )
 
             # Normaliza assinatura_info para lista (backward-compatible)
-            from sapl.materia.views_assinatura import _normalizar_assinatura_info
+            from sapl.materia.views_assinatura import _normalizar_assinatura_info, _pode_remover_assinatura
             assinaturas = _normalizar_assinatura_info(self.object.assinatura_info)
             context['assinaturas'] = assinaturas
             context['ja_assinou'] = any(
                 a.get('signed_by') == u.username
                 for a in assinaturas
             ) if u.is_authenticated else False
+            context['pode_remover_assinatura'] = (
+                u.is_authenticated and _pode_remover_assinatura(u)
+            )
 
             return context
 
@@ -2529,13 +2532,17 @@ class MateriaLegislativaCrud(Crud):
             )
 
             # Normaliza assinatura_info para lista (backward-compatible)
-            from sapl.materia.views_assinatura import _normalizar_assinatura_info
+            from sapl.materia.views_assinatura import _normalizar_assinatura_info, _pode_remover_assinatura
             assinaturas = _normalizar_assinatura_info(self.object.assinatura_info)
             context['assinaturas'] = assinaturas
             context['ja_assinou'] = any(
                 a.get('signed_by') == self.request.user.username
                 for a in assinaturas
             ) if self.request.user.is_authenticated else False
+            context['pode_remover_assinatura'] = (
+                self.request.user.is_authenticated and
+                _pode_remover_assinatura(self.request.user)
+            )
 
             return context
 

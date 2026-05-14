@@ -28,6 +28,23 @@ from sapl.utils import build_onlyoffice_url
 logger = logging.getLogger(__name__)
 
 
+def _pode_remover_assinatura(user):
+    """
+    Verifica se o usuário tem permissão para remover assinaturas digitais.
+    Regras (qualquer uma é suficiente):
+      1. É superusuário, OU
+      2. A funcionalidade está habilitada em AppConfig E o usuário possui a
+         permissão granular 'materia.can_remove_assinatura'.
+    """
+    if user.is_superuser:
+        return True
+    from sapl.base.models import AppConfig
+    permite = AppConfig.attr('permite_remover_assinatura')
+    if permite and user.has_perm('materia.can_remove_assinatura'):
+        return True
+    return False
+
+
 def _normalizar_assinatura_info(info):
     """Converte assinatura_info legado (dict) para lista de dicts."""
     if info is None:
@@ -1215,12 +1232,13 @@ def materia_verificar_assinatura(request, pk):
 def materia_remover_assinatura(request, pk):
     """
     Remove a assinatura digital da matéria.
-    Apenas superusuários podem executar esta ação.
+    Requer: superusuário OU funcionalidade habilitada em AppConfig
+    E permissão 'materia.can_remove_assinatura'.
     """
-    if not request.user.is_superuser:
+    if not _pode_remover_assinatura(request.user):
         return JsonResponse({
             'success': False,
-            'error': 'Apenas administradores podem remover assinaturas.'
+            'error': 'Você não tem permissão para remover assinaturas digitais.'
         }, status=403)
 
     materia = get_object_or_404(MateriaLegislativa, pk=pk)
@@ -1641,12 +1659,16 @@ def docacessorio_verificar_assinatura(request, pk):
 def docacessorio_remover_assinatura(request, pk):
     """
     Remove a assinatura digital do documento acessório.
-    Apenas superusuários podem executar esta ação.
+    Requer: superusuário OU funcionalidade habilitada em AppConfig
+    E permissão 'materia.can_remove_assinatura_doc'.
     """
-    if not request.user.is_superuser:
+    if not (request.user.is_superuser or (
+        AppConfig.attr('permite_remover_assinatura') and
+        request.user.has_perm('materia.can_remove_assinatura_doc')
+    )):
         return JsonResponse({
             'success': False,
-            'error': 'Apenas administradores podem remover assinaturas.'
+            'error': 'Você não tem permissão para remover assinaturas digitais.'
         }, status=403)
 
     docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
