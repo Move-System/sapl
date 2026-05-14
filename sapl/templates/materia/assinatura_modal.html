@@ -1,5 +1,52 @@
 {% load i18n %}
 
+<!-- Modal de Prévia do Documento -->
+<div class="modal fade" id="previaDocumentoModal" tabindex="-1" role="dialog" aria-labelledby="previaDocumentoModalLabel" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-xl" role="document" style="max-width: 90vw;">
+        <div class="modal-content" style="height: 90vh;">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title" id="previaDocumentoModalLabel">
+                    <i class="fa fa-eye"></i> {% trans "Prévia do Documento — Confirme antes de assinar" %}
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-0" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                <div id="previa-loading" class="text-center py-5">
+                    <i class="fa fa-spinner fa-spin fa-3x text-primary mb-3"></i>
+                    <h5>{% trans "Gerando prévia do documento..." %}</h5>
+                    <p class="text-muted">{% trans "Aguarde enquanto o documento é convertido para visualização." %}</p>
+                </div>
+                <div id="previa-erro" class="p-4" style="display: none;">
+                    <div class="alert alert-warning">
+                        <i class="fa fa-exclamation-triangle"></i>
+                        <strong>{% trans "Não foi possível gerar a prévia do documento." %}</strong>
+                        <p class="mb-0 mt-2" id="previa-erro-msg">{% trans "Verifique se o documento está disponível." %}</p>
+                    </div>
+                    <p>{% trans "Você pode prosseguir com a assinatura mesmo sem a prévia." %}</p>
+                </div>
+                <iframe id="previa-iframe"
+                        src=""
+                        style="display: none; width: 100%; flex: 1; border: none; min-height: 0;"
+                        title="Prévia do documento"></iframe>
+            </div>
+            <div class="modal-footer bg-light">
+                <div class="alert alert-info w-100 mb-2 py-2">
+                    <i class="fa fa-info-circle"></i>
+                    {% trans "Revise o documento acima. A assinatura digital tem validade jurídica e não pode ser desfeita sem permissão especial." %}
+                </div>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal" id="btn-cancelar-previa">
+                    <i class="fa fa-times"></i> {% trans "Cancelar — Fazer ajustes" %}
+                </button>
+                <button type="button" class="btn btn-success" id="btn-confirmar-assinatura" disabled>
+                    <i class="fa fa-check-circle"></i> {% trans "Documento OK — Prosseguir com Assinatura" %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal de Assinatura Digital -->
 <div class="modal fade" id="assinaturaModal" tabindex="-1" role="dialog" aria-labelledby="assinaturaModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -253,6 +300,7 @@ document.addEventListener('DOMContentLoaded', function() {
         init: function(materiaId, urlPrefix) {
             this.materiaId = materiaId;
             this.urlPrefix = urlPrefix || ('/materia/' + materiaId);
+            this._pdfPreviaUrl = this.urlPrefix + '/pdf-previa';
             this.bindEvents();
         },
 
@@ -273,9 +321,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
 
-            // Botão assinar
+            // Botão assinar → abre prévia primeiro
             document.getElementById('btn-assinar').addEventListener('click', function() {
+                self.mostrarPrevia();
+            });
+
+            // Confirmação na prévia → executa assinatura
+            document.getElementById('btn-confirmar-assinatura').addEventListener('click', function() {
+                $('#previaDocumentoModal').modal('hide');
                 self.assinar();
+            });
+
+            // Habilitar botão de confirmação após alguns segundos (forçar leitura)
+            $('#previaDocumentoModal').on('shown.bs.modal', function() {
+                var btn = document.getElementById('btn-confirmar-assinatura');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa fa-hourglass-half"></i> {% trans "Aguarde para confirmar..." %}';
+                setTimeout(function() {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa fa-check-circle"></i> {% trans "Documento OK — Prosseguir com Assinatura" %}';
+                }, 4000);
             });
 
             // Tentar novamente A3
@@ -376,6 +441,70 @@ document.addEventListener('DOMContentLoaded', function() {
         mostrarA3NaoDetectado: function() {
             document.getElementById('a3-detectando').style.display = 'none';
             document.getElementById('a3-nao-detectado').style.display = 'block';
+        },
+
+        mostrarPrevia: function() {
+            var self = this;
+
+            // Valida campos antes de abrir a prévia
+            if (this.tipoSelecionado === 'A1') {
+                var certificado = document.getElementById('certificado-a1').files[0];
+                var senha = document.getElementById('senha-a1').value;
+                if (!certificado) { alert('{% trans "Selecione o arquivo do certificado." %}'); return; }
+                if (!senha) { alert('{% trans "Digite a senha do certificado." %}'); return; }
+            }
+
+            // Reset prévia
+            document.getElementById('previa-loading').style.display = 'block';
+            document.getElementById('previa-erro').style.display = 'none';
+            var iframe = document.getElementById('previa-iframe');
+            iframe.style.display = 'none';
+            iframe.src = '';
+            document.getElementById('btn-confirmar-assinatura').disabled = true;
+
+            // Abre modal de prévia
+            $('#previaDocumentoModal').modal('show');
+
+            // Carrega PDF na iframe
+            var pdfUrl = this._pdfPreviaUrl;
+            iframe.onload = function() {
+                document.getElementById('previa-loading').style.display = 'none';
+                // Verifica se carregou com sucesso (se a URL retornou 200)
+                try {
+                    // tenta acessar o conteúdo — se for PDF embutido, não há acesso ao contentDocument
+                    document.getElementById('previa-iframe').style.display = 'block';
+                } catch(e) {
+                    document.getElementById('previa-iframe').style.display = 'block';
+                }
+            };
+            iframe.onerror = function() {
+                document.getElementById('previa-loading').style.display = 'none';
+                document.getElementById('previa-erro').style.display = 'block';
+                document.getElementById('previa-erro-msg').textContent =
+                    '{% trans "Erro ao carregar o documento." %}';
+                document.getElementById('btn-confirmar-assinatura').disabled = false;
+                document.getElementById('btn-confirmar-assinatura').innerHTML =
+                    '<i class="fa fa-check-circle"></i> {% trans "Prosseguir com Assinatura" %}';
+            };
+
+            // Usa fetch para verificar disponibilidade antes de colocar no iframe
+            fetch(pdfUrl, { method: 'GET', credentials: 'same-origin' })
+                .then(function(resp) {
+                    if (!resp.ok) { throw new Error('status ' + resp.status); }
+                    document.getElementById('previa-loading').style.display = 'none';
+                    iframe.src = pdfUrl;
+                    iframe.style.display = 'block';
+                })
+                .catch(function(err) {
+                    document.getElementById('previa-loading').style.display = 'none';
+                    document.getElementById('previa-erro').style.display = 'block';
+                    document.getElementById('previa-erro-msg').textContent =
+                        '{% trans "Não foi possível gerar a prévia" %}: ' + err.message;
+                    // Permite assinar mesmo sem prévia
+                    document.getElementById('btn-confirmar-assinatura').disabled = false;
+                    document.getElementById('btn-confirmar-assinatura').innerHTML =
+                        '<i class="fa fa-check-circle"></i> {% trans "Prosseguir com Assinatura" %}';
+                });
         },
 
         assinar: function() {
@@ -487,6 +616,14 @@ document.addEventListener('DOMContentLoaded', function() {
             this.tipoSelecionado = null;
             this.a3AppInfo = null;
 
+            // Fecha prévia se estiver aberta
+            $('#previaDocumentoModal').modal('hide');
+            var iframe = document.getElementById('previa-iframe');
+            iframe.src = '';
+            iframe.style.display = 'none';
+            document.getElementById('previa-loading').style.display = 'block';
+            document.getElementById('previa-erro').style.display = 'none';
+
             document.getElementById('selecao-tipo-certificado').style.display = 'block';
             document.getElementById('formulario-a1').style.display = 'none';
             document.getElementById('formulario-a3').style.display = 'none';
@@ -551,5 +688,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
 #a3-cert-info {
     background-color: #f8f9fa;
+}
+
+/* Prévia do documento */
+#previaDocumentoModal .modal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+#previaDocumentoModal .modal-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#previaDocumentoModal .modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+#previaDocumentoModal .modal-footer .alert {
+    font-size: 0.875rem;
+}
+
+#btn-confirmar-assinatura {
+    font-size: 1.05rem;
+    padding: 0.6rem 1.5rem;
 }
 </style>

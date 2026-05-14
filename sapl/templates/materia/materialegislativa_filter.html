@@ -381,6 +381,28 @@
             </form>
           </div>
 
+          {# ── Passo 1.5: prévia dos documentos ── #}
+          <div id="lote-previa-step" style="display:none;">
+            <div class="alert alert-info mb-3">
+              <i class="fa fa-eye"></i>
+              <strong>Revise os documentos antes de assinar.</strong>
+              Clique em cada matéria para visualizar o PDF em uma nova aba.
+              A assinatura digital tem validade jurídica e não pode ser desfeita sem permissão especial.
+            </div>
+
+            <div id="lote-previa-lista" style="max-height:300px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;padding:8px;" class="mb-3">
+              {# Preenchido via JS com as matérias selecionadas + link para PDF #}
+            </div>
+
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" id="lote-previa-confirmacao">
+              <label class="form-check-label font-weight-bold text-danger" for="lote-previa-confirmacao">
+                <i class="fa fa-check-square-o"></i>
+                Confirmo que revisei os documentos e que estão corretos para assinatura.
+              </label>
+            </div>
+          </div>
+
           {# ── Passo 2: progresso ── #}
           <div id="lote-progresso-step" style="display:none;">
             <h6 class="mb-3">
@@ -413,11 +435,18 @@
             <i class="fa fa-arrow-right"></i>
             Continuar — <span id="lote-btn-proximo-contagem">{{ materias_pendentes_lote|length }}</span> Matéria(s)
           </button>
-          {# Passo 1: voltar / assinar #}
+          {# Passo 1 → 1.5 #}
           <button type="button" class="btn btn-outline-secondary" id="lote-btn-voltar" style="display:none;">
             <i class="fa fa-arrow-left"></i> Voltar
           </button>
-          <button type="button" class="btn btn-warning" id="lote-btn-assinar" style="display:none;">
+          <button type="button" class="btn btn-info" id="lote-btn-previa" style="display:none;">
+            <i class="fa fa-eye"></i> Visualizar Documentos
+          </button>
+          {# Passo 1.5 → 2 #}
+          <button type="button" class="btn btn-outline-secondary" id="lote-btn-voltar-form" style="display:none;">
+            <i class="fa fa-arrow-left"></i> Voltar
+          </button>
+          <button type="button" class="btn btn-warning" id="lote-btn-assinar" style="display:none;" disabled>
             <i class="fa fa-certificate"></i>
             Assinar <span id="lote-btn-assinar-contagem">{{ materias_pendentes_lote|length }}</span> Matéria(s)
           </button>
@@ -492,13 +521,71 @@
     function irParaSelecao() {
       document.getElementById('lote-selecao-step').style.display   = 'block';
       document.getElementById('lote-form-step').style.display      = 'none';
+      document.getElementById('lote-previa-step').style.display    = 'none';
       document.getElementById('lote-progresso-step').style.display = 'none';
       document.getElementById('lote-resumo-step').style.display    = 'none';
       document.getElementById('lote-btn-proximo').style.display    = 'inline-block';
       document.getElementById('lote-btn-voltar').style.display     = 'none';
+      document.getElementById('lote-btn-previa').style.display     = 'none';
+      document.getElementById('lote-btn-voltar-form').style.display= 'none';
       document.getElementById('lote-btn-assinar').style.display    = 'none';
       document.getElementById('lote-btn-recarregar').style.display = 'none';
       document.getElementById('lote-btn-fechar').disabled          = false;
+    }
+
+    function irParaForm() {
+      document.getElementById('lote-selecao-step').style.display   = 'none';
+      document.getElementById('lote-form-step').style.display      = 'block';
+      document.getElementById('lote-previa-step').style.display    = 'none';
+      document.getElementById('lote-progresso-step').style.display = 'none';
+      document.getElementById('lote-resumo-step').style.display    = 'none';
+      document.getElementById('lote-btn-proximo').style.display    = 'none';
+      document.getElementById('lote-btn-voltar').style.display     = 'inline-block';
+      document.getElementById('lote-btn-previa').style.display     = 'inline-block';
+      document.getElementById('lote-btn-voltar-form').style.display= 'none';
+      document.getElementById('lote-btn-assinar').style.display    = 'none';
+      document.getElementById('lote-btn-recarregar').style.display = 'none';
+    }
+
+    function irParaPrevia() {
+      var certFile = document.getElementById('lote-certificado').files[0];
+      var senha    = document.getElementById('lote-senha').value;
+      if (!certFile) { alert('Selecione o arquivo do certificado.'); return; }
+      if (!senha)    { alert('Digite a senha do certificado.'); return; }
+
+      var idsSel = getIdsSelecionados();
+
+      // Monta lista de matérias com link para prévia do PDF
+      var html = '';
+      MATERIAS_LOTE.filter(function(m){ return idsSel.indexOf(m.id) !== -1; })
+        .forEach(function(m) {
+          html += '<div class="d-flex align-items-center justify-content-between py-2" ' +
+                  'style="border-bottom:1px solid #f0f0f0;">' +
+                  '<span><i class="fa fa-file-pdf-o text-danger mr-1"></i>' +
+                  '<strong>' + escHtml(m.descricao) + '</strong></span>' +
+                  '<a href="/materia/' + m.id + '/pdf-previa" target="_blank" ' +
+                  'class="btn btn-sm btn-outline-primary ml-2" title="Visualizar PDF">' +
+                  '<i class="fa fa-eye"></i> Visualizar PDF</a>' +
+                  '</div>';
+        });
+      document.getElementById('lote-previa-lista').innerHTML = html || '<p class="text-muted">Nenhuma matéria selecionada.</p>';
+
+      // Reset checkbox de confirmação
+      var chk = document.getElementById('lote-previa-confirmacao');
+      chk.checked = false;
+      document.getElementById('lote-btn-assinar').disabled = true;
+
+      document.getElementById('lote-selecao-step').style.display   = 'none';
+      document.getElementById('lote-form-step').style.display      = 'none';
+      document.getElementById('lote-previa-step').style.display    = 'block';
+      document.getElementById('lote-progresso-step').style.display = 'none';
+      document.getElementById('lote-resumo-step').style.display    = 'none';
+      document.getElementById('lote-btn-proximo').style.display    = 'none';
+      document.getElementById('lote-btn-voltar').style.display     = 'none';
+      document.getElementById('lote-btn-previa').style.display     = 'none';
+      document.getElementById('lote-btn-voltar-form').style.display= 'inline-block';
+      document.getElementById('lote-btn-assinar').style.display    = 'inline-block';
+      document.getElementById('lote-btn-recarregar').style.display = 'none';
     }
 
     // Abre modal ao clicar no botão externo
@@ -519,17 +606,24 @@
         alert('Selecione ao menos uma matéria para assinar.');
         return;
       }
-      document.getElementById('lote-selecao-step').style.display   = 'none';
-      document.getElementById('lote-form-step').style.display      = 'block';
-      document.getElementById('lote-btn-proximo').style.display    = 'none';
-      document.getElementById('lote-btn-voltar').style.display     = 'inline-block';
-      document.getElementById('lote-btn-assinar').style.display    = 'inline-block';
+      irParaForm();
     });
 
     // Passo 1 → 0: Voltar
     document.getElementById('lote-btn-voltar').addEventListener('click', irParaSelecao);
 
-    // Botão Assinar (passo 1 → 2)
+    // Passo 1 → 1.5: Visualizar Prévia
+    document.getElementById('lote-btn-previa').addEventListener('click', irParaPrevia);
+
+    // Passo 1.5 → 1: Voltar ao formulário
+    document.getElementById('lote-btn-voltar-form').addEventListener('click', irParaForm);
+
+    // Habilitar botão assinar apenas quando confirmação marcada
+    document.getElementById('lote-previa-confirmacao').addEventListener('change', function() {
+      document.getElementById('lote-btn-assinar').disabled = !this.checked;
+    });
+
+    // Botão Assinar (passo 1.5 → 2)
     document.getElementById('lote-btn-assinar').addEventListener('click', function () {
       var certFile = document.getElementById('lote-certificado').files[0];
       var senha    = document.getElementById('lote-senha').value;
@@ -544,9 +638,9 @@
       fd.append('senha', senha);
       fd.append('ids', JSON.stringify(idsSel));
 
-      document.getElementById('lote-form-step').style.display      = 'none';
+      document.getElementById('lote-previa-step').style.display    = 'none';
       document.getElementById('lote-progresso-step').style.display = 'block';
-      document.getElementById('lote-btn-voltar').style.display     = 'none';
+      document.getElementById('lote-btn-voltar-form').style.display= 'none';
       document.getElementById('lote-btn-assinar').style.display    = 'none';
       document.getElementById('lote-btn-fechar').disabled          = true;
 

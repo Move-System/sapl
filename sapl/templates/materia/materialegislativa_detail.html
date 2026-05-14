@@ -25,13 +25,13 @@
                     <i class="fa fa-check-circle"></i> {% trans "Ver PDF Assinado" %}
                 </a>
             {% endif %}
-            {% if is_autor and not ja_assinou %}
+            {% if is_autor or can_edit_materia %}
+                {% if not ja_assinou and object.texto_original %}
                 <button type="button" class="btn btn-warning" data-toggle="modal" data-target="#assinaturaModal">
                     <i class="fa fa-certificate"></i> {% trans "Assinar PDF Digitalmente" %}
                 </button>
+                {% endif %}
             {% endif %}
-        {% endif %}
-        {% if object.documentoacessorio_set.all.exists %}
             <a class="btn btn-danger" href="{% url 'sapl.materia:pdf_completo_materia' object.pk %}" title="{% trans 'Mescla matéria e acessórios em um único PDF' %}">
                 <i class="fa fa-file-pdf-o"></i> {% trans "Todos em PDF" %}
             </a>
@@ -247,7 +247,8 @@
 
 {% block extra_js %}
 {{ block.super }}
-{% if object.numero_protocolo and object.texto_original and is_autor and not ja_assinou %}
+{% if object.texto_original and not ja_assinou %}
+  {% if is_autor or can_edit_materia %}
   {% include "materia/assinatura_modal.html" %}
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -256,6 +257,7 @@
       }
     });
   </script>
+  {% endif %}
 {% endif %}
 {% if pode_remover_assinatura and object.pdf_assinado %}
   {% include "materia/remover_assinatura_modal.html" %}

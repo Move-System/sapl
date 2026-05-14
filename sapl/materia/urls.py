@@ -47,7 +47,7 @@ from sapl.materia.onlyoffice_materia_views import (
     docacessorio_onlyoffice_editor, docacessorio_onlyoffice_config,
     docacessorio_onlyoffice_download, docacessorio_onlyoffice_callback,
     docacessorio_check_doc, docacessorio_forcesave,
-    materia_gerar_pdf_assinatura
+    materia_gerar_pdf_assinatura, materia_gerar_pdf_previa, docacessorio_gerar_pdf_previa
 )
 from sapl.materia.views_assinatura import (
     materia_assinar_a1, materia_assinar_a3_preparar, materia_assinar_a3_finalizar,
@@ -180,6 +180,10 @@ urlpatterns_materia = [
     url(r'^materia/(?P<pk>\d+)/pdf-assinatura$', materia_gerar_pdf_assinatura,
         name='materia_pdf_assinatura'),
 
+    # Prévia de PDF da Matéria antes da assinatura (sem restrição de protocolo)
+    url(r'^materia/(?P<pk>\d+)/pdf-previa$', materia_gerar_pdf_previa,
+        name='materia_pdf_previa'),
+
     # Assinatura Digital de Matéria Legislativa
     url(r'^materia/(?P<pk>\d+)/assinar/a1/$', materia_assinar_a1,
         name='materia_assinar_a1'),
@@ -215,6 +219,10 @@ urlpatterns_materia = [
         name='docacessorio_check_doc'),
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/forcesave$', docacessorio_forcesave,
         name='docacessorio_forcesave'),
+
+    # Prévia de PDF do Documento Acessório antes da assinatura
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/pdf-previa$', docacessorio_gerar_pdf_previa,
+        name='docacessorio_pdf_previa'),
 
     # Assinatura Digital de Documento Acessório
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/assinar/a1/$', docacessorio_assinar_a1,
