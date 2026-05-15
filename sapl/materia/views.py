@@ -2800,17 +2800,26 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
         status_assinatura = self.request.GET.get('status_assinatura')
         if status_assinatura == 'pendente' and context['show_results']:
             from django.db.models import Q as _Q
-            qs_lote = self.object_list.filter(
-                texto_original__isnull=False,
-            ).filter(
-                _Q(pdf_assinado__isnull=True) | _Q(pdf_assinado='')
-            ).exclude(texto_original='').select_related('tipo').values_list(
-                'id', 'tipo__sigla', 'numero', 'ano'
-            )[:200]
-            context['materias_pendentes_lote'] = [
-                {'id': pk, 'descricao': f'{sigla} {numero}/{ano}'}
-                for pk, sigla, numero, ano in qs_lote
-            ]
+            # object_list já foi filtrado pelo filter_status_assinatura —
+            # precisamos obter os IDs primeiro para evitar problemas com
+            # querysets compostos por union (|) que não suportam .filter() extra
+            try:
+                ids_lote = list(self.object_list.values_list('id', flat=True)[:200])
+                from .models import MateriaLegislativa
+                qs_lote = MateriaLegislativa.objects.filter(
+                    pk__in=ids_lote,
+                    texto_original__isnull=False,
+                ).exclude(texto_original='').filter(
+                    _Q(pdf_assinado__isnull=True) | _Q(pdf_assinado='')
+                ).select_related('tipo').values_list(
+                    'id', 'tipo__sigla', 'numero', 'ano'
+                )
+                context['materias_pendentes_lote'] = [
+                    {'id': pk, 'descricao': f'{sigla} {numero}/{ano}'}
+                    for pk, sigla, numero, ano in qs_lote
+                ]
+            except Exception:
+                context['materias_pendentes_lote'] = []
         else:
             context['materias_pendentes_lote'] = []
 
@@ -3882,3 +3891,77 @@ def configEtiquetaMateriaLegislativaCrud(request):
     else:
         form = ConfigEtiquetaMateriaLegislativaForms(instance=config)
     return render(request, 'materia/config_etiqueta_materia.html', {'form': form})
+
+
+def get_pdf_multiplos(request):
+    """
+    Gera PDF unificado com os documentos das matérias informadas via
+    GET ?ids=1,2,3  ou  POST body JSON {"ids": [1,2,3]}.
+    Retorna o PDF inline para impressão direta no browser.
+    Limite: 50 matérias por chamada.
+    """
+    logger_local = logging.getLogger(__name__)
+    username = 'Usuário anônimo' if request.user.is_anonymous else request.user.username
+
+    if request.method == 'POST':
+        import json as _json
+        try:
+            body = _json.loads(request.body)
+            ids_raw = body.get('ids', '')
+        except Exception:
+            ids_raw = request.POST.get('ids', '')
+    else:
+        ids_raw = request.GET.get('ids', '')
+
+    try:
+        import json as _json
+        if isinstance(ids_raw, list):
+            ids = [int(i) for i in ids_raw]
+        elif isinstance(ids_raw, str) and ids_raw.startswith('['):
+            ids = [int(i) for i in _json.loads(ids_raw)]
+        else:
+            ids = [int(i.strip()) for i in str(ids_raw).split(',') if i.strip().isdigit()]
+    except Exception:
+        return JsonResponse({'error': 'IDs invalidos'}, status=400)
+
+    if not ids:
+        return JsonResponse({'error': 'Nenhum ID informado'}, status=400)
+
+    ids = ids[:50]
+
+    MEDIA_ROOT_local = settings.MEDIA_ROOT
+    materias = MateriaLegislativa.objects.filter(pk__in=ids).select_related('tipo')
+
+    pdf_files = []
+    for materia in materias:
+        if materia.pdf_assinado:
+            f = os.path.join(MEDIA_ROOT_local, str(materia.pdf_assinado))
+            if os.path.exists(f) and f.lower().endswith('.pdf'):
+                pdf_files.append(f)
+                continue
+        if materia.texto_original:
+            f = os.path.join(MEDIA_ROOT_local, str(materia.texto_original))
+            if os.path.exists(f) and f.lower().endswith('.pdf'):
+                pdf_files.append(f)
+
+    if not pdf_files:
+        return JsonResponse({'error': 'Nenhum PDF disponivel para as materias selecionadas.'}, status=404)
+
+    try:
+        merger = PdfFileMerger(strict=False)
+        for f in pdf_files:
+            merger.append(fileobj=f)
+        data = BytesIO()
+        merger.write(data)
+        merger.close()
+        pdf_bytes = data.getvalue()
+    except Exception as e:
+        logger_local.error("user={}. Erro ao gerar PDF multiplos: {}".format(username, str(e)))
+        return JsonResponse({'error': 'Erro ao gerar PDF: ' + str(e)}, status=500)
+
+    logger_local.info("user={}. Gerou PDF multiplos ({} materias, {} PDFs)".format(
+        username, len(materias), len(pdf_files)))
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="materias_selecionadas.pdf"'
+    return response

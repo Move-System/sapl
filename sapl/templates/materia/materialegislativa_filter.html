@@ -7,61 +7,148 @@
 {% load static %}
 
   {% block actions %}
+  <style>
+    .sapl-ab {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      padding-bottom: .75rem;
+    }
+    /* Linha 1: botões de ação (esquerda) + navegação (direita) */
+    .sapl-ab-row1 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    /* Linha 2: filtro de assinatura + assinar em lote — só aparece quando necessário */
+    .sapl-ab-row2 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .sapl-ab-left {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .sapl-ab-right {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .sapl-ab-sep {
+      width: 1px;
+      height: 28px;
+      background: #dee2e6;
+      flex-shrink: 0;
+      margin: 0 2px;
+    }
+    #select-status-assinatura { min-width: 190px; max-width: 230px; }
+    @media (max-width: 576px) {
+      #select-status-assinatura { min-width: 140px; }
+      .sapl-ab-sep { display: none; }
+    }
+  </style>
 
-  {% if show_results %}
-    <div class="float-left">
-      {% with 'sapl.materia:pesquisar_materia' as url_reverse %}
-        {% include "crud/format_options.html" %}
+  <div class="sapl-ab">
+
+    {# ── Linha 1: ações + navegação ─────────────────────────────────── #}
+    <div class="sapl-ab-row1">
+
+      <div class="sapl-ab-left">
+        {% if show_results %}
+        {# Exportações (CSV, XLS, etc) #}
+        {% with 'sapl.materia:pesquisar_materia' as url_reverse %}
+          {% include "crud/format_options.html" %}
+        {% endwith %}
+
+        {# Download todos os PDFs desta página #}
+        <button id="btn-download-todos-pdfs"
+                class="btn btn-outline-secondary btn-sm"
+                title="Baixar todos os PDFs das matérias filtradas desta página">
+          <i class="fas fa-download"></i>
+          <span> Baixar PDFs</span>
+        </button>
+
+        <div class="sapl-ab-sep"></div>
+
+        {# Impressão em massa #}
+        <button id="btn-imprimir-selecionados"
+                class="btn btn-outline-danger btn-sm"
+                title="Ativar seleção para impressão em massa">
+          <i class="fas fa-print"></i>
+          <span> Imprimir Matérias</span>
+          <span class="badge badge-danger ml-1" id="badge-print-total" style="display:none;">0</span>
+        </button>
+        <button id="btn-selecionar-todos-print"
+                class="btn btn-outline-secondary btn-sm"
+                title="Selecionar / desselecionar todos desta página"
+                style="display:none;">
+          <i class="fas fa-check-square"></i>
+          <span> Todos</span>
+        </button>
+        {% endif %}
+      </div>
+
+      <div class="sapl-ab-right">
+        {% switch "SOLR_SWITCH" %}
+        <a href="{% url 'sapl.base:haystack_search' %}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-search"></i>
+          <span class="d-none d-md-inline"> Pesquisa Textual</span>
+        </a>
+        {% endswitch %}
+        {% if perms.materia.add_materialegislativa %}
+        <a href="{% url 'sapl.materia:materialegislativa_create' %}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-plus"></i>
+          <span class="d-none d-md-inline"> {% blocktrans with verbose_name=view.verbose_name %}Adicionar Matéria Legislativa{% endblocktrans %}</span>
+        </a>
+        {% endif %}
+        {% if show_results %}
+        <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-redo-alt"></i>
+          <span class="d-none d-sm-inline"> {% trans 'Nova pesquisa' %}</span>
+        </a>
+        {% endif %}
+      </div>
+
+    </div>
+    {# ── /Linha 1 ────────────────────────────────────────────────────── #}
+
+    {# ── Linha 2: filtro de assinatura + assinar em lote ─────────────── #}
+    <div class="sapl-ab-row2">
+      <label class="mb-0 text-secondary font-weight-bold" style="white-space:nowrap; font-size:.82rem;">
+        <i class="fas fa-signature mr-1"></i>Assinatura:
+      </label>
+      {% with status_atual=request.GET.status_assinatura %}
+      <select id="select-status-assinatura" class="custom-select custom-select-sm">
+        <option value="" {% if not status_atual %}selected{% endif %}>Todas as matérias</option>
+        <option value="pendente" {% if status_atual == 'pendente' %}selected{% endif %}>⚠ Pendente de Assinatura</option>
+        <option value="assinada" {% if status_atual == 'assinada' %}selected{% endif %}>✔ Assinada</option>
+      </select>
       {% endwith %}
-      <button id="btn-download-todos-pdfs" class="btn btn-outline-secondary" title="Baixar todos os PDFs das matérias filtradas">
-        <i class="fas fa-download"></i>
+
+      {# Assinar em Lote — só aparece quando há pendentes #}
+      {% if materias_pendentes_lote %}
+      <button type="button"
+              id="btn-assinar-em-lote"
+              class="btn btn-outline-warning btn-sm"
+              title="Assinar digitalmente as {{ materias_pendentes_lote|length }} matéria(s) pendentes desta pesquisa">
+        <i class="fa fa-certificate"></i>
+        Assinar em Lote
+        <span class="badge badge-warning text-dark ml-1" id="badge-lote-total">{{ materias_pendentes_lote|length }}</span>
       </button>
-    </div>
-  {% endif %}
-
-  {# ── Filtro rápido de assinatura ─────────────────────────────────── #}
-  <div class="d-inline-flex align-items-center ml-2" style="vertical-align:middle;">
-    <label class="mb-0 mr-1 font-weight-bold text-secondary" style="white-space:nowrap;font-size:.85rem;">
-      <i class="fas fa-signature mr-1"></i> Assinatura:
-    </label>
-    {% with status_atual=request.GET.status_assinatura %}
-    <select id="select-status-assinatura"
-            class="custom-select custom-select-sm"
-            style="min-width:210px;">
-      <option value="" {% if not status_atual %}selected{% endif %}>Todas as matérias</option>
-      <option value="pendente" {% if status_atual == 'pendente' %}selected{% endif %}>⚠ Pendente de Assinatura</option>
-      <option value="assinada" {% if status_atual == 'assinada' %}selected{% endif %}>✔ Assinada</option>
-    </select>
-    {% endwith %}
-    {% if materias_pendentes_lote %}
-    <button type="button"
-            id="btn-assinar-em-lote"
-            class="btn btn-outline-warning ml-2"
-            style="min-width:200px"
-            title="Assinar digitalmente as {{ materias_pendentes_lote|length }} matéria(s) pendentes desta pesquisa">
-      <i class="fa fa-certificate"></i>
-      Assinar em Lote
-      <span class="badge badge-warning text-dark ml-1" id="badge-lote-total">{{ materias_pendentes_lote|length }}</span>
-    </button>
-    {% endif %}
-  </div>
-  {# ─────────────────────────────────────────────────────────────────── #}
-
-    <div class="actions btn-group float-right pb-4" role="group">
-      {% switch "SOLR_SWITCH" %}
-      <a href="{% url 'sapl.base:haystack_search' %}" class="btn btn-outline-primary">
-          Pesquisa Textual
-      </a>
-      {% endswitch %}
-      {% if perms.materia.add_materialegislativa %}
-      <a href="{% url 'sapl.materia:materialegislativa_create' %}" class="btn btn-outline-primary">
-          {% blocktrans with verbose_name=view.verbose_name %} Adicionar Matéria Legislativa {% endblocktrans %}
-      </a>
       {% endif %}
-    {% if show_results %}
-        <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn btn-outline-primary">{% trans 'Fazer nova pesquisa' %}</a>
-    {% endif %}
     </div>
+    {# ── /Linha 2 ────────────────────────────────────────────────────── #}
+
+  </div>
+
   {% endblock %}
 
   {% block detail_content %}
@@ -87,8 +174,16 @@
           {% endif %}
 
           {% for m in page_obj %}
-            <tr>
+            <tr class="materia-row" data-materia-id="{{ m.id }}">
               <td>
+                {# Checkbox para seleção de impressão em massa #}
+                <div class="print-select-col" style="display:none; float:left; margin-right:8px; margin-top:2px;">
+                  <input type="checkbox"
+                         class="print-chk form-check-input"
+                         data-materia-id="{{ m.id }}"
+                         title="Selecionar para impressão"
+                         style="width:18px;height:18px;cursor:pointer;">
+                </div>
                 <strong><a href="{% url 'sapl.materia:materialegislativa_detail' m.id %}">{{m.tipo.sigla}} {{m.numero}}/{{m.ano}} - {{m.tipo}}</strong></a>
                 <a href="{% url 'sapl.relatorios:etiqueta_materia_legislativa' m.pk %}"><img src="{% webpack_static 'img/etiqueta.png' %}" alt="Etiqueta Individual"></a>
                 </br>
@@ -292,11 +387,67 @@
       </table>
       {% include "paginacao.html" %}
     {% endif %}
+
+    {# ── Toolbar flutuante de impressão em massa ─────────────────────────── #}
+    {% if show_results %}
+    <div id="print-toolbar"
+         style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+                z-index:1050; background:#fff; border:2px solid #dc3545;
+                border-radius:50px; padding:10px 20px;
+                box-shadow:0 8px 32px rgba(220,53,69,.25), 0 2px 8px rgba(0,0,0,.12);
+                white-space:nowrap;">
+      <div class="d-flex align-items-center" style="gap:10px;">
+
+        {# Contagem #}
+        <span class="text-danger font-weight-bold" style="font-size:.95rem;">
+          <i class="fas fa-print mr-1"></i>
+          <span id="print-toolbar-count">0</span> selecionado(s)
+        </span>
+
+        <div class="border-left" style="height:22px;"></div>
+
+        {# Ações #}
+        <button id="print-toolbar-btn-imprimir"
+                class="btn btn-danger btn-sm rounded-pill px-3"
+                title="Gerar PDF unificado e abrir para impressão">
+          <i class="fas fa-print mr-1"></i> Imprimir
+        </button>
+        <button id="print-toolbar-btn-download"
+                class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                title="Baixar PDF unificado">
+          <i class="fas fa-download mr-1"></i> Baixar PDF
+        </button>
+
+        <div class="border-left" style="height:22px;"></div>
+
+        <button id="print-toolbar-btn-limpar"
+                class="btn btn-link btn-sm text-secondary p-0"
+                title="Cancelar seleção">
+          <i class="fas fa-times-circle fa-lg"></i>
+        </button>
+      </div>
+
+      {# Info + loading (ocultos por padrão) #}
+      <div class="text-center mt-1" style="font-size:.72rem; color:#888;">
+        <i class="fas fa-info-circle"></i>
+        Máx. 200 docs. Apenas matérias com PDF disponível serão incluídas.
+      </div>
+      <div id="print-toolbar-loading" style="display:none;" class="mt-2">
+        <div class="progress" style="height:4px; border-radius:2px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" style="width:100%"></div>
+        </div>
+        <div class="text-center mt-1" style="font-size:.75rem; color:#888;">Gerando PDF, aguarde…</div>
+      </div>
+    </div>
+    {% endif %}
+    {# ────────────────────────────────────────────────────────────────────── #}
+
     {% endblock detail_content %}
   {% block table_content %}
   {% endblock table_content %}
   {% block extra_js %}
   <script src="{% static 'js/materia_pesquisa_download_pdfs.js' %}"></script>
+  <script src="{% static 'js/materia_impressao_em_massa.js' %}"></script>
 
   {% if materias_pendentes_lote %}
   {# ── Modal de Assinatura em Lote ─────────────────────────────────────── #}

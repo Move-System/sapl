@@ -34,6 +34,7 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 MateriaPesquisaSimplesView,
                                 DespachoInicialMultiCreateView,
                                 get_zip_docacessorios, get_pdf_docacessorios, get_zip_completo, get_pdf_completo,
+                                get_pdf_multiplos,
                                 configEtiquetaMateriaLegislativaCrud,
                                 PesquisarStatusTramitacaoView, HistoricoProposicaoView)
 from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_download,
@@ -163,6 +164,8 @@ urlpatterns_materia = [
         name='zip_completo_materia'),
     url(r'^materia/pdf-completo/(?P<pk>\d+)$', get_pdf_completo,
         name='pdf_completo_materia'),
+    url(r'^materia/pdf-multiplos/$', get_pdf_multiplos,
+        name='pdf_multiplos_materias'),
 
     # OnlyOffice endpoints para Matéria Legislativa
     url(r'^materia/(?P<pk>\d+)/onlyoffice/editor$', materia_onlyoffice_editor,
