@@ -139,6 +139,8 @@
                             <i class="fa fa-exclamation-triangle"></i>
                             {% trans "Atenção: A assinatura digital tem validade jurídica. Certifique-se de que o documento está correto antes de assinar." %}
                         </div>
+
+
                     </form>
                 </div>
 
@@ -531,12 +533,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            this.mostrarStatus('processando');
-            this.atualizarProgresso(10, 'Enviando certificado...');
+            this.mostrarStatus('processando');            this.atualizarProgresso(5, 'Enviando certificado…');
+            var formData = new FormData(form);
 
-            var formData = new FormData();
-            formData.append('certificado', certificado);
-            formData.append('senha', senha);
+            // Animação de progresso enquanto o servidor processa
+            var progressoTimer = null;
+            var progressoAtual = 5;
+            var fases = [
+                { ate: 30, label: 'Validando certificado…',      demora: 800  },
+                { ate: 55, label: 'Gerando página de autenticação…', demora: 600 },
+                { ate: 75, label: 'Assinando documento…',         demora: 500  },
+                { ate: 88, label: 'Enviando ao microserviço…',    demora: 400  },
+                { ate: 95, label: 'Aguardando resposta…',         demora: 300  },
+            ];
+            var faseIdx = 0;
+            function avancarProgresso() {
+                if (faseIdx >= fases.length) return;
+                var fase = fases[faseIdx];
+                if (progressoAtual < fase.ate) {
+                    progressoAtual = Math.min(progressoAtual + 2, fase.ate);
+                    self.atualizarProgresso(progressoAtual, fase.label);
+                } else {
+                    faseIdx++;
+                }
+                progressoTimer = setTimeout(avancarProgresso, fase.demora);
+            }
+            progressoTimer = setTimeout(avancarProgresso, 600);
 
             fetch(this.urlPrefix + '/assinar/a1/', {
                 method: 'POST',
@@ -546,19 +568,26 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             })
             .then(function(response) {
-                self.atualizarProgresso(60, 'Processando assinatura...');
+                clearTimeout(progressoTimer);
+                self.atualizarProgresso(97, 'Processando resposta…');
+                if (!response.ok) {
+                    return response.json().then(function(d) {
+                        throw new Error(d.error || ('Erro HTTP ' + response.status));
+                    });
+                }
                 return response.json();
             })
             .then(function(data) {
-                self.atualizarProgresso(100, 'Finalizando...');
-
+                clearTimeout(progressoTimer);
+                self.atualizarProgresso(100, 'Concluído.');
                 if (data.success) {
                     self.mostrarSucesso(data);
                 } else {
-                    self.mostrarErro(data.error);
+                    self.mostrarErro(data.error || 'Erro desconhecido ao assinar.');
                 }
             })
             .catch(function(error) {
+                clearTimeout(progressoTimer);
                 self.mostrarErro('Erro de comunicação: ' + error.message);
             });
         },
@@ -652,7 +681,6 @@ document.addEventListener('DOMContentLoaded', function() {
     window.AssinaturaModal = AssinaturaModal;
 });
 </script>
-
 <style>
 .tipo-certificado-card {
     cursor: pointer;
@@ -716,4 +744,5 @@ document.addEventListener('DOMContentLoaded', function() {
     font-size: 1.05rem;
     padding: 0.6rem 1.5rem;
 }
+
 </style>

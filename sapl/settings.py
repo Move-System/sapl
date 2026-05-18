@@ -318,6 +318,13 @@ ONLYOFFICE_JWT_ENABLED = config('ONLYOFFICE_JWT_ENABLED', cast=bool, default=Fal
 # consegue acessar o SAPL pela mesma URL que o navegador)
 SAPL_INTERNAL_URL = config('SAPL_INTERNAL_URL', default='')
 
+# Microserviço de Assinatura Digital
+# Quando ASSINATURA_API_URL estiver configurado, o SAPL delega a assinatura
+# dos PDFs ao microserviço em vez de usar pyhanko localmente.
+ASSINATURA_API_URL = config('ASSINATURA_API_URL', default='')
+ASSINATURA_API_KEY = config('ASSINATURA_API_KEY', default='')
+ASSINATURA_API_TIMEOUT = config('ASSINATURA_API_TIMEOUT', cast=int, default=120)
+
 # Integração externa de matérias da sessão
 SESSAO_MATERIAS_API_URL = config('SESSAO_MATERIAS_API_URL', default='')
 SESSAO_MATERIAS_API_KEY = config('SESSAO_MATERIAS_API_KEY', default='')

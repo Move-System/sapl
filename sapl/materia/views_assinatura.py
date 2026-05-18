@@ -55,6 +55,362 @@ def _normalizar_assinatura_info(info):
 
 
 # =============================================================================
+# Roteamento de backend de assinatura: API externa OU pyhanko local
+# =============================================================================
+
+def _usar_api_externa():
+    """Retorna True se a API externa de assinatura está configurada."""
+    from sapl.materia.assinatura_api_client import _api_configurada
+    return _api_configurada()
+
+
+def _extrair_posicao_custom(post_data):
+    """
+    Extrai coordenadas de posicionamento customizado do POST.
+    Retorna dict com sig_left, sig_bottom, sig_width, sig_height, sig_page
+    ou None se não foram enviadas / inválidas.
+    """
+    try:
+        sig_left   = post_data.get('sig_left', '').strip()
+        sig_bottom = post_data.get('sig_bottom', '').strip()
+        sig_width  = post_data.get('sig_width', '').strip()
+        sig_height = post_data.get('sig_height', '').strip()
+        sig_page   = post_data.get('sig_page', '').strip()
+        if not all([sig_left, sig_bottom, sig_width, sig_height, sig_page]):
+            return None
+        return {
+            'sig_left':   float(sig_left),
+            'sig_bottom': float(sig_bottom),
+            'sig_width':  float(sig_width),
+            'sig_height': float(sig_height),
+            'sig_page':   int(sig_page),
+        }
+    except (ValueError, TypeError):
+        return None
+
+
+def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
+                                 assinaturas_existentes,
+                                 certificado_bytes=None, senha=None,
+                                 assinatura_a3_bytes=None, cert_chain_bytes=None,
+                                 tipo_cert_input='a1',
+                                 posicao_custom=None):
+    """
+    Orquestra a assinatura digital completa de um PDF:
+      - Monta a página de autenticação (1ª assinatura) ou assina incrementalmente
+        (assinaturas subsequentes).
+      - Usa a API externa quando ASSINATURA_API_URL estiver configurado;
+        caso contrário usa pyhanko localmente.
+
+    posicao_custom : dict opcional com chaves sig_left, sig_bottom, sig_width,
+                     sig_height (em pontos PDF) e sig_page (1-based).
+                     Quando fornecido, substitui o cálculo automático de grid.
+
+    Retorna (signed_pdf_bytes, nova_assinatura_dict, codigo_autenticacao_ou_None).
+      - codigo_autenticacao_ou_None é não-None apenas na 1ª assinatura.
+
+    Lança Exception em caso de erro.
+    """
+    from PyPDF4 import PdfFileReader, PdfFileWriter
+    import base64 as _base64
+
+    ja_tem_pdf_assinado = bool(assinaturas_existentes)
+
+    # ── Informações do assinante ──────────────────────────────────────────────
+    # Para API externa: não há signer local; tentamos extrair info do certificado
+    # de forma leve (apenas para metadados visuais).
+    if _usar_api_externa():
+        from sapl.materia.assinatura_api_client import assinar_pdf_via_api, AssinaturaAPIError
+
+        # Obter nome/cargo via relação User → Autor (sem pyhanko)
+        nome_assinante = request.user.get_full_name() or request.user.username
+        cargo = 'Usuário do Sistema'
+        tipo_cert_display = 'Certificado Digital'
+
+        try:
+            from sapl.base.models import Autor
+            from sapl.parlamentares.models import Parlamentar
+            autor = Autor.objects.filter(operadores=request.user).first()
+            if autor:
+                tipo_desc = autor.tipo.descricao if autor.tipo else ''
+                if tipo_desc == 'Parlamentar':
+                    cargo = 'Vereador(a)'
+                elif tipo_desc:
+                    cargo = tipo_desc
+                if isinstance(autor.autor_related, Parlamentar):
+                    parl = autor.autor_related
+                    tipo_nome = AppConfig.attr('assinatura_nome')
+                    nome_assinante = parl.nome_completo if tipo_nome == 'C' else parl.nome_parlamentar
+        except Exception:
+            pass
+
+        data_assinatura = timezone.localtime(timezone.now())
+        data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
+        data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+        codigo_retorno = None
+
+        if not ja_tem_pdf_assinado:
+            # 1ª assinatura: montar PDF com página de autenticação ANTES de enviar
+            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+            page_width = float(last_page.mediaBox.getWidth())
+            page_height = float(last_page.mediaBox.getHeight())
+
+            codigo = _gerar_codigo_autenticacao(pdf_bytes)
+            url_verificacao = _construir_url_verificacao(request, tipo_doc, pk_doc, codigo)
+
+            nova_assinatura_info_visual = {
+                'nome_assinante': nome_assinante,
+                'cargo': cargo,
+                'data_assinatura': data_simples,
+            }
+            auth_page_bytes = _gerar_pagina_autenticacao(
+                [nova_assinatura_info_visual], codigo, url_verificacao,
+                page_width, page_height
+            )
+
+            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
+            output_pdf = PdfFileWriter()
+            for page_num in range(original_pdf.getNumPages()):
+                output_pdf.addPage(original_pdf.getPage(page_num))
+            output_pdf.addPage(auth_page_pdf.getPage(0))
+
+            buf_combinado = io.BytesIO()
+            output_pdf.write(buf_combinado)
+            pdf_para_assinar = buf_combinado.getvalue()
+            codigo_retorno = codigo
+        else:
+            pdf_para_assinar = pdf_bytes  # já inclui página de autenticação
+
+        # Calcula a posição do campo de assinatura na última página (página de autenticação)
+        # para que a assinatura visual fique no bloco correto do grid.
+        # Se posicao_custom foi fornecido pelo usuário, usa ele diretamente.
+        if posicao_custom:
+            sig_page   = posicao_custom.get('sig_page')
+            sig_left   = posicao_custom.get('sig_left')
+            sig_bottom = posicao_custom.get('sig_bottom')
+            sig_width  = posicao_custom.get('sig_width')
+            sig_height = posicao_custom.get('sig_height')
+        else:
+            n_assinatura = len(assinaturas_existentes)
+            try:
+                temp_pypdf = PdfFileReader(io.BytesIO(pdf_para_assinar))
+                auth_pg = temp_pypdf.getPage(temp_pypdf.getNumPages() - 1)
+                auth_w = float(auth_pg.mediaBox.getWidth())
+                auth_h = float(auth_pg.mediaBox.getHeight())
+                sig_x1, sig_y1, sig_x2, sig_y2 = _posicao_bloco_assinatura(
+                    n_assinatura, auth_w, auth_h
+                )
+                sig_page = temp_pypdf.getNumPages()  # 1-based, última página
+                sig_left = sig_x1
+                sig_bottom = sig_y1
+                sig_width = sig_x2 - sig_x1
+                sig_height = sig_y2 - sig_y1
+            except Exception:
+                sig_page = sig_left = sig_bottom = sig_width = sig_height = None
+
+        try:
+            pdf_assinado_bytes = assinar_pdf_via_api(
+                pdf_para_assinar,
+                certificado_bytes=certificado_bytes,
+                senha=senha,
+                reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                location='Câmara Municipal',
+                signature_page=sig_page,
+                signature_left=sig_left,
+                signature_bottom=sig_bottom,
+                signature_width=sig_width,
+                signature_height=sig_height,
+            )
+        except AssinaturaAPIError as exc:
+            raise Exception(str(exc))
+
+        nova_assinatura = {
+            'tipo_certificado': tipo_cert_input.upper(),
+            'tipo_certificado_display': f'Certificado Digital – {tipo_cert_input.upper()}',
+            'subject': '',
+            'issuer': '',
+            'serial': '',
+            'valid_from': '',
+            'valid_to': '',
+            'signed_by': request.user.username,
+            'nome_assinante': nome_assinante,
+            'cargo': cargo,
+            'data_assinatura': data_formatada,
+            'validade_juridica': 'Assinatura Eletrônica Qualificada',
+            'backend': 'api_externa',
+        }
+        return pdf_assinado_bytes, nova_assinatura, codigo_retorno
+
+    else:
+        # ── Backend local: pyhanko ─────────────────────────────────────────
+        from pyhanko.sign import signers, fields
+        from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
+        from pyhanko.sign.fields import SigFieldSpec
+        from pyhanko.sign.signers.pdf_signer import PdfSigner
+        from pyhanko.pdf_utils.reader import PdfFileReader as PyhankoReader
+
+        # Carregar certificado A1
+        import tempfile as tmp_module
+        with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
+            tmp_cert.write(certificado_bytes)
+            tmp_cert_path = tmp_cert.name
+        try:
+            signer = signers.SimpleSigner.load_pkcs12(
+                pfx_file=tmp_cert_path,
+                passphrase=senha.encode('utf-8')
+            )
+        except Exception as cert_error:
+            raise Exception(f'Erro ao carregar certificado: {cert_error}')
+        finally:
+            if os.path.exists(tmp_cert_path):
+                os.unlink(tmp_cert_path)
+
+        cert_info = signer.signing_cert
+        error_response = _validar_certificado(cert_info)
+        if error_response:
+            import json as _json
+            data = _json.loads(error_response.content)
+            raise Exception(data.get('error', 'Certificado inválido.'))
+
+        # Criar objeto fake para _obter_info_assinante
+        class _CertWrapper:
+            def __init__(self, c): self._c = c
+            @property
+            def issuer(self): return self._c.issuer
+            @property
+            def subject(self): return self._c.subject
+            @property
+            def serial_number(self): return self._c.serial_number
+            @property
+            def not_valid_before(self): return self._c.not_valid_before
+            @property
+            def not_valid_after(self): return self._c.not_valid_after
+
+        nome_assinante, cargo, tipo_cert_display = _obter_info_assinante(request, cert_info)
+        data_assinatura = timezone.localtime(timezone.now())
+        data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
+        data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+
+        n_assinatura = len(assinaturas_existentes)
+        sig_field_name = (
+            f'AssinaturaDigital_{n_assinatura + 1}' if n_assinatura > 0
+            else 'AssinaturaDigital'
+        )
+        codigo_retorno = None
+
+        if ja_tem_pdf_assinado:
+            # Assinatura subsequente (incremental)
+            temp_pypdf = PdfFileReader(io.BytesIO(pdf_bytes))
+            auth_page = temp_pypdf.getPage(temp_pypdf.getNumPages() - 1)
+            auth_page_width = float(auth_page.mediaBox.getWidth())
+            auth_page_height = float(auth_page.mediaBox.getHeight())
+            x1, y1, x2, y2 = _posicao_bloco_assinatura(
+                n_assinatura, auth_page_width, auth_page_height
+            )
+
+            signed_buffer = io.BytesIO()
+            with io.BytesIO(pdf_bytes) as inf:
+                w = IncrementalPdfFileWriter(inf)
+                temp_reader = PyhankoReader(io.BytesIO(pdf_bytes))
+                last_page_idx = temp_reader.root['/Pages']['/Count'] - 1
+
+                sig_field = SigFieldSpec(
+                    sig_field_name=sig_field_name,
+                    on_page=last_page_idx,
+                    box=(x1, y1, x2, y2)
+                )
+                fields.append_signature_field(w, sig_field)
+
+                meta = signers.PdfSignatureMetadata(
+                    field_name=sig_field_name,
+                    location='Câmara Municipal',
+                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                    name=nome_assinante
+                )
+                hash_doc = ''  # será preenchido pelo chamador se necessário
+                stamp_style = _criar_stamp_style(nome_assinante, cargo, hash_doc)
+                pdf_signer = PdfSigner(meta, signer=signer, stamp_style=stamp_style)
+                pdf_signer.sign_pdf(
+                    w,
+                    existing_fields_only=True,
+                    appearance_text_params={'signer': nome_assinante},
+                    output=signed_buffer,
+                )
+
+            signed_buffer.seek(0)
+            pdf_assinado_bytes = signed_buffer.read()
+
+        else:
+            # Primeira assinatura: página de autenticação + pyhanko
+            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+            page_width = float(last_page.mediaBox.getWidth())
+            page_height = float(last_page.mediaBox.getHeight())
+
+            codigo = _gerar_codigo_autenticacao(pdf_bytes)
+            url_verificacao = _construir_url_verificacao(request, tipo_doc, pk_doc, codigo)
+            nova_assinatura_info_visual = {
+                'nome_assinante': nome_assinante,
+                'cargo': cargo,
+                'data_assinatura': data_simples,
+            }
+            auth_page_bytes = _gerar_pagina_autenticacao(
+                [nova_assinatura_info_visual], codigo, url_verificacao,
+                page_width, page_height
+            )
+
+            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
+            output_pdf = PdfFileWriter()
+            for page_num in range(original_pdf.getNumPages()):
+                output_pdf.addPage(original_pdf.getPage(page_num))
+            output_pdf.addPage(auth_page_pdf.getPage(0))
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_f:
+                tmp_path = tmp_f.name
+                output_pdf.write(tmp_f)
+
+            try:
+                with open(tmp_path, 'rb') as f:
+                    stamped_bytes = f.read()
+            finally:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+
+            signed_buffer = io.BytesIO()
+            with io.BytesIO(stamped_bytes) as inf:
+                w = IncrementalPdfFileWriter(inf)
+                meta = signers.PdfSignatureMetadata(
+                    field_name='AssinaturaDigital',
+                    location='Câmara Municipal',
+                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                    name=nome_assinante
+                )
+                signers.sign_pdf(w, meta, signer=signer, output=signed_buffer)
+
+            signed_buffer.seek(0)
+            pdf_assinado_bytes = signed_buffer.read()
+            codigo_retorno = codigo
+
+        nova_assinatura = {
+            'tipo_certificado': 'A1',
+            'tipo_certificado_display': f'{tipo_cert_display} – A1',
+            'subject': str(cert_info.subject),
+            'issuer': str(cert_info.issuer),
+            'serial': str(cert_info.serial_number),
+            'valid_from': cert_info.not_valid_before.isoformat(),
+            'valid_to': cert_info.not_valid_after.isoformat(),
+            'signed_by': request.user.username,
+            'nome_assinante': nome_assinante,
+            'cargo': cargo,
+            'data_assinatura': data_formatada,
+            'validade_juridica': 'Assinatura Eletrônica Qualificada',
+            'backend': 'pyhanko_local',
+        }
+        return pdf_assinado_bytes, nova_assinatura, codigo_retorno
+
+
+# =============================================================================
 # Funções auxiliares para página de autenticação
 # =============================================================================
 
@@ -681,13 +1037,15 @@ def materia_assinar_a1(request, pk):
     """
     Assina o PDF da matéria com certificado A1 (arquivo .pfx/.p12).
 
+    Usa API externa de assinatura quando ASSINATURA_API_URL estiver configurado;
+    caso contrário assina localmente com pyhanko.
+
     Parâmetros POST:
     - certificado: arquivo .pfx ou .p12
     - senha: senha do certificado
     """
     materia = get_object_or_404(MateriaLegislativa, pk=pk)
 
-    # Verifica se o usuário atual já assinou
     assinaturas_existentes = _normalizar_assinatura_info(materia.assinatura_info)
     if any(a.get('signed_by') == request.user.username for a in assinaturas_existentes):
         return JsonResponse({
@@ -695,248 +1053,40 @@ def materia_assinar_a1(request, pk):
             'error': 'Você já assinou esta matéria.'
         }, status=400)
 
-    ja_tem_pdf_assinado = bool(materia.pdf_assinado)
-
-    # Obtém dados do formulário
     certificado_file = request.FILES.get('certificado')
     senha = request.POST.get('senha', '')
 
     if not certificado_file:
-        return JsonResponse({
-            'success': False,
-            'error': 'Certificado não informado.'
-        }, status=400)
-
+        return JsonResponse({'success': False, 'error': 'Certificado não informado.'}, status=400)
     if not senha:
-        return JsonResponse({
-            'success': False,
-            'error': 'Senha do certificado não informada.'
-        }, status=400)
+        return JsonResponse({'success': False, 'error': 'Senha do certificado não informada.'}, status=400)
 
-    # Gera o PDF da matéria
-    pdf_bytes, error = _gerar_pdf_da_materia(materia, request)
-    if error:
-        return JsonResponse({
-            'success': False,
-            'error': error
-        }, status=400)
+    # PDF a assinar: já assinado (subsequente) ou original (primeira assinatura)
+    if materia.pdf_assinado:
+        with open(materia.pdf_assinado.path, 'rb') as f:
+            pdf_bytes = f.read()
+    else:
+        pdf_bytes, error = _gerar_pdf_da_materia(materia, request)
+        if error:
+            return JsonResponse({'success': False, 'error': error}, status=400)
+
+    certificado_bytes = certificado_file.read()
+
+    # Posição personalizada enviada pelo usuário (opcional)
+    posicao_custom = _extrair_posicao_custom(request.POST)
 
     try:
-        from pyhanko.sign import signers, fields
-        from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-
-        signer, error_response = _carregar_certificado(certificado_file, senha)
-        if error_response:
-            return error_response
-
-        cert_info = signer.signing_cert
-        error_response = _validar_certificado(cert_info)
-        if error_response:
-            return error_response
-
-        # Cria arquivo temporário para o PDF com página de autenticação
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_stamped:
-            temp_stamped_path = temp_stamped.name
-
-        try:
-            from pyhanko.sign.fields import SigFieldSpec
-            from PyPDF4 import PdfFileReader, PdfFileWriter
-            from reportlab.lib.units import mm
-
-            # Informações do assinante
-            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
-            data_assinatura = timezone.localtime(timezone.now())
-            data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
-            data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
-
-            # Número da assinatura (0-indexed)
-            n_assinatura = len(assinaturas_existentes)
-            sig_field_name = f'AssinaturaDigital_{n_assinatura + 1}' if n_assinatura > 0 else 'AssinaturaDigital'
-
-            if ja_tem_pdf_assinado:
-                # ===== ASSINATURA SUBSEQUENTE: Incremental sobre PDF já assinado =====
-                # A página de autenticação já existe (criada na 1ª assinatura).
-                # Posicionar campo de assinatura na última página (autenticação).
-
-                with open(materia.pdf_assinado.path, 'rb') as f:
-                    existing_pdf_bytes = f.read()
-
-                # Calcular posição do campo de assinatura na página de autenticação
-                # Usa o mesmo grid da página gerada na primeira assinatura
-                temp_pypdf = PdfFileReader(io.BytesIO(existing_pdf_bytes))
-                auth_page = temp_pypdf.getPage(temp_pypdf.getNumPages() - 1)
-                auth_page_width = float(auth_page.mediaBox.getWidth())
-                auth_page_height = float(auth_page.mediaBox.getHeight())
-
-                x1, y1, x2, y2 = _posicao_bloco_assinatura(
-                    n_assinatura, auth_page_width, auth_page_height
-                )
-
-                signed_buffer = io.BytesIO()
-                with io.BytesIO(existing_pdf_bytes) as inf:
-                    w = IncrementalPdfFileWriter(inf)
-
-                    # Determina a última página
-                    from pyhanko.pdf_utils.reader import PdfFileReader as PyhankoReader
-                    from pyhanko.sign.signers.pdf_signer import PdfSigner
-                    temp_reader = PyhankoReader(io.BytesIO(existing_pdf_bytes))
-                    last_page_idx = temp_reader.root['/Pages']['/Count'] - 1
-
-                    # Adiciona campo de assinatura com posição visual
-                    sig_field = SigFieldSpec(
-                        sig_field_name=sig_field_name,
-                        on_page=last_page_idx,
-                        box=(x1, y1, x2, y2)
-                    )
-                    fields.append_signature_field(w, sig_field)
-
-                    meta = signers.PdfSignatureMetadata(
-                        field_name=sig_field_name,
-                        location='Câmara Municipal',
-                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                        name=nome_assinante
-                    )
-
-                    # Usa PdfSigner com stamp_style customizado para
-                    # manter visual consistente com a página de autenticação
-                    hash_doc = materia.codigo_autenticacao or ''
-                    stamp_style = _criar_stamp_style(
-                        nome_assinante, cargo, hash_doc
-                    )
-                    pdf_signer = PdfSigner(
-                        meta,
-                        signer=signer,
-                        stamp_style=stamp_style,
-                    )
-                    pdf_signer.sign_pdf(
-                        w,
-                        existing_fields_only=True,
-                        appearance_text_params={'signer': nome_assinante},
-                        output=signed_buffer,
-                    )
-
-                signed_buffer.seek(0)
-                signed_pdf_content = signed_buffer.read()
-
-            else:
-                # ===== PRIMEIRA ASSINATURA: Página de autenticação + pyhanko sign =====
-
-                # Lê o PDF original para obter as dimensões
-                original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-                last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-                page_box = last_page.mediaBox
-                page_width = float(page_box.getWidth())
-                page_height = float(page_box.getHeight())
-
-                # Gerar código de autenticação
-                codigo = _gerar_codigo_autenticacao(pdf_bytes)
-
-                # Construir URL de verificação
-                url_verificacao = _construir_url_verificacao(
-                    request, 'materia', pk, codigo
-                )
-
-                # Nova assinatura info (para incluir na página de autenticação)
-                nova_assinatura_info = {
-                    'nome_assinante': nome_assinante,
-                    'cargo': cargo,
-                    'data_assinatura': data_simples,
-                }
-
-                # Gerar a página de autenticação
-                auth_page_bytes = _gerar_pagina_autenticacao(
-                    [nova_assinatura_info],
-                    codigo, url_verificacao,
-                    page_width, page_height
-                )
-
-                # Montar PDF: original + página de autenticação
-                auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
-                output_pdf = PdfFileWriter()
-
-                for page_num in range(original_pdf.getNumPages()):
-                    output_pdf.addPage(original_pdf.getPage(page_num))
-
-                # Anexar página de autenticação
-                output_pdf.addPage(auth_page_pdf.getPage(0))
-
-                # Salvar em arquivo temporário
-                with open(temp_stamped_path, 'wb') as f:
-                    output_pdf.write(f)
-
-                # Assinar o PDF combinado
-                with open(temp_stamped_path, 'rb') as stamped_file:
-                    stamped_bytes = stamped_file.read()
-
-                signed_buffer = io.BytesIO()
-                with io.BytesIO(stamped_bytes) as inf:
-                    w = IncrementalPdfFileWriter(inf)
-
-                    meta = signers.PdfSignatureMetadata(
-                        field_name='AssinaturaDigital',
-                        location='Câmara Municipal',
-                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                        name=nome_assinante
-                    )
-
-                    signers.sign_pdf(
-                        w,
-                        meta,
-                        signer=signer,
-                        output=signed_buffer
-                    )
-
-                signed_buffer.seek(0)
-                signed_pdf_content = signed_buffer.read()
-
-                # Salvar código de autenticação
-                materia.codigo_autenticacao = codigo
-
-            # Salva o PDF assinado no modelo
-            filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
-            materia.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
-
-            # Salva informações da assinatura (lista de dicts)
-            nova_assinatura = {
-                'tipo_certificado': 'A1',
-                'tipo_certificado_display': f'{tipo_cert} – A1',
-                'subject': str(cert_info.subject),
-                'issuer': str(cert_info.issuer),
-                'serial': str(cert_info.serial_number),
-                'valid_from': cert_info.not_valid_before.isoformat(),
-                'valid_to': cert_info.not_valid_after.isoformat(),
-                'signed_by': request.user.username,
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_formatada,
-                'validade_juridica': 'Assinatura Eletrônica Qualificada'
-            }
-            assinaturas_existentes.append(nova_assinatura)
-            materia.assinatura_info = assinaturas_existentes
-            materia.assinado_em = timezone.now()
-            materia.assinado_por = request.user
-            materia.save()
-
-            # Invalida cache de pendências para atualizar sino na navbar
-            from django.core.cache import cache as _cache
-            _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
-
-            logger.info(f"Matéria {materia.pk} assinada por {request.user.username}")
-
-            return JsonResponse({
-                'success': True,
-                'message': 'PDF assinado com sucesso!',
-                'certificado': {
-                    'nome': str(cert_info.subject),
-                    'validade': cert_info.not_valid_after.strftime('%d/%m/%Y')
-                }
-            })
-
-        finally:
-            # Remove arquivo temporário
-            if os.path.exists(temp_stamped_path):
-                os.unlink(temp_stamped_path)
-
+        signed_pdf_bytes, nova_assinatura, codigo = _assinar_pdf_com_pagina_auth(
+            pdf_bytes,
+            request=request,
+            tipo_doc='materia',
+            pk_doc=pk,
+            assinaturas_existentes=assinaturas_existentes,
+            certificado_bytes=certificado_bytes,
+            senha=senha,
+            tipo_cert_input='a1',
+            posicao_custom=posicao_custom,
+        )
     except ImportError:
         logger.error("pyhanko não está instalado")
         return JsonResponse({
@@ -944,11 +1094,38 @@ def materia_assinar_a1(request, pk):
             'error': 'Biblioteca de assinatura não instalada. Contate o administrador.'
         }, status=500)
     except Exception as e:
-        logger.error(f"Erro ao assinar PDF: {e}")
-        return JsonResponse({
-            'success': False,
-            'error': f'Erro ao assinar o PDF: {str(e)}'
-        }, status=500)
+        logger.error(f"Erro ao assinar PDF da matéria {pk}: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+    materia.pdf_assinado.save(filename, ContentFile(signed_pdf_bytes), save=False)
+
+    if codigo:
+        materia.codigo_autenticacao = codigo
+
+    assinaturas_existentes.append(nova_assinatura)
+    materia.assinatura_info = assinaturas_existentes
+    materia.assinado_em = timezone.now()
+    materia.assinado_por = request.user
+    materia.save()
+
+    from django.core.cache import cache as _cache
+    _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
+
+    logger.info(
+        f"Matéria {materia.pk} assinada por {request.user.username} "
+        f"(backend: {nova_assinatura.get('backend', '?')})"
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': 'PDF assinado com sucesso!',
+        'backend': nova_assinatura.get('backend', ''),
+        'certificado': {
+            'nome': nova_assinatura.get('subject') or nova_assinatura.get('nome_assinante', ''),
+            'validade': nova_assinatura.get('valid_to', ''),
+        }
+    })
 
 
 @login_required
@@ -1298,6 +1475,167 @@ def detectar_aplicacao_a3(request):
 
 
 # =============================================================================
+# Preview de página para posicionamento de assinatura
+# =============================================================================
+
+@login_required
+@require_http_methods(["GET"])
+def materia_pagina_assinatura_png(request, pk):
+    """
+    Renderiza a última página (página de autenticação) do PDF da matéria como
+    PNG e retorna JSON com:
+      - png_base64  : imagem da página em base64
+      - page_width  : largura em pontos PDF
+      - page_height : altura em pontos PDF
+      - page_number : número 1-based da página
+      - grid_slots  : lista de slots do grid automático [{left,bottom,width,height}]
+    """
+    return _pagina_assinatura_png_response(request, 'materia', pk)
+
+
+@login_required
+@require_http_methods(["GET"])
+def docacessorio_pagina_assinatura_png(request, pk):
+    """Mesmo que materia_pagina_assinatura_png, mas para DocumentoAcessório."""
+    return _pagina_assinatura_png_response(request, 'docacessorio', pk)
+
+
+def _pagina_assinatura_png_response(request, tipo_doc, pk):
+    """Lógica comum para gerar PNG da página de autenticação."""
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        return JsonResponse({'error': 'PyMuPDF não instalado. Instale com: pip install pymupdf'}, status=500)
+
+    from PyPDF4 import PdfFileReader, PdfFileWriter
+
+    # Obter PDF
+    if tipo_doc == 'materia':
+        obj = get_object_or_404(MateriaLegislativa, pk=pk)
+        if obj.pdf_assinado:
+            with open(obj.pdf_assinado.path, 'rb') as f:
+                pdf_bytes = f.read()
+            # PDF já tem página de autenticação — renderizar última
+            build_auth = False
+        else:
+            pdf_bytes, error = _gerar_pdf_da_materia(obj, request)
+            if error:
+                return JsonResponse({'error': error}, status=400)
+            build_auth = True
+    else:
+        obj = get_object_or_404(DocumentoAcessorio, pk=pk)
+        if obj.pdf_assinado:
+            with open(obj.pdf_assinado.path, 'rb') as f:
+                pdf_bytes = f.read()
+            build_auth = False
+        else:
+            pdf_bytes, error = _gerar_pdf_do_docacessorio(obj, request)
+            if error:
+                return JsonResponse({'error': error}, status=400)
+            build_auth = True
+
+    # Se ainda não tem página de autenticação, criar uma temporária para preview
+    if build_auth:
+        original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+        last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+        page_width  = float(last_page.mediaBox.getWidth())
+        page_height = float(last_page.mediaBox.getHeight())
+        # Gerar página de autenticação placeholder (sem código real — só visual)
+        codigo_fake = 'PREVIEW-000000'
+        url_fake = request.build_absolute_uri('/')
+        assinaturas_existentes = _normalizar_assinatura_info(
+            obj.assinatura_info if hasattr(obj, 'assinatura_info') else None
+        )
+        nome = request.user.get_full_name() or request.user.username
+        auth_page_bytes = _gerar_pagina_autenticacao(
+            [{'nome_assinante': nome, 'cargo': '—', 'data_assinatura': ''}],
+            codigo_fake, url_fake, page_width, page_height
+        )
+        auth_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
+        output = PdfFileWriter()
+        for i in range(original_pdf.getNumPages()):
+            output.addPage(original_pdf.getPage(i))
+        output.addPage(auth_pdf.getPage(0))
+        buf = io.BytesIO()
+        output.write(buf)
+        pdf_bytes = buf.getvalue()
+    else:
+        original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+        last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+        page_width  = float(last_page.mediaBox.getWidth())
+        page_height = float(last_page.mediaBox.getHeight())
+        assinaturas_existentes = _normalizar_assinatura_info(
+            obj.assinatura_info if hasattr(obj, 'assinatura_info') else None
+        )
+
+    # Renderizar última página como PNG via PyMuPDF
+    import base64
+    doc_fitz = fitz.open(stream=pdf_bytes, filetype='pdf')
+    page_idx = len(doc_fitz) - 1  # última página
+    page_fitz = doc_fitz[page_idx]
+    mat = fitz.Matrix(2.0, 2.0)  # 2x zoom → melhor qualidade
+    pix = page_fitz.get_pixmap(matrix=mat, alpha=False)
+    png_bytes = pix.tobytes('png')
+    doc_fitz.close()
+
+    png_b64 = base64.b64encode(png_bytes).decode('ascii')
+
+    # Calcular slots do grid automático para mostrar no preview
+    n_existentes = len(assinaturas_existentes)
+    grid_slots = []
+    for i in range(n_existentes + 4):  # mostra slots já usados + 4 próximos
+        try:
+            x1, y1, x2, y2 = _posicao_bloco_assinatura(i, page_width, page_height)
+            grid_slots.append({
+                'index': i,
+                'left': round(x1, 2),
+                'bottom': round(y1, 2),
+                'width': round(x2 - x1, 2),
+                'height': round(y2 - y1, 2),
+                'usado': i < n_existentes,
+                'sugerido': i == n_existentes,
+            })
+        except Exception:
+            break
+
+    return JsonResponse({
+        'png_base64': png_b64,
+        'page_width': round(page_width, 2),
+        'page_height': round(page_height, 2),
+        'page_number': page_idx + 1,
+        'render_scale': 2.0,
+        'grid_slots': grid_slots,
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def assinatura_api_status(request):
+    """
+    Retorna o status do microserviço de assinatura e qual backend está ativo.
+    Útil para diagnóstico e para o frontend exibir informações ao usuário.
+    """
+    from sapl.materia.assinatura_api_client import verificar_health, _api_configurada
+
+    usa_api = _api_configurada()
+
+    if usa_api:
+        ok, mensagem = verificar_health()
+        return JsonResponse({
+            'backend': 'api_externa',
+            'api_url': settings.ASSINATURA_API_URL,
+            'disponivel': ok,
+            'mensagem': mensagem,
+        })
+    else:
+        return JsonResponse({
+            'backend': 'pyhanko_local',
+            'disponivel': True,
+            'mensagem': 'Usando pyhanko local (ASSINATURA_API_URL não configurado).',
+        })
+
+
+# =============================================================================
 # Views de Assinatura Digital para Documento Acessório
 # =============================================================================
 
@@ -1307,240 +1645,49 @@ def detectar_aplicacao_a3(request):
 def docacessorio_assinar_a1(request, pk):
     """
     Assina o PDF do documento acessório com certificado A1 (arquivo .pfx/.p12).
+
+    Usa API externa de assinatura quando ASSINATURA_API_URL estiver configurado;
+    caso contrário assina localmente com pyhanko.
     """
     docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
 
-    # Verifica se o usuário atual já assinou
     assinaturas_existentes = _normalizar_assinatura_info(docacessorio.assinatura_info)
     if any(a.get('signed_by') == request.user.username for a in assinaturas_existentes):
-        return JsonResponse({
-            'success': False,
-            'error': 'Você já assinou este documento.'
-        }, status=400)
-
-    ja_tem_pdf_assinado = bool(docacessorio.pdf_assinado)
+        return JsonResponse({'success': False, 'error': 'Você já assinou este documento.'}, status=400)
 
     certificado_file = request.FILES.get('certificado')
     senha = request.POST.get('senha', '')
 
     if not certificado_file:
-        return JsonResponse({
-            'success': False,
-            'error': 'Certificado não informado.'
-        }, status=400)
-
+        return JsonResponse({'success': False, 'error': 'Certificado não informado.'}, status=400)
     if not senha:
-        return JsonResponse({
-            'success': False,
-            'error': 'Senha do certificado não informada.'
-        }, status=400)
+        return JsonResponse({'success': False, 'error': 'Senha do certificado não informada.'}, status=400)
 
-    pdf_bytes, error = _gerar_pdf_do_docacessorio(docacessorio, request)
-    if error:
-        return JsonResponse({
-            'success': False,
-            'error': error
-        }, status=400)
+    if docacessorio.pdf_assinado:
+        with open(docacessorio.pdf_assinado.path, 'rb') as f:
+            pdf_bytes = f.read()
+    else:
+        pdf_bytes, error = _gerar_pdf_do_docacessorio(docacessorio, request)
+        if error:
+            return JsonResponse({'success': False, 'error': error}, status=400)
+
+    certificado_bytes = certificado_file.read()
+
+    # Posição personalizada enviada pelo usuário (opcional)
+    posicao_custom = _extrair_posicao_custom(request.POST)
 
     try:
-        from pyhanko.sign import signers, fields
-        from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-
-        signer, error_response = _carregar_certificado(certificado_file, senha)
-        if error_response:
-            return error_response
-
-        cert_info = signer.signing_cert
-        error_response = _validar_certificado(cert_info)
-        if error_response:
-            return error_response
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_stamped:
-            temp_stamped_path = temp_stamped.name
-
-        try:
-            from pyhanko.sign.fields import SigFieldSpec
-            from PyPDF4 import PdfFileReader, PdfFileWriter
-            from reportlab.lib.units import mm
-
-            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
-            data_assinatura = timezone.localtime(timezone.now())
-            data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
-            data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
-
-            # Número da assinatura (0-indexed)
-            n_assinatura = len(assinaturas_existentes)
-            sig_field_name = f'AssinaturaDigital_{n_assinatura + 1}' if n_assinatura > 0 else 'AssinaturaDigital'
-
-            if ja_tem_pdf_assinado:
-                # ===== ASSINATURA SUBSEQUENTE =====
-
-                with open(docacessorio.pdf_assinado.path, 'rb') as f:
-                    existing_pdf_bytes = f.read()
-
-                # Calcular posição na página de autenticação
-                # Usa o mesmo grid da página gerada na primeira assinatura
-                temp_pypdf = PdfFileReader(io.BytesIO(existing_pdf_bytes))
-                auth_page = temp_pypdf.getPage(temp_pypdf.getNumPages() - 1)
-                auth_page_width = float(auth_page.mediaBox.getWidth())
-                auth_page_height = float(auth_page.mediaBox.getHeight())
-
-                x1, y1, x2, y2 = _posicao_bloco_assinatura(
-                    n_assinatura, auth_page_width, auth_page_height
-                )
-
-                signed_buffer = io.BytesIO()
-                with io.BytesIO(existing_pdf_bytes) as inf:
-                    w = IncrementalPdfFileWriter(inf)
-
-                    from pyhanko.pdf_utils.reader import PdfFileReader as PyhankoReader
-                    from pyhanko.sign.signers.pdf_signer import PdfSigner
-                    temp_reader = PyhankoReader(io.BytesIO(existing_pdf_bytes))
-                    last_page_idx = temp_reader.root['/Pages']['/Count'] - 1
-
-                    sig_field = SigFieldSpec(
-                        sig_field_name=sig_field_name,
-                        on_page=last_page_idx,
-                        box=(x1, y1, x2, y2)
-                    )
-                    fields.append_signature_field(w, sig_field)
-
-                    meta = signers.PdfSignatureMetadata(
-                        field_name=sig_field_name,
-                        location='Câmara Municipal',
-                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                        name=nome_assinante
-                    )
-
-                    # Usa PdfSigner com stamp_style customizado para
-                    # manter visual consistente com a página de autenticação
-                    hash_doc = docacessorio.codigo_autenticacao or ''
-                    stamp_style = _criar_stamp_style(
-                        nome_assinante, cargo, hash_doc
-                    )
-                    pdf_signer = PdfSigner(
-                        meta,
-                        signer=signer,
-                        stamp_style=stamp_style,
-                    )
-                    pdf_signer.sign_pdf(
-                        w,
-                        existing_fields_only=True,
-                        appearance_text_params={'signer': nome_assinante},
-                        output=signed_buffer,
-                    )
-
-                signed_buffer.seek(0)
-                signed_pdf_content = signed_buffer.read()
-
-            else:
-                # ===== PRIMEIRA ASSINATURA: Página de autenticação + pyhanko sign =====
-
-                original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-                last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-                page_box = last_page.mediaBox
-                page_width = float(page_box.getWidth())
-                page_height = float(page_box.getHeight())
-
-                # Gerar código de autenticação
-                codigo = _gerar_codigo_autenticacao(pdf_bytes)
-
-                # Construir URL de verificação
-                url_verificacao = _construir_url_verificacao(
-                    request, 'docacessorio', pk, codigo
-                )
-
-                # Nova assinatura info
-                nova_assinatura_info = {
-                    'nome_assinante': nome_assinante,
-                    'cargo': cargo,
-                    'data_assinatura': data_simples,
-                }
-
-                # Gerar a página de autenticação
-                auth_page_bytes = _gerar_pagina_autenticacao(
-                    [nova_assinatura_info],
-                    codigo, url_verificacao,
-                    page_width, page_height
-                )
-
-                # Montar PDF: original + página de autenticação
-                auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
-                output_pdf = PdfFileWriter()
-
-                for page_num in range(original_pdf.getNumPages()):
-                    output_pdf.addPage(original_pdf.getPage(page_num))
-
-                output_pdf.addPage(auth_page_pdf.getPage(0))
-
-                with open(temp_stamped_path, 'wb') as f:
-                    output_pdf.write(f)
-
-                with open(temp_stamped_path, 'rb') as stamped_file:
-                    stamped_bytes = stamped_file.read()
-
-                signed_buffer = io.BytesIO()
-                with io.BytesIO(stamped_bytes) as inf:
-                    w = IncrementalPdfFileWriter(inf)
-
-                    meta = signers.PdfSignatureMetadata(
-                        field_name='AssinaturaDigital',
-                        location='Câmara Municipal',
-                        reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                        name=nome_assinante
-                    )
-
-                    signers.sign_pdf(
-                        w,
-                        meta,
-                        signer=signer,
-                        output=signed_buffer
-                    )
-
-                signed_buffer.seek(0)
-                signed_pdf_content = signed_buffer.read()
-
-                # Salvar código de autenticação
-                docacessorio.codigo_autenticacao = codigo
-
-            filename = f"docacessorio_{docacessorio.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
-            docacessorio.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
-
-            nova_assinatura = {
-                'tipo_certificado': 'A1',
-                'tipo_certificado_display': f'{tipo_cert} – A1',
-                'subject': str(cert_info.subject),
-                'issuer': str(cert_info.issuer),
-                'serial': str(cert_info.serial_number),
-                'valid_from': cert_info.not_valid_before.isoformat(),
-                'valid_to': cert_info.not_valid_after.isoformat(),
-                'signed_by': request.user.username,
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_formatada,
-                'validade_juridica': 'Assinatura Eletrônica Qualificada'
-            }
-            assinaturas_existentes.append(nova_assinatura)
-            docacessorio.assinatura_info = assinaturas_existentes
-            docacessorio.assinado_em = timezone.now()
-            docacessorio.assinado_por = request.user
-            docacessorio.save()
-
-            logger.info(f"Documento acessório {docacessorio.pk} assinado por {request.user.username}")
-
-            return JsonResponse({
-                'success': True,
-                'message': 'PDF assinado com sucesso!',
-                'certificado': {
-                    'nome': str(cert_info.subject),
-                    'validade': cert_info.not_valid_after.strftime('%d/%m/%Y')
-                }
-            })
-
-        finally:
-            if os.path.exists(temp_stamped_path):
-                os.unlink(temp_stamped_path)
-
+        signed_pdf_bytes, nova_assinatura, codigo = _assinar_pdf_com_pagina_auth(
+            pdf_bytes,
+            request=request,
+            tipo_doc='docacessorio',
+            pk_doc=pk,
+            assinaturas_existentes=assinaturas_existentes,
+            certificado_bytes=certificado_bytes,
+            senha=senha,
+            tipo_cert_input='a1',
+            posicao_custom=posicao_custom,
+        )
     except ImportError:
         logger.error("pyhanko não está instalado")
         return JsonResponse({
@@ -1548,11 +1695,35 @@ def docacessorio_assinar_a1(request, pk):
             'error': 'Biblioteca de assinatura não instalada. Contate o administrador.'
         }, status=500)
     except Exception as e:
-        logger.error(f"Erro ao assinar PDF do doc acessório: {e}")
-        return JsonResponse({
-            'success': False,
-            'error': f'Erro ao assinar o PDF: {str(e)}'
-        }, status=500)
+        logger.error(f"Erro ao assinar PDF do doc acessório {pk}: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+    filename = f"docacessorio_{docacessorio.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+    docacessorio.pdf_assinado.save(filename, ContentFile(signed_pdf_bytes), save=False)
+
+    if codigo:
+        docacessorio.codigo_autenticacao = codigo
+
+    assinaturas_existentes.append(nova_assinatura)
+    docacessorio.assinatura_info = assinaturas_existentes
+    docacessorio.assinado_em = timezone.now()
+    docacessorio.assinado_por = request.user
+    docacessorio.save()
+
+    logger.info(
+        f"Documento acessório {docacessorio.pk} assinado por {request.user.username} "
+        f"(backend: {nova_assinatura.get('backend', '?')})"
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': 'PDF assinado com sucesso!',
+        'backend': nova_assinatura.get('backend', ''),
+        'certificado': {
+            'nome': nova_assinatura.get('subject') or nova_assinatura.get('nome_assinante', ''),
+            'validade': nova_assinatura.get('valid_to', ''),
+        }
+    })
 
 
 @login_required
@@ -1867,36 +2038,37 @@ def materia_assinar_lote(request):
 
     cert_bytes = certificado_file.read()
 
-    import tempfile as tmp_module
-    with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
-        tmp_cert.write(cert_bytes)
-        tmp_cert_path = tmp_cert.name
-
-    try:
-        from pyhanko.sign import signers
-        signer = signers.SimpleSigner.load_pkcs12(
-            pfx_file=tmp_cert_path,
-            passphrase=senha.encode('utf-8')
-        )
-    except Exception as cert_error:
-        logger.error(f"[lote] Erro ao carregar certificado: {cert_error}")
-        err_msg = str(cert_error)
-        if 'password' in err_msg.lower() or 'mac' in err_msg.lower():
-            detail = 'Senha incorreta ou arquivo inválido.'
-        elif 'decode' in err_msg.lower() or 'parse' in err_msg.lower():
-            detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
-        else:
-            detail = f'Detalhes: {err_msg}'
-        return JsonResponse({'success': False, 'error': f'Erro ao carregar certificado: {detail}'}, status=400)
-    finally:
-        if os.path.exists(tmp_cert_path):
-            os.unlink(tmp_cert_path)
-
-    cert_info = signer.signing_cert
-    error_response = _validar_certificado(cert_info)
-    if error_response:
-        data = json.loads(error_response.content)
-        return JsonResponse({'success': False, 'error': data.get('error', 'Certificado inválido.')}, status=400)
+    # Pré-validação do certificado apenas quando pyhanko é o backend local.
+    # Na API externa a validação é feita pelo microserviço.
+    if not _usar_api_externa():
+        import tempfile as tmp_module
+        with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
+            tmp_cert.write(cert_bytes)
+            tmp_cert_path = tmp_cert.name
+        try:
+            from pyhanko.sign import signers as _signers_lote
+            _signer_test = _signers_lote.SimpleSigner.load_pkcs12(
+                pfx_file=tmp_cert_path,
+                passphrase=senha.encode('utf-8')
+            )
+            _cert_test = _signer_test.signing_cert
+            _err = _validar_certificado(_cert_test)
+            if _err:
+                _d = json.loads(_err.content)
+                return JsonResponse({'success': False, 'error': _d.get('error', 'Certificado inválido.')}, status=400)
+        except Exception as cert_error:
+            logger.error(f"[lote] Erro ao carregar certificado: {cert_error}")
+            err_msg = str(cert_error)
+            if 'password' in err_msg.lower() or 'mac' in err_msg.lower():
+                detail = 'Senha incorreta ou arquivo inválido.'
+            elif 'decode' in err_msg.lower() or 'parse' in err_msg.lower():
+                detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
+            else:
+                detail = f'Detalhes: {err_msg}'
+            return JsonResponse({'success': False, 'error': f'Erro ao carregar certificado: {detail}'}, status=400)
+        finally:
+            if os.path.exists(tmp_cert_path):
+                os.unlink(tmp_cert_path)
 
     # ── Assinatura por matéria ────────────────────────────────────────────────
     materias = MateriaLegislativa.objects.filter(pk__in=pks)
@@ -1905,6 +2077,11 @@ def materia_assinar_lote(request):
     resultados = []
     sucesso_count = 0
     erro_count = 0
+
+    # ── Pré-processar: gerar PDFs, filtrar inválidos ──────────────────────────
+    # itens_para_assinar: apenas matérias que passaram na pré-validação
+    itens_para_assinar = []   # list of dict com metadados + pdf_bytes
+    meta_map = {}             # pk → {descricao, assinaturas_existentes}
 
     for pk in pks:
         materia = materias_map.get(pk)
@@ -1932,98 +2109,194 @@ def materia_assinar_lote(request):
             erro_count += 1
             continue
 
-        temp_stamped_path = None
+        meta_map[pk] = {'descricao': descricao, 'assinaturas_existentes': assinaturas_existentes}
+        itens_para_assinar.append({'pk': pk, 'pdf_bytes': pdf_bytes})
+
+    # ── Assinatura: paralela (API externa) ou sequencial (pyhanko) ────────────
+    if _usar_api_externa() and itens_para_assinar:
+        from sapl.materia.assinatura_api_client import assinar_pdf_lote_via_api, AssinaturaAPIError as _APIError
+
+        # Preparar itens com página de autenticação e coordenadas
+        from PyPDF4 import PdfFileReader, PdfFileWriter
+        import base64 as _base64
+
+        nome_assinante = request.user.get_full_name() or request.user.username
+        cargo = 'Usuário do Sistema'
         try:
-            from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-            from PyPDF4 import PdfFileReader, PdfFileWriter as PyPDF4Writer
+            from sapl.base.models import Autor
+            from sapl.parlamentares.models import Parlamentar
+            autor = Autor.objects.filter(operadores=request.user).first()
+            if autor:
+                tipo_desc = autor.tipo.descricao if autor.tipo else ''
+                if tipo_desc == 'Parlamentar':
+                    cargo = 'Vereador(a)'
+                elif tipo_desc:
+                    cargo = tipo_desc
+                if isinstance(autor.autor_related, Parlamentar):
+                    parl = autor.autor_related
+                    tipo_nome = AppConfig.attr('assinatura_nome')
+                    nome_assinante = parl.nome_completo if tipo_nome == 'C' else parl.nome_parlamentar
+        except Exception:
+            pass
 
-            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
-            data_assinatura = timezone.localtime(timezone.now())
-            data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
-            data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+        data_assinatura = timezone.localtime(timezone.now())
+        data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+        data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
 
-            codigo = _gerar_codigo_autenticacao(pdf_bytes)
-            url_verificacao = _construir_url_verificacao(request, 'materia', pk, codigo)
+        itens_api = []
+        codigos_map = {}  # pk → codigo_autenticacao
 
-            nova_assinatura_info = {
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_simples,
-            }
+        for item in itens_para_assinar:
+            pk = item['pk']
+            pdf_bytes = item['pdf_bytes']
+            assinaturas_existentes = meta_map[pk]['assinaturas_existentes']
+            ja_tem = bool(assinaturas_existentes)
 
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-            page_box = last_page.mediaBox
-            page_width = float(page_box.getWidth())
-            page_height = float(page_box.getHeight())
+            if not ja_tem:
+                original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+                last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+                page_width = float(last_page.mediaBox.getWidth())
+                page_height = float(last_page.mediaBox.getHeight())
 
-            auth_page_bytes = _gerar_pagina_autenticacao(
-                [nova_assinatura_info], codigo, url_verificacao,
-                page_width, page_height
-            )
+                codigo = _gerar_codigo_autenticacao(pdf_bytes)
+                url_verificacao = _construir_url_verificacao(request, 'materia', pk, codigo)
+                codigos_map[pk] = codigo
 
-            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
-            output_pdf = PyPDF4Writer()
-            for page_num in range(original_pdf.getNumPages()):
-                output_pdf.addPage(original_pdf.getPage(page_num))
-            output_pdf.addPage(auth_page_pdf.getPage(0))
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_f:
-                temp_stamped_path = tmp_f.name
-                output_pdf.write(tmp_f)
-
-            with open(temp_stamped_path, 'rb') as f:
-                stamped_bytes = f.read()
-
-            signed_buffer = io.BytesIO()
-            with io.BytesIO(stamped_bytes) as inf:
-                w = IncrementalPdfFileWriter(inf)
-                meta = signers.PdfSignatureMetadata(
-                    field_name='AssinaturaDigital',
-                    location='Câmara Municipal',
-                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    name=nome_assinante
+                nova_assinatura_info_visual = {
+                    'nome_assinante': nome_assinante,
+                    'cargo': cargo,
+                    'data_assinatura': data_simples,
+                }
+                auth_page_bytes = _gerar_pagina_autenticacao(
+                    [nova_assinatura_info_visual], codigo, url_verificacao,
+                    page_width, page_height
                 )
-                signers.sign_pdf(w, meta, signer=signer, output=signed_buffer)
 
-            signed_buffer.seek(0)
-            signed_pdf_content = signed_buffer.read()
+                auth_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
+                output_pdf = PdfFileWriter()
+                for i in range(original_pdf.getNumPages()):
+                    output_pdf.addPage(original_pdf.getPage(i))
+                output_pdf.addPage(auth_pdf.getPage(0))
+                buf = io.BytesIO()
+                output_pdf.write(buf)
+                pdf_para_assinar = buf.getvalue()
+            else:
+                pdf_para_assinar = pdf_bytes
 
-            filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
-            materia.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
-            materia.codigo_autenticacao = codigo
+            n_assinatura = len(assinaturas_existentes)
+            try:
+                temp_pdf = PdfFileReader(io.BytesIO(pdf_para_assinar))
+                auth_pg = temp_pdf.getPage(temp_pdf.getNumPages() - 1)
+                auth_w = float(auth_pg.mediaBox.getWidth())
+                auth_h = float(auth_pg.mediaBox.getHeight())
+                x1, y1, x2, y2 = _posicao_bloco_assinatura(n_assinatura, auth_w, auth_h)
+                sig_page = temp_pdf.getNumPages()
+                sig_left, sig_bottom = x1, y1
+                sig_width, sig_height = x2 - x1, y2 - y1
+            except Exception:
+                sig_page = sig_left = sig_bottom = sig_width = sig_height = None
 
-            nova_assinatura_record = {
+            itens_api.append({
+                'id': pk,
+                'pdf_bytes': pdf_para_assinar,
+                'signature_page': sig_page,
+                'signature_left': sig_left,
+                'signature_bottom': sig_bottom,
+                'signature_width': sig_width,
+                'signature_height': sig_height,
+            })
+
+        logger.info(f'[lote] Enviando {len(itens_api)} PDFs em paralelo para API externa...')
+        resultados_api = assinar_pdf_lote_via_api(
+            itens_api,
+            certificado_bytes=cert_bytes,
+            senha=senha,
+            reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+            location='Câmara Municipal',
+        )
+
+        for res_api in resultados_api:
+            pk = res_api['id']
+            materia = materias_map[pk]
+            descricao = meta_map[pk]['descricao']
+            assinaturas_existentes = meta_map[pk]['assinaturas_existentes']
+
+            if not res_api['ok']:
+                logger.error(f'[lote] Matéria {pk} falhou: {res_api["error"]}')
+                resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': res_api['error']})
+                erro_count += 1
+                continue
+
+            nova_assinatura = {
                 'tipo_certificado': 'A1',
-                'tipo_certificado_display': f'{tipo_cert} – A1',
-                'subject': str(cert_info.subject),
-                'issuer': str(cert_info.issuer),
-                'serial': str(cert_info.serial_number),
-                'valid_from': cert_info.not_valid_before.isoformat(),
-                'valid_to': cert_info.not_valid_after.isoformat(),
+                'tipo_certificado_display': 'Certificado Digital – A1',
+                'subject': '', 'issuer': '', 'serial': '',
+                'valid_from': '', 'valid_to': '',
                 'signed_by': request.user.username,
                 'nome_assinante': nome_assinante,
                 'cargo': cargo,
                 'data_assinatura': data_formatada,
-                'validade_juridica': 'Assinatura Eletrônica Qualificada'
+                'validade_juridica': 'Assinatura Eletrônica Qualificada',
+                'backend': 'api_externa',
             }
-            assinaturas_existentes.append(nova_assinatura_record)
+
+            filename = f"materia_{pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+            materia.pdf_assinado.save(filename, ContentFile(res_api['pdf_bytes']), save=False)
+            if pk in codigos_map:
+                materia.codigo_autenticacao = codigos_map[pk]
+            assinaturas_existentes.append(nova_assinatura)
             materia.assinatura_info = assinaturas_existentes
             materia.assinado_em = timezone.now()
             materia.assinado_por = request.user
             materia.save()
 
-            logger.info(f"[lote] Matéria {pk} assinada por {request.user.username}")
+            logger.info(f'[lote] Matéria {pk} assinada por {request.user.username} (api_externa/paralelo)')
             resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
             sucesso_count += 1
 
-        except Exception as e:
-            logger.error(f"[lote] Erro ao assinar matéria {pk}: {e}")
-            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
-            erro_count += 1
-        finally:
-            if temp_stamped_path and os.path.exists(temp_stamped_path):
-                os.unlink(temp_stamped_path)
+    else:
+        # Backend local: pyhanko — sequencial
+        for item in itens_para_assinar:
+            pk = item['pk']
+            materia = materias_map[pk]
+            descricao = meta_map[pk]['descricao']
+            assinaturas_existentes = meta_map[pk]['assinaturas_existentes']
+            pdf_bytes = item['pdf_bytes']
+
+            try:
+                signed_pdf_bytes, nova_assinatura, codigo = _assinar_pdf_com_pagina_auth(
+                    pdf_bytes,
+                    request=request,
+                    tipo_doc='materia',
+                    pk_doc=pk,
+                    assinaturas_existentes=assinaturas_existentes,
+                    certificado_bytes=cert_bytes,
+                    senha=senha,
+                    tipo_cert_input='a1',
+                )
+
+                filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+                materia.pdf_assinado.save(filename, ContentFile(signed_pdf_bytes), save=False)
+                if codigo:
+                    materia.codigo_autenticacao = codigo
+
+                assinaturas_existentes.append(nova_assinatura)
+                materia.assinatura_info = assinaturas_existentes
+                materia.assinado_em = timezone.now()
+                materia.assinado_por = request.user
+                materia.save()
+
+                logger.info(
+                    f"[lote] Matéria {pk} assinada por {request.user.username} "
+                    f"(backend: {nova_assinatura.get('backend', '?')})"
+                )
+                resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
+                sucesso_count += 1
+
+            except Exception as e:
+                logger.error(f"[lote] Erro ao assinar matéria {pk}: {e}")
+                resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
+                erro_count += 1
 
     # Invalida cache de pendências uma vez ao final do lote
     if sucesso_count > 0:
@@ -2114,44 +2387,47 @@ def docacessorio_assinar_lote(request):
 
     cert_bytes = certificado_file.read()
 
-    import tempfile as tmp_module
-    with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
-        tmp_cert.write(cert_bytes)
-        tmp_cert_path = tmp_cert.name
+    # Pré-validação do certificado apenas no backend local (pyhanko).
+    if not _usar_api_externa():
+        import tempfile as tmp_module
+        with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
+            tmp_cert.write(cert_bytes)
+            tmp_cert_path = tmp_cert.name
+        try:
+            from pyhanko.sign import signers as _signers_lote
+            _signer_test = _signers_lote.SimpleSigner.load_pkcs12(
+                pfx_file=tmp_cert_path,
+                passphrase=senha.encode('utf-8')
+            )
+            _cert_test = _signer_test.signing_cert
+            _err = _validar_certificado(_cert_test)
+            if _err:
+                _d = json.loads(_err.content)
+                return JsonResponse({'success': False, 'error': _d.get('error', 'Certificado inválido.')}, status=400)
+        except Exception as cert_error:
+            logger.error(f"[lote-doc] Erro ao carregar certificado: {cert_error}")
+            err_msg = str(cert_error)
+            if 'password' in err_msg.lower() or 'mac' in err_msg.lower():
+                detail = 'Senha incorreta ou arquivo invalido.'
+            elif 'decode' in err_msg.lower() or 'parse' in err_msg.lower():
+                detail = 'Arquivo nao e um certificado valido (.pfx/.p12).'
+            else:
+                detail = f'Detalhes: {err_msg}'
+            return JsonResponse({'success': False, 'error': f'Erro ao carregar certificado: {detail}'}, status=400)
+        finally:
+            if os.path.exists(tmp_cert_path):
+                os.unlink(tmp_cert_path)
 
-    try:
-        from pyhanko.sign import signers
-        signer = signers.SimpleSigner.load_pkcs12(
-            pfx_file=tmp_cert_path,
-            passphrase=senha.encode('utf-8')
-        )
-    except Exception as cert_error:
-        logger.error(f"[lote-doc] Erro ao carregar certificado: {cert_error}")
-        err_msg = str(cert_error)
-        if 'password' in err_msg.lower() or 'mac' in err_msg.lower():
-            detail = 'Senha incorreta ou arquivo invalido.'
-        elif 'decode' in err_msg.lower() or 'parse' in err_msg.lower():
-            detail = 'Arquivo nao e um certificado valido (.pfx/.p12).'
-        else:
-            detail = f'Detalhes: {err_msg}'
-        return JsonResponse({'success': False, 'error': f'Erro ao carregar certificado: {detail}'}, status=400)
-    finally:
-        if os.path.exists(tmp_cert_path):
-            os.unlink(tmp_cert_path)
-
-    cert_info = signer.signing_cert
-    error_response = _validar_certificado(cert_info)
-    if error_response:
-        data = json.loads(error_response.content)
-        return JsonResponse({'success': False, 'error': data.get('error', 'Certificado invalido.')}, status=400)
-
-    # -- Assinatura por documento --
+    # -- Pré-processar: gerar PDFs, filtrar inválidos --
     docs = DocumentoAcessorio.objects.filter(pk__in=pks).select_related('materia', 'tipo', 'materia__tipo')
     docs_map = {d.pk: d for d in docs}
 
     resultados = []
     sucesso_count = 0
     erro_count = 0
+
+    itens_para_assinar = []
+    meta_map_doc = {}  # pk → {descricao, assinaturas_existentes}
 
     for pk in pks:
         doc = docs_map.get(pk)
@@ -2179,330 +2455,180 @@ def docacessorio_assinar_lote(request):
             erro_count += 1
             continue
 
-        temp_stamped_path = None
+        meta_map_doc[pk] = {'descricao': descricao, 'assinaturas_existentes': assinaturas_existentes}
+        itens_para_assinar.append({'pk': pk, 'pdf_bytes': pdf_bytes})
+
+    # -- Assinatura: /sign/batch (API externa) ou sequencial (pyhanko) --
+    if _usar_api_externa() and itens_para_assinar:
+        from sapl.materia.assinatura_api_client import assinar_pdf_lote_via_api, AssinaturaAPIError as _APIError
+        from PyPDF4 import PdfFileReader, PdfFileWriter
+
+        nome_assinante = request.user.get_full_name() or request.user.username
+        cargo = 'Usuário do Sistema'
         try:
-            from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-            from PyPDF4 import PdfFileReader, PdfFileWriter as PyPDF4Writer
+            from sapl.base.models import Autor
+            from sapl.parlamentares.models import Parlamentar
+            autor = Autor.objects.filter(operadores=request.user).first()
+            if autor:
+                tipo_desc = autor.tipo.descricao if autor.tipo else ''
+                if tipo_desc == 'Parlamentar':
+                    cargo = 'Vereador(a)'
+                elif tipo_desc:
+                    cargo = tipo_desc
+                if isinstance(autor.autor_related, Parlamentar):
+                    parl = autor.autor_related
+                    tipo_nome = AppConfig.attr('assinatura_nome')
+                    nome_assinante = parl.nome_completo if tipo_nome == 'C' else parl.nome_parlamentar
+        except Exception:
+            pass
 
-            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
-            data_assinatura = timezone.localtime(timezone.now())
-            data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
-            data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+        data_assinatura = timezone.localtime(timezone.now())
+        data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
+        data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
 
-            codigo = _gerar_codigo_autenticacao(pdf_bytes)
-            url_verificacao = _construir_url_verificacao(request, 'docacessorio', pk, codigo)
+        itens_api = []
+        codigos_map = {}
 
-            nova_assinatura_info = {
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_simples,
-            }
+        for item in itens_para_assinar:
+            pk = item['pk']
+            pdf_bytes = item['pdf_bytes']
+            assinaturas_existentes = meta_map_doc[pk]['assinaturas_existentes']
+            ja_tem = bool(assinaturas_existentes)
 
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-            page_box = last_page.mediaBox
-            page_width = float(page_box.getWidth())
-            page_height = float(page_box.getHeight())
+            if not ja_tem:
+                original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+                last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+                page_width = float(last_page.mediaBox.getWidth())
+                page_height = float(last_page.mediaBox.getHeight())
+                codigo = _gerar_codigo_autenticacao(pdf_bytes)
+                url_verificacao = _construir_url_verificacao(request, 'docacessorio', pk, codigo)
+                codigos_map[pk] = codigo
+                nova_assinatura_info_visual = {'nome_assinante': nome_assinante, 'cargo': cargo, 'data_assinatura': data_simples}
+                auth_page_bytes = _gerar_pagina_autenticacao([nova_assinatura_info_visual], codigo, url_verificacao, page_width, page_height)
+                auth_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
+                output_pdf = PdfFileWriter()
+                for i in range(original_pdf.getNumPages()):
+                    output_pdf.addPage(original_pdf.getPage(i))
+                output_pdf.addPage(auth_pdf.getPage(0))
+                buf = io.BytesIO()
+                output_pdf.write(buf)
+                pdf_para_assinar = buf.getvalue()
+            else:
+                pdf_para_assinar = pdf_bytes
 
-            auth_page_bytes = _gerar_pagina_autenticacao(
-                [nova_assinatura_info], codigo, url_verificacao,
-                page_width, page_height
-            )
+            n_assinatura = len(assinaturas_existentes)
+            try:
+                temp_pdf = PdfFileReader(io.BytesIO(pdf_para_assinar))
+                auth_pg = temp_pdf.getPage(temp_pdf.getNumPages() - 1)
+                auth_w = float(auth_pg.mediaBox.getWidth())
+                auth_h = float(auth_pg.mediaBox.getHeight())
+                x1, y1, x2, y2 = _posicao_bloco_assinatura(n_assinatura, auth_w, auth_h)
+                sig_page = temp_pdf.getNumPages()
+                sig_left, sig_bottom = x1, y1
+                sig_width, sig_height = x2 - x1, y2 - y1
+            except Exception:
+                sig_page = sig_left = sig_bottom = sig_width = sig_height = None
 
-            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
-            output_pdf = PyPDF4Writer()
-            for page_num in range(original_pdf.getNumPages()):
-                output_pdf.addPage(original_pdf.getPage(page_num))
-            output_pdf.addPage(auth_page_pdf.getPage(0))
+            itens_api.append({
+                'id': pk,
+                'pdf_bytes': pdf_para_assinar,
+                'signature_page': sig_page,
+                'signature_left': sig_left,
+                'signature_bottom': sig_bottom,
+                'signature_width': sig_width,
+                'signature_height': sig_height,
+            })
 
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_f:
-                temp_stamped_path = tmp_f.name
-                output_pdf.write(tmp_f)
+        logger.info(f'[lote-doc] Enviando {len(itens_api)} PDFs em batch para API externa...')
+        resultados_api = assinar_pdf_lote_via_api(
+            itens_api,
+            certificado_bytes=cert_bytes,
+            senha=senha,
+            reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+            location='Câmara Municipal',
+        )
 
-            with open(temp_stamped_path, 'rb') as f:
-                stamped_bytes = f.read()
+        for res_api in resultados_api:
+            pk = res_api['id']
+            doc = docs_map[pk]
+            descricao = meta_map_doc[pk]['descricao']
+            assinaturas_existentes = meta_map_doc[pk]['assinaturas_existentes']
 
-            signed_buffer = io.BytesIO()
-            with io.BytesIO(stamped_bytes) as inf:
-                w = IncrementalPdfFileWriter(inf)
-                meta = signers.PdfSignatureMetadata(
-                    field_name='AssinaturaDigital',
-                    location='Camara Municipal',
-                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    name=nome_assinante
-                )
-                signers.sign_pdf(w, meta, signer=signer, output=signed_buffer)
+            if not res_api['ok']:
+                logger.error(f'[lote-doc] Doc {pk} falhou: {res_api["error"]}')
+                resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': res_api['error']})
+                erro_count += 1
+                continue
 
-            signed_buffer.seek(0)
-            signed_pdf_content = signed_buffer.read()
-
-            filename = f"docacessorio_{doc.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
-            doc.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
-            doc.codigo_autenticacao = codigo
-
-            nova_assinatura_record = {
+            nova_assinatura = {
                 'tipo_certificado': 'A1',
-                'tipo_certificado_display': f'{tipo_cert} - A1',
-                'subject': str(cert_info.subject),
-                'issuer': str(cert_info.issuer),
-                'serial': str(cert_info.serial_number),
-                'valid_from': cert_info.not_valid_before.isoformat(),
-                'valid_to': cert_info.not_valid_after.isoformat(),
+                'tipo_certificado_display': 'Certificado Digital – A1',
+                'subject': '', 'issuer': '', 'serial': '',
+                'valid_from': '', 'valid_to': '',
                 'signed_by': request.user.username,
                 'nome_assinante': nome_assinante,
                 'cargo': cargo,
                 'data_assinatura': data_formatada,
-                'validade_juridica': 'Assinatura Eletronica Qualificada'
+                'validade_juridica': 'Assinatura Eletrônica Qualificada',
+                'backend': 'api_externa',
             }
-            assinaturas_existentes.append(nova_assinatura_record)
+            filename = f"docacessorio_{pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+            doc.pdf_assinado.save(filename, ContentFile(res_api['pdf_bytes']), save=False)
+            if pk in codigos_map:
+                doc.codigo_autenticacao = codigos_map[pk]
+            assinaturas_existentes.append(nova_assinatura)
             doc.assinatura_info = assinaturas_existentes
             doc.assinado_em = timezone.now()
             doc.assinado_por = request.user
             doc.save()
 
-            logger.info(f"[lote-doc] DocAcessorio {pk} assinado por {request.user.username}")
+            logger.info(f'[lote-doc] DocAcessorio {pk} assinado por {request.user.username} (api_externa/batch)')
             resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
             sucesso_count += 1
 
-        except Exception as e:
-            logger.error(f"[lote-doc] Erro ao assinar docacessorio {pk}: {e}")
-            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
-            erro_count += 1
-        finally:
-            if temp_stamped_path and os.path.exists(temp_stamped_path):
-                os.unlink(temp_stamped_path)
-
-    return JsonResponse({
-        'success': True,
-        'total': len(pks),
-        'sucesso': sucesso_count,
-        'erros': erro_count,
-        'resultados': resultados,
-    })
-
-
-# =============================================================================
-# Assinatura em Lote de Documentos Acessorios
-# =============================================================================
-
-@login_required
-@csrf_exempt
-@require_http_methods(["POST"])
-def docacessorio_assinar_lote(request):
-    """
-    Assina em lote documentos acessorios pendentes com certificado A1.
-
-    POST multipart:
-      - certificado: arquivo .pfx / .p12
-      - senha: senha do certificado
-      - ids: JSON array com os PKs dos documentos acessorios
-
-    Retorna JSON com resultado por documento.
-    """
-    _tem_perm_django = request.user.has_perm('materia.change_documentoacessorio')
-    try:
-        _autor_lote = OperadorAutor.objects.get(user=request.user).autor
-    except OperadorAutor.DoesNotExist:
-        _autor_lote = None
-
-    if not (_tem_perm_django or _autor_lote or request.user.is_superuser):
-        return JsonResponse(
-            {'success': False, 'error': 'Sem permissao para assinar documentos acessorios.'},
-            status=403
-        )
-
-    ids_raw = request.POST.get('ids', '')
-    ids_multi = request.POST.getlist('ids[]')
-
-    if ids_multi:
-        pks = [int(i) for i in ids_multi if str(i).isdigit()]
-    elif ids_raw:
-        try:
-            parsed = json.loads(ids_raw)
-            pks = [int(i) for i in parsed if str(i).isdigit() or isinstance(i, int)]
-        except (json.JSONDecodeError, ValueError):
-            return JsonResponse(
-                {'success': False, 'error': 'Parametro "ids" invalido. Envie um array JSON.'},
-                status=400
-            )
     else:
-        return JsonResponse({'success': False, 'error': 'Nenhum documento selecionado.'}, status=400)
+        # Backend local: pyhanko — sequencial
+        for item in itens_para_assinar:
+            pk = item['pk']
+            doc = docs_map[pk]
+            descricao = meta_map_doc[pk]['descricao']
+            assinaturas_existentes = meta_map_doc[pk]['assinaturas_existentes']
+            pdf_bytes = item['pdf_bytes']
 
-    if not pks:
-        return JsonResponse({'success': False, 'error': 'Lista de IDs vazia.'}, status=400)
-
-    if len(pks) > 200:
-        return JsonResponse(
-            {'success': False, 'error': 'Limite maximo de 200 documentos por lote.'},
-            status=400
-        )
-
-    certificado_file = request.FILES.get('certificado')
-    senha = request.POST.get('senha', '')
-
-    if not certificado_file:
-        return JsonResponse({'success': False, 'error': 'Certificado nao informado.'}, status=400)
-    if not senha:
-        return JsonResponse({'success': False, 'error': 'Senha do certificado nao informada.'}, status=400)
-
-    cert_bytes = certificado_file.read()
-
-    import tempfile as tmp_module
-    with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
-        tmp_cert.write(cert_bytes)
-        tmp_cert_path = tmp_cert.name
-
-    try:
-        from pyhanko.sign import signers
-        signer = signers.SimpleSigner.load_pkcs12(
-            pfx_file=tmp_cert_path,
-            passphrase=senha.encode('utf-8')
-        )
-    except Exception as cert_error:
-        logger.error(f"[lote-doc] Erro ao carregar certificado: {cert_error}")
-        err_msg = str(cert_error)
-        if 'password' in err_msg.lower() or 'mac' in err_msg.lower():
-            detail = 'Senha incorreta ou arquivo invalido.'
-        elif 'decode' in err_msg.lower() or 'parse' in err_msg.lower():
-            detail = 'Arquivo nao e um certificado valido (.pfx/.p12).'
-        else:
-            detail = f'Detalhes: {err_msg}'
-        return JsonResponse({'success': False, 'error': f'Erro ao carregar certificado: {detail}'}, status=400)
-    finally:
-        if os.path.exists(tmp_cert_path):
-            os.unlink(tmp_cert_path)
-
-    cert_info = signer.signing_cert
-    error_response = _validar_certificado(cert_info)
-    if error_response:
-        data = json.loads(error_response.content)
-        return JsonResponse({'success': False, 'error': data.get('error', 'Certificado invalido.')}, status=400)
-
-    docs = DocumentoAcessorio.objects.filter(pk__in=pks).select_related('materia', 'tipo', 'materia__tipo')
-    docs_map = {d.pk: d for d in docs}
-
-    resultados = []
-    sucesso_count = 0
-    erro_count = 0
-
-    for pk in pks:
-        doc = docs_map.get(pk)
-        if not doc:
-            resultados.append({'pk': pk, 'success': False, 'descricao': f'ID {pk}', 'error': 'Documento nao encontrado.'})
-            erro_count += 1
-            continue
-
-        descricao = f'{doc.nome} - {doc.materia.tipo.sigla} {doc.materia.numero}/{doc.materia.ano}'
-
-        if doc.pdf_assinado:
-            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': 'Ja possui PDF assinado. Ignorado.'})
-            erro_count += 1
-            continue
-
-        assinaturas_existentes = _normalizar_assinatura_info(doc.assinatura_info)
-        if any(a.get('signed_by') == request.user.username for a in assinaturas_existentes):
-            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': 'Voce ja assinou este documento.'})
-            erro_count += 1
-            continue
-
-        pdf_bytes, error = _gerar_pdf_do_docacessorio(doc, request)
-        if error:
-            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': error})
-            erro_count += 1
-            continue
-
-        temp_stamped_path = None
-        try:
-            from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
-            from PyPDF4 import PdfFileReader, PdfFileWriter as PyPDF4Writer
-
-            nome_assinante, cargo, tipo_cert = _obter_info_assinante(request, cert_info)
-            data_assinatura = timezone.localtime(timezone.now())
-            data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
-            data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
-
-            codigo = _gerar_codigo_autenticacao(pdf_bytes)
-            url_verificacao = _construir_url_verificacao(request, 'docacessorio', pk, codigo)
-
-            nova_assinatura_info = {
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_simples,
-            }
-
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-            page_box = last_page.mediaBox
-            page_width = float(page_box.getWidth())
-            page_height = float(page_box.getHeight())
-
-            auth_page_bytes = _gerar_pagina_autenticacao(
-                [nova_assinatura_info], codigo, url_verificacao,
-                page_width, page_height
-            )
-
-            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
-            output_pdf = PyPDF4Writer()
-            for page_num in range(original_pdf.getNumPages()):
-                output_pdf.addPage(original_pdf.getPage(page_num))
-            output_pdf.addPage(auth_page_pdf.getPage(0))
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_f:
-                temp_stamped_path = tmp_f.name
-                output_pdf.write(tmp_f)
-
-            with open(temp_stamped_path, 'rb') as f:
-                stamped_bytes = f.read()
-
-            signed_buffer = io.BytesIO()
-            with io.BytesIO(stamped_bytes) as inf:
-                w = IncrementalPdfFileWriter(inf)
-                meta = signers.PdfSignatureMetadata(
-                    field_name='AssinaturaDigital',
-                    location='Camara Municipal',
-                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    name=nome_assinante
+            try:
+                signed_pdf_bytes, nova_assinatura, codigo = _assinar_pdf_com_pagina_auth(
+                    pdf_bytes,
+                    request=request,
+                    tipo_doc='docacessorio',
+                    pk_doc=pk,
+                    assinaturas_existentes=assinaturas_existentes,
+                    certificado_bytes=cert_bytes,
+                    senha=senha,
+                    tipo_cert_input='a1',
                 )
-                signers.sign_pdf(w, meta, signer=signer, output=signed_buffer)
 
-            signed_buffer.seek(0)
-            signed_pdf_content = signed_buffer.read()
+                filename = f"docacessorio_{doc.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
+                doc.pdf_assinado.save(filename, ContentFile(signed_pdf_bytes), save=False)
+                if codigo:
+                    doc.codigo_autenticacao = codigo
 
-            filename = f"docacessorio_{doc.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
-            doc.pdf_assinado.save(filename, ContentFile(signed_pdf_content), save=False)
-            doc.codigo_autenticacao = codigo
+                assinaturas_existentes.append(nova_assinatura)
+                doc.assinatura_info = assinaturas_existentes
+                doc.assinado_em = timezone.now()
+                doc.assinado_por = request.user
+                doc.save()
 
-            nova_assinatura_record = {
-                'tipo_certificado': 'A1',
-                'tipo_certificado_display': f'{tipo_cert} - A1',
-                'subject': str(cert_info.subject),
-                'issuer': str(cert_info.issuer),
-                'serial': str(cert_info.serial_number),
-                'valid_from': cert_info.not_valid_before.isoformat(),
-                'valid_to': cert_info.not_valid_after.isoformat(),
-                'signed_by': request.user.username,
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_formatada,
-                'validade_juridica': 'Assinatura Eletronica Qualificada'
-            }
-            assinaturas_existentes.append(nova_assinatura_record)
-            doc.assinatura_info = assinaturas_existentes
-            doc.assinado_em = timezone.now()
-            doc.assinado_por = request.user
-            doc.save()
+                logger.info(
+                    f"[lote-doc] DocAcessorio {pk} assinado por {request.user.username} "
+                    f"(backend: {nova_assinatura.get('backend', '?')})"
+                )
+                resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
+                sucesso_count += 1
 
-            logger.info(f"[lote-doc] DocAcessorio {pk} assinado por {request.user.username}")
-            resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
-            sucesso_count += 1
-
-        except Exception as e:
-            logger.error(f"[lote-doc] Erro ao assinar docacessorio {pk}: {e}")
-            resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
-            erro_count += 1
-        finally:
-            if temp_stamped_path and os.path.exists(temp_stamped_path):
-                os.unlink(temp_stamped_path)
+            except Exception as e:
+                logger.error(f"[lote-doc] Erro ao assinar docacessorio {pk}: {e}")
+                resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
+                erro_count += 1
 
     return JsonResponse({
         'success': True,
@@ -2511,3 +2637,7 @@ def docacessorio_assinar_lote(request):
         'erros': erro_count,
         'resultados': resultados,
     })
+
+
+# (função docacessorio_assinar_lote definida acima)
+

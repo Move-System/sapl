@@ -795,7 +795,28 @@
       document.getElementById('lote-btn-assinar').style.display    = 'none';
       document.getElementById('lote-btn-fechar').disabled          = true;
 
-      setProgresso(5, 'Enviando certificado e iniciando assinatura…');
+      // Calcula fases de progresso em função do número de matérias selecionadas
+      var nDocs = idsSel.length;
+      var fases = [
+        { ate: 10, label: 'Enviando certificado e iniciando assinatura…',   ms: 700 },
+        { ate: 25, label: 'Validando certificado e gerando PDFs…',           ms: Math.min(600, 200 + nDocs * 30) },
+        { ate: 50, label: 'Preparando ' + nDocs + ' documento(s) para assinatura…', ms: Math.min(800, 200 + nDocs * 50) },
+        { ate: 70, label: 'Enviando ao microserviço de assinatura…',         ms: Math.min(1000, 300 + nDocs * 60) },
+        { ate: 85, label: 'Aguardando resposta do servidor…',               ms: Math.min(800, 300 + nDocs * 40) },
+        { ate: 93, label: 'Salvando documentos assinados…',                 ms: 500 },
+        { ate: 97, label: 'Finalizando…',                                   ms: 300 },
+      ];
+      var faseIdx = 0, progrAtual = 0, progrTimer = null;
+      function avancarProgresso() {
+        if (faseIdx >= fases.length) return;
+        var fase = fases[faseIdx];
+        if (progrAtual < fase.ate) {
+          progrAtual = Math.min(progrAtual + 1, fase.ate);
+          setProgresso(progrAtual, fase.label);
+        } else { faseIdx++; }
+        progrTimer = setTimeout(avancarProgresso, fases[Math.min(faseIdx, fases.length-1)].ms / (fase.ate - (faseIdx > 0 ? fases[faseIdx-1].ate : 0)));
+      }
+      progrTimer = setTimeout(avancarProgresso, 400);
 
       fetch(URL_LOTE, {
         method: 'POST',
@@ -803,18 +824,21 @@
         headers: { 'X-CSRFToken': getCSRF() }
       })
       .then(function (r) {
-        setProgresso(90, 'Processando resposta…');
+        clearTimeout(progrTimer);
+        setProgresso(98, 'Processando resposta…');
         if (!r.ok) {
           return r.json().then(function(d){ throw new Error(d.error || ('HTTP ' + r.status)); });
         }
         return r.json();
       })
       .then(function (data) {
+        clearTimeout(progrTimer);
         setProgresso(100, 'Concluído.');
         document.getElementById('lote-btn-fechar').disabled = false;
         mostrarResumo(data);
       })
       .catch(function (err) {
+        clearTimeout(progrTimer);
         document.getElementById('lote-btn-fechar').disabled = false;
         setProgresso(100, 'Erro.');
         mostrarErroFatal(err.message || String(err));

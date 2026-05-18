@@ -53,11 +53,12 @@ from sapl.materia.onlyoffice_materia_views import (
 from sapl.materia.views_assinatura import (
     materia_assinar_a1, materia_assinar_a3_preparar, materia_assinar_a3_finalizar,
     materia_pdf_assinado, materia_verificar_assinatura, materia_remover_assinatura,
-    detectar_aplicacao_a3, materia_assinar_lote,
+    detectar_aplicacao_a3, assinatura_api_status, materia_assinar_lote,
     docacessorio_assinar_a1, docacessorio_pdf_assinado,
     docacessorio_verificar_assinatura, docacessorio_remover_assinatura,
     materia_verificar_documento, docacessorio_verificar_documento,
-    docacessorio_assinar_lote
+    docacessorio_assinar_lote,
+    materia_pagina_assinatura_png, docacessorio_pagina_assinatura_png,
 )
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
@@ -205,6 +206,12 @@ urlpatterns_materia = [
         name='materia_remover_assinatura'),
     url(r'^materia/assinatura/detectar-a3/$', detectar_aplicacao_a3,
         name='detectar_aplicacao_a3'),
+    url(r'^materia/assinatura/api-status/$', assinatura_api_status,
+        name='assinatura_api_status'),
+    url(r'^materia/(?P<pk>\d+)/assinatura/pagina-preview/$', materia_pagina_assinatura_png,
+        name='materia_pagina_assinatura_png'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/assinatura/pagina-preview/$', docacessorio_pagina_assinatura_png,
+        name='docacessorio_pagina_assinatura_png'),
 
     # Verificação pública de autenticidade (sem login)
     url(r'^materia/(?P<pk>\d+)/verificar/$', materia_verificar_documento,
