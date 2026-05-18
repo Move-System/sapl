@@ -2019,6 +2019,29 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
                 u.has_perm('materia.add_documentoacessorio')
             )
             context['tipos_documento'] = TipoDocumento.objects.all()
+
+            # Documentos acessórios pendentes de assinatura para o lote
+            pode_assinar_lote = u.is_authenticated and (
+                u.is_superuser or
+                u.has_perm('materia.change_documentoacessorio')
+            )
+            if not pode_assinar_lote:
+                pode_assinar_lote = u.is_authenticated and OperadorAutor.objects.filter(user=u).exists()
+
+            if pode_assinar_lote:
+                materia_pk = self.kwargs.get('pk') or self.kwargs.get('root_pk')
+                qs_pendentes = DocumentoAcessorio.objects.filter(
+                    materia__pk=materia_pk,
+                    pdf_assinado='',
+                ).order_by('data', 'nome')
+                docs_lote = [
+                    {'id': d.pk, 'descricao': f'{d.nome} ({d.tipo}) — {d.data}'}
+                    for d in qs_pendentes
+                ]
+                context['docs_pendentes_lote'] = docs_lote
+            else:
+                context['docs_pendentes_lote'] = []
+
             return context
 
         def hook_arquivo(self, obj, default, url):

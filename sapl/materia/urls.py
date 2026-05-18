@@ -56,7 +56,8 @@ from sapl.materia.views_assinatura import (
     detectar_aplicacao_a3, materia_assinar_lote,
     docacessorio_assinar_a1, docacessorio_pdf_assinado,
     docacessorio_verificar_assinatura, docacessorio_remover_assinatura,
-    materia_verificar_documento, docacessorio_verificar_documento
+    materia_verificar_documento, docacessorio_verificar_documento,
+    docacessorio_assinar_lote
 )
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
@@ -236,6 +237,10 @@ urlpatterns_materia = [
         name='docacessorio_verificar_assinatura'),
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/remover-assinatura/$', docacessorio_remover_assinatura,
         name='docacessorio_remover_assinatura'),
+
+    # Assinatura em Lote de Documentos Acessórios
+    url(r'^materia/documentoacessorio/assinar-em-lote/$', docacessorio_assinar_lote,
+        name='docacessorio_assinar_lote'),
 
     # Verificação pública de autenticidade de Documento Acessório (sem login)
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/verificar/$', docacessorio_verificar_documento,
