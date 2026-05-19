@@ -1,5 +1,6 @@
 from django.conf.urls import include, url
 
+from sapl.materia.views_ged import ged_historico
 from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 AcompanhamentoExcluirView,
                                 AcompanhamentoMateriaView, AnexadaCrud,
@@ -350,5 +351,10 @@ urlpatterns_sistema = [
     url(r'^sistema/materia/config-etiqueta-materia-legislativas/',configEtiquetaMateriaLegislativaCrud, name="configEtiquetaMateriaLegislativaCrud"),
 ]
 
+urlpatterns_ged = [
+    url(r'^materia/acervo-historico/$', ged_historico,
+        name='ged_historico'),
+]
+
 urlpatterns = urlpatterns_impressos + urlpatterns_materia + \
-    urlpatterns_proposicao + urlpatterns_sistema
+    urlpatterns_proposicao + urlpatterns_sistema + urlpatterns_ged
