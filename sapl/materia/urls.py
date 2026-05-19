@@ -16,6 +16,7 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 LegislacaoCitadaCrud, MateriaAssuntoCrud,
                                 MateriaLegislativaCrud,
                                 MateriaLegislativaPesquisaView, MateriaTaView,
+                                MateriasPendentesAssinaturaView,
                                 NumeracaoCrud, OrgaoCrud, OrigemCrud,
                                 PrimeiraTramitacaoEmLoteView, ProposicaoCrud,
                                 ProposicaoDevolvida, ProposicaoPendente,
@@ -33,6 +34,7 @@ from sapl.materia.views import (AcompanhamentoConfirmarView,
                                 MateriaPesquisaSimplesView,
                                 DespachoInicialMultiCreateView,
                                 get_zip_docacessorios, get_pdf_docacessorios, get_zip_completo, get_pdf_completo,
+                                get_pdf_multiplos,
                                 configEtiquetaMateriaLegislativaCrud,
                                 PesquisarStatusTramitacaoView, HistoricoProposicaoView)
 from sapl.materia.onlyoffice_views import (onlyoffice_config, onlyoffice_download,
@@ -46,15 +48,17 @@ from sapl.materia.onlyoffice_materia_views import (
     docacessorio_onlyoffice_editor, docacessorio_onlyoffice_config,
     docacessorio_onlyoffice_download, docacessorio_onlyoffice_callback,
     docacessorio_check_doc, docacessorio_forcesave,
-    materia_gerar_pdf_assinatura
+    materia_gerar_pdf_assinatura, materia_gerar_pdf_previa, docacessorio_gerar_pdf_previa
 )
 from sapl.materia.views_assinatura import (
     materia_assinar_a1, materia_assinar_a3_preparar, materia_assinar_a3_finalizar,
     materia_pdf_assinado, materia_verificar_assinatura, materia_remover_assinatura,
-    detectar_aplicacao_a3,
+    detectar_aplicacao_a3, assinatura_api_status, materia_assinar_lote,
     docacessorio_assinar_a1, docacessorio_pdf_assinado,
     docacessorio_verificar_assinatura, docacessorio_remover_assinatura,
-    materia_verificar_documento, docacessorio_verificar_documento
+    materia_verificar_documento, docacessorio_verificar_documento,
+    docacessorio_assinar_lote,
+    materia_pagina_assinatura_png, docacessorio_pagina_assinatura_png,
 )
 from sapl.norma.views import NormaPesquisaSimplesView
 from sapl.protocoloadm.views import (
@@ -122,6 +126,10 @@ urlpatterns_materia = [
 
     url(r'^materia/pesquisar-materia$',
         MateriaLegislativaPesquisaView.as_view(), name='pesquisar_materia'),
+
+    url(r'^materia/pendentes-assinatura$',
+        MateriasPendentesAssinaturaView.as_view(), name='materias_pendentes_assinatura'),
+
     url(r'^materia/(?P<pk>\d+)/acompanhar-materia/$',
         AcompanhamentoMateriaView.as_view(), name='acompanhar_materia'),
     url(r'^materia/(?P<pk>\d+)/acompanhar-confirmar$',
@@ -158,6 +166,8 @@ urlpatterns_materia = [
         name='zip_completo_materia'),
     url(r'^materia/pdf-completo/(?P<pk>\d+)$', get_pdf_completo,
         name='pdf_completo_materia'),
+    url(r'^materia/pdf-multiplos/$', get_pdf_multiplos,
+        name='pdf_multiplos_materias'),
 
     # OnlyOffice endpoints para Matéria Legislativa
     url(r'^materia/(?P<pk>\d+)/onlyoffice/editor$', materia_onlyoffice_editor,
@@ -175,6 +185,10 @@ urlpatterns_materia = [
     url(r'^materia/(?P<pk>\d+)/pdf-assinatura$', materia_gerar_pdf_assinatura,
         name='materia_pdf_assinatura'),
 
+    # Prévia de PDF da Matéria antes da assinatura (sem restrição de protocolo)
+    url(r'^materia/(?P<pk>\d+)/pdf-previa$', materia_gerar_pdf_previa,
+        name='materia_pdf_previa'),
+
     # Assinatura Digital de Matéria Legislativa
     url(r'^materia/(?P<pk>\d+)/assinar/a1/$', materia_assinar_a1,
         name='materia_assinar_a1'),
@@ -182,6 +196,8 @@ urlpatterns_materia = [
         name='materia_assinar_a3_preparar'),
     url(r'^materia/(?P<pk>\d+)/assinar/a3/finalizar/$', materia_assinar_a3_finalizar,
         name='materia_assinar_a3_finalizar'),
+    url(r'^materia/assinar-em-lote/$', materia_assinar_lote,
+        name='materia_assinar_lote'),
     url(r'^materia/(?P<pk>\d+)/pdf-assinado/$', materia_pdf_assinado,
         name='materia_pdf_assinado'),
     url(r'^materia/(?P<pk>\d+)/verificar-assinatura/$', materia_verificar_assinatura,
@@ -190,6 +206,12 @@ urlpatterns_materia = [
         name='materia_remover_assinatura'),
     url(r'^materia/assinatura/detectar-a3/$', detectar_aplicacao_a3,
         name='detectar_aplicacao_a3'),
+    url(r'^materia/assinatura/api-status/$', assinatura_api_status,
+        name='assinatura_api_status'),
+    url(r'^materia/(?P<pk>\d+)/assinatura/pagina-preview/$', materia_pagina_assinatura_png,
+        name='materia_pagina_assinatura_png'),
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/assinatura/pagina-preview/$', docacessorio_pagina_assinatura_png,
+        name='docacessorio_pagina_assinatura_png'),
 
     # Verificação pública de autenticidade (sem login)
     url(r'^materia/(?P<pk>\d+)/verificar/$', materia_verificar_documento,
@@ -209,6 +231,10 @@ urlpatterns_materia = [
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/forcesave$', docacessorio_forcesave,
         name='docacessorio_forcesave'),
 
+    # Prévia de PDF do Documento Acessório antes da assinatura
+    url(r'^materia/documentoacessorio/(?P<pk>\d+)/pdf-previa$', docacessorio_gerar_pdf_previa,
+        name='docacessorio_pdf_previa'),
+
     # Assinatura Digital de Documento Acessório
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/assinar/a1/$', docacessorio_assinar_a1,
         name='docacessorio_assinar_a1'),
@@ -218,6 +244,10 @@ urlpatterns_materia = [
         name='docacessorio_verificar_assinatura'),
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/remover-assinatura/$', docacessorio_remover_assinatura,
         name='docacessorio_remover_assinatura'),
+
+    # Assinatura em Lote de Documentos Acessórios
+    url(r'^materia/documentoacessorio/assinar-em-lote/$', docacessorio_assinar_lote,
+        name='docacessorio_assinar_lote'),
 
     # Verificação pública de autenticidade de Documento Acessório (sem login)
     url(r'^materia/documentoacessorio/(?P<pk>\d+)/verificar/$', docacessorio_verificar_documento,

@@ -208,5 +208,27 @@
         downloadAllPDFs();
       });
     }
+
+    // ── Filtro rápido de assinatura ──────────────────────────────────
+    const selectAssinatura = document.getElementById('select-status-assinatura');
+    if (selectAssinatura) {
+      selectAssinatura.addEventListener('change', function () {
+        const status = this.value;
+        const url = new URL(window.location.href);
+        const params = url.searchParams;
+
+        // Volta sempre para a página 1
+        params.delete('page');
+
+        if (status === '') {
+          params.delete('status_assinatura');
+        } else {
+          params.set('status_assinatura', status);
+        }
+
+        window.location.href = url.pathname + '?' + params.toString();
+      });
+    }
+    // ─────────────────────────────────────────────────────────────────
   });
 })();

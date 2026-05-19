@@ -1,0 +1,119 @@
+{% extends "crud/detail.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block actions %}
+  <div class="actions btn-group float-right pb-4" role="group">
+    <a href="{{ url_pesquisa_completa }}" class="btn btn-outline-secondary">
+      <i class="fas fa-search"></i> {% trans "Ver na Pesquisa Completa" %}
+    </a>
+    <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn btn-outline-primary">
+      <i class="fas fa-list"></i> {% trans "Pesquisar Matérias" %}
+    </a>
+  </div>
+{% endblock %}
+
+{% block detail_content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:.75rem;">
+  <div>
+    <h4 class="mb-0">
+      <span class="badge badge-warning text-dark px-3 py-2" style="font-size:1rem;">
+        <i class="fas fa-clock mr-1"></i> Matérias Pendentes de Assinatura
+      </span>
+    </h4>
+    {% if autor %}
+      <small class="text-muted mt-1 d-block">
+        <i class="fas fa-user mr-1"></i> Autor: <strong>{{ autor }}</strong>
+      </small>
+    {% endif %}
+  </div>
+  <div>
+    {% if total == 0 %}
+      <span class="badge badge-success px-3 py-2" style="font-size:.95rem;">
+        <i class="fas fa-check-circle mr-1"></i> Nenhuma pendência
+      </span>
+    {% elif total == 1 %}
+      <span class="badge badge-warning text-dark px-3 py-2" style="font-size:.95rem;">
+        1 matéria pendente
+      </span>
+    {% else %}
+      <span class="badge badge-warning text-dark px-3 py-2" style="font-size:.95rem;">
+        {{ total }} matérias pendentes
+      </span>
+    {% endif %}
+  </div>
+</div>
+
+{% if not object_list %}
+  <div class="alert alert-success d-flex align-items-center" role="alert">
+    <i class="fas fa-check-circle fa-2x mr-3"></i>
+    <div>
+      <strong>Tudo em dia!</strong><br>
+      Não há matérias com documento pendente de assinatura digital.
+    </div>
+  </div>
+{% else %}
+  <div class="alert alert-warning d-flex align-items-center mb-3" role="alert"
+       style="border-left: 5px solid #f0ad4e;">
+    <i class="fas fa-exclamation-triangle fa-lg mr-2"></i>
+    As matérias abaixo possuem <strong>&nbsp;Texto Original&nbsp;</strong> mas ainda
+    <strong>&nbsp;não foram assinadas digitalmente</strong>.
+  </div>
+
+  <table class="table table-hover table-bordered">
+    <thead class="thead-light">
+      <tr>
+        <th style="width:160px;">Matéria</th>
+        <th>Ementa</th>
+        <th style="width:130px;">Apresentação</th>
+        <th style="width:130px;">Situação</th>
+        <th style="width:110px;" class="text-center">Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in object_list %}
+      <tr>
+        <td>
+          <a href="{% url 'sapl.materia:materialegislativa_detail' m.pk %}"
+             class="font-weight-bold">
+            {{ m.tipo.sigla }} {{ m.numero }}/{{ m.ano }}
+          </a>
+          <br>
+          <small class="text-muted">{{ m.tipo }}</small>
+        </td>
+        <td>
+          <span title="{{ m.ementa }}">
+            {{ m.ementa|truncatechars:120 }}
+          </span>
+        </td>
+        <td class="text-center">
+          {% if m.data_apresentacao %}
+            {{ m.data_apresentacao|date:"d/m/Y" }}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-center">
+          {% if m.em_tramitacao %}
+            <span class="badge badge-info">Em Tramitação</span>
+          {% else %}
+            <span class="badge badge-secondary">Arquivada</span>
+          {% endif %}
+        </td>
+        <td class="text-center">
+          <a href="{% url 'sapl.materia:materialegislativa_detail' m.pk %}"
+             class="btn btn-sm btn-outline-primary"
+             title="Abrir matéria para assinar">
+            <i class="fas fa-signature"></i> Assinar
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "paginacao.html" %}
+{% endif %}
+
+{% endblock detail_content %}

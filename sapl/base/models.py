@@ -238,6 +238,16 @@ class AppConfig(models.Model):
         verbose_name=_('Nome utilizado na assinatura digital'),
         choices=TIPO_NOME_ASSINATURA,
         default='P')
+    permite_remover_assinatura = models.BooleanField(
+        verbose_name=_('Permitir remoção de assinatura digital?'),
+        choices=YES_NO_CHOICES,
+        default=False,
+        help_text=_(
+            'Quando habilitado, superusuários e usuários com a permissão '
+            '"Pode remover assinatura digital" poderão remover assinaturas '
+            'de matérias e documentos acessórios para permitir edições.'
+        )
+    )
     # MÓDULO PAINEL
     cronometro_discurso = models.DurationField(
         verbose_name=_('Cronômetro do Discurso'),

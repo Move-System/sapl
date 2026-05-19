@@ -460,6 +460,21 @@
     </div>
     {% endif %}
 
+    <!-- Co-autores -->
+    {% if object.coautores.exists %}
+    <div class="prop-section">
+      <div class="prop-section-title">{% trans "Co-autores" %}</div>
+      <div class="prop-meta">
+        {% for coautoria in object.coautores.all %}
+        <div class="prop-meta-item" style="flex: 0 0 auto; min-width: 200px;">
+          <label>{{ coautoria.autor.tipo }}</label>
+          <span><i class="fa fa-user"></i> {{ coautoria.autor.nome }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Conteúdo Gerado / Vínculo -->
     {% if object.conteudo_gerado_related or object.materia_de_vinculo %}
     <div class="prop-section">

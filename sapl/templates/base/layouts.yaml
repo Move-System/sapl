@@ -48,6 +48,7 @@ AppConfig:
 
   {% trans 'Módulo Assinatura Digital' %}:
   - assinatura_nome
+  - permite_remover_assinatura
 
   {% trans 'Módulo Painel' %}:
   - cronometro_discurso cronometro_aparte
