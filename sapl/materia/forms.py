@@ -2003,10 +2003,8 @@ class ProposicaoForm(FileFieldCheckMixin, forms.ModelForm):
         label=_('Co-autores'),
         required=False,
         queryset=Autor.objects.all(),
-        widget=forms.SelectMultiple(attrs={
-            'class': 'select2-coautores',
-            'style': 'width: 100%',
-            'data-placeholder': _('Selecione os co-autores...')
+        widget=forms.CheckboxSelectMultiple(attrs={
+            'class': 'coautores-checkbox',
         }),
         help_text=_('Selecione os demais autores deste documento. '
                     'Eles serão adicionados como co-autores ao incorporar a proposição.')
