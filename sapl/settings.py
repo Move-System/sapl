@@ -235,6 +235,7 @@ TEMPLATES = [
                 'sapl.context_processors.google_recaptcha_configured',
                 'sapl.context_processors.enable_sapn',
                 'sapl.context_processors.pendencias_assinatura',
+                'sapl.context_processors.ged_configurado',
             ],
             'debug': DEBUG
         },

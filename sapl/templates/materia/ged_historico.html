@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load i18n staticfiles %}
+
+{% block head_title %}Acervo Histórico – Matérias Anteriores a 2026 – {{ nome_casa }}{% endblock %}
+
+{% block head_content %}
+  {{ block.super }}
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+
+    /* Esconde footer nesta página */
+    #footer, footer.footer { display: none !important; }
+
+    /* Remove container padrão do conteúdo */
+    #content.content.page__row { padding: 0 !important; margin: 0 !important; }
+    #content .container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; width: 100% !important; }
+
+    #ged-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 56px);
+    }
+
+    #ged-header {
+      flex-shrink: 0;
+      background: linear-gradient(135deg, #1a3a5c 0%, #2e6da4 100%);
+      color: #fff;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.25);
+    }
+    #ged-header .ged-icon { font-size: 1.8rem; opacity: .9; }
+    #ged-header .ged-title { flex: 1; }
+    #ged-header .ged-title h1 { font-size: 1.05rem; font-weight: 700; margin: 0 0 2px; }
+    #ged-header .ged-title p  { font-size: .75rem; margin: 0; opacity: .85; }
+    #ged-header .ged-actions a { color: #fff; border-color: rgba(255,255,255,.6); font-size: .8rem; }
+    #ged-header .ged-actions a:hover { background: rgba(255,255,255,.15); border-color: #fff; }
+
+    #ged-frame-container { flex: 1; position: relative; overflow: hidden; }
+
+    #ged-loading {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #f8f9fa; z-index: 10; gap: 12px;
+      color: #555; font-size: .9rem; transition: opacity .4s;
+    }
+    #ged-loading.hidden { opacity: 0; pointer-events: none; }
+
+    #ged-error {
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 12px; color: #555; text-align: center; padding: 24px;
+    }
+    #ged-error i { font-size: 3rem; color: #c0392b; }
+
+    #ged-frame { width: 100%; height: 100%; border: none; display: block; }
+  </style>
+{% endblock %}
+
+{% block content_subnav %}{% endblock %}
+{% block footer_container %}{% endblock %}
+
+{% block content_container %}
+{% if ged_url %}
+<div id="ged-wrapper">
+
+  <div id="ged-header">
+    <div class="ged-icon"><i class="fas fa-archive"></i></div>
+    <div class="ged-title">
+      <h1>Acervo Histórico – Matérias Legislativas</h1>
+      <p>Documentos do sistema anterior (GED) · registros anteriores a 2026</p>
+    </div>
+    <div class="ged-actions d-none d-md-flex" style="gap:8px;">
+      <a href="{{ ged_url }}" target="_blank" rel="noopener noreferrer"
+         class="btn btn-sm btn-outline-light" title="Abrir em nova aba">
+        <i class="fas fa-external-link-alt"></i> Abrir em nova aba
+      </a>
+    </div>
+  </div>
+
+  <div id="ged-frame-container">
+
+    <div id="ged-loading">
+      <div class="spinner-border text-primary" role="status">
+        <span class="sr-only">Carregando…</span>
+      </div>
+      <span>Carregando acervo histórico…</span>
+    </div>
+
+    <div id="ged-error">
+      <i class="fas fa-exclamation-triangle"></i>
+      <strong>Não foi possível carregar o acervo histórico.</strong>
+      <p class="mb-1">O sistema GED pode estar temporariamente indisponível.</p>
+      <a href="{{ ged_url }}" target="_blank" rel="noopener noreferrer"
+         class="btn btn-primary btn-sm mt-2">
+        <i class="fas fa-external-link-alt"></i> Tentar acessar diretamente
+      </a>
+    </div>
+
+    <iframe
+      id="ged-frame"
+      src="{{ ged_url }}"
+      title="Acervo Histórico – Matérias Legislativas (GED)"
+      loading="lazy"
+      allow="fullscreen"
+    ></iframe>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var frame   = document.getElementById('ged-frame');
+  var loading = document.getElementById('ged-loading');
+  var error   = document.getElementById('ged-error');
+
+  frame.addEventListener('load', function () {
+    loading.classList.add('hidden');
+    setTimeout(function () { loading.style.display = 'none'; }, 450);
+  });
+
+  var timeout = setTimeout(function () {
+    if (!loading.classList.contains('hidden')) {
+      loading.style.display = 'none';
+      frame.style.display   = 'none';
+      error.style.display   = 'flex';
+    }
+  }, 15000);
+
+  frame.addEventListener('load', function () { clearTimeout(timeout); });
+})();
+</script>
+
+{% else %}
+<div style="display:flex; flex-direction:column; align-items:center; justify-content:center;
+            min-height: 60vh; text-align:center; padding: 40px 24px; color:#555;">
+  <i class="fas fa-archive" style="font-size:4rem; color:#adb5bd; margin-bottom:20px;"></i>
+  <h2 style="font-size:1.4rem; font-weight:700; color:#343a40; margin-bottom:12px;">
+    Acervo Histórico não disponível
+  </h2>
+  <p style="max-width:480px; font-size:.95rem; line-height:1.6; margin-bottom:24px;">
+    Esta instalação não possui proposições legadas configuradas.<br>
+    Caso necessite acessar matérias de sistemas anteriores, entre em contato com o administrador do sistema.
+  </p>
+  <a href="/" class="btn btn-outline-secondary">
+    <i class="fas fa-home"></i> Voltar à página inicial
+  </a>
+</div>
+{% endif %}
+{% endblock content_container %}
