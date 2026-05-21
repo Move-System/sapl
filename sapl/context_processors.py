@@ -84,6 +84,12 @@ def pendencias_assinatura(request):
     }
 
 
+def ged_configurado(request):
+    """Injeta flag indicando se o GED (acervo histórico) está configurado."""
+    from sapl.materia.views_ged import GED_URL
+    return {'ged_configurado': bool(GED_URL)}
+
+
 @cached_call("site-title", timeout=60 * 2)
 def enable_sapn(request):
     verbose_name = _('SGVP') \
