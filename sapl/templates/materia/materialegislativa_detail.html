@@ -19,7 +19,7 @@
                 <i class="fa fa-file-word-o"></i> {% trans "Editar com OnlyOffice" %}
             </a>
         {% endif %}
-        {% if object.numero_protocolo and object.texto_original %}
+        {% if object.texto_original %}
             {% if object.pdf_assinado %}
                 <a class="btn btn-success" href="{% url 'sapl.materia:materia_pdf_assinado' object.pk %}" target="_blank">
                     <i class="fa fa-check-circle"></i> {% trans "Ver PDF Assinado" %}
