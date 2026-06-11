@@ -4,6 +4,13 @@
 
 {% block actions %}
   <div class="actions btn-group float-right pb-4" role="group">
+    {% if is_presidente_mesa %}
+      <a href="{% url 'sapl.materia:despachos_pendentes_lote' %}"
+         class="btn btn-warning"
+         title="{% trans 'Assinar todos os despachos pendentes em lote (acesso exclusivo do Presidente da Mesa Diretora)' %}">
+        <i class="fas fa-stamp"></i> {% trans "Assinar Despachos em Lote" %}
+      </a>
+    {% endif %}
     <a href="{{ url_pesquisa_completa }}" class="btn btn-outline-secondary">
       <i class="fas fa-search"></i> {% trans "Ver na Pesquisa Completa" %}
     </a>

@@ -144,6 +144,16 @@
         <span class="badge badge-warning text-dark ml-1" id="badge-lote-total">{{ materias_pendentes_lote|length }}</span>
       </button>
       {% endif %}
+
+      {# Assinar Despachos em Lote — atalho exclusivo do Presidente da Mesa Diretora #}
+      {% if is_presidente_mesa %}
+      <a href="{% url 'sapl.materia:despachos_pendentes_lote' %}"
+         class="btn btn-warning btn-sm"
+         title="Assinar todos os despachos pendentes do sistema em lote (acesso exclusivo do Presidente da Mesa Diretora)">
+        <i class="fas fa-stamp"></i>
+        Assinar Despachos em Lote
+      </a>
+      {% endif %}
     </div>
     {# ── /Linha 2 ────────────────────────────────────────────────────── #}
 

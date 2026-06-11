@@ -685,6 +685,88 @@ class MateriasPendentesAssinaturaView(LoginRequiredMixin, ListView):
                 reverse('sapl.materia:pesquisar_materia')
                 + '?status_assinatura=pendente'
             )
+        # Flag pra mostrar atalho "Assinar Despachos em Lote" só pra
+        # Presidente da Mesa Diretora (feature dedicada — assina em lote
+        # todos os DocumentoAcessorio do tipo Despacho ainda pendentes)
+        from sapl.rules import SGVP_GROUP_PRESIDENTE_MESA
+        u = self.request.user
+        context['is_presidente_mesa'] = u.is_authenticated and (
+            u.is_superuser or
+            u.groups.filter(name=SGVP_GROUP_PRESIDENTE_MESA).exists()
+        )
+        return context
+
+
+class DespachosPendentesLoteView(LoginRequiredMixin, ListView):
+    """
+    Lista todos os Documentos Acessórios do tipo "Despacho" que ainda
+    não têm assinatura digital (pdf_assinado vazio), para que o
+    Presidente da Mesa Diretora possa assiná-los em lote.
+
+    Reusa o backend `docacessorio_assinar_lote` (views_assinatura.py),
+    que já aceita PKs de documentos de múltiplas matérias. Reusa também
+    o modal de assinatura em lote já existente em
+    `documentoacessorio_list.html` (copiado no template desta view).
+
+    Acesso restrito ao grupo `Presidente da Mesa Diretora` (ou
+    superuser, para depuração). Demais usuários recebem 403.
+    """
+    template_name = 'materia/despachos_pendentes_lote_list.html'
+    model = DocumentoAcessorio
+    paginate_by = 50
+    login_url = '/login/'
+
+    def _is_presidente(self):
+        from sapl.rules import SGVP_GROUP_PRESIDENTE_MESA
+        u = self.request.user
+        return u.is_superuser or u.groups.filter(
+            name=SGVP_GROUP_PRESIDENTE_MESA
+        ).exists()
+
+    def dispatch(self, request, *args, **kwargs):
+        # LoginRequiredMixin já trata anônimo
+        if request.user.is_authenticated and not self._is_presidente():
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden(
+                'Acesso restrito ao grupo "Presidente da Mesa Diretora".'
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        # Filtro frouxo por nome do tipo — pega "Despacho", "Despacho do
+        # Presidente", "Despacho Inicial", etc. Decisão de produto.
+        return DocumentoAcessorio.objects.filter(
+            tipo__descricao__icontains='despacho'
+        ).filter(
+            Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
+        ).select_related('materia', 'materia__tipo', 'tipo').order_by(
+            '-data', '-id'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # `docs_pendentes_lote` no MESMO formato que o modal de
+        # documentoacessorio_list.html espera (id + descricao). Aqui a
+        # descrição inclui referência à matéria pra o presidente
+        # conseguir identificar de qual matéria é o despacho.
+        docs = list(context['object_list'])
+        context['docs_pendentes_lote'] = [
+            {
+                'id': d.pk,
+                'descricao': (
+                    f'{d.nome} — {d.materia.tipo.sigla} '
+                    f'{d.materia.numero}/{d.materia.ano} '
+                    f'({d.tipo}) — {d.data}'
+                ),
+            }
+            for d in docs
+        ]
+        paginator = context['paginator']
+        page_obj = context['page_obj']
+        context['page_range'] = make_pagination(
+            page_obj.number, paginator.num_pages
+        )
+        context['total'] = paginator.count
         return context
 
 
@@ -2846,6 +2928,14 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
         else:
             context['materias_pendentes_lote'] = []
 
+        # Flag pra mostrar atalho "Assinar Despachos em Lote" só pra
+        # Presidente da Mesa Diretora (vê DespachosPendentesLoteView)
+        from sapl.rules import SGVP_GROUP_PRESIDENTE_MESA
+        u = self.request.user
+        context['is_presidente_mesa'] = u.is_authenticated and (
+            u.is_superuser or
+            u.groups.filter(name=SGVP_GROUP_PRESIDENTE_MESA).exists()
+        )
         return context
 
 
