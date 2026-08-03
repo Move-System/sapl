@@ -1951,6 +1951,12 @@ def montar_helper_documento_acessorio(self):
              ' class="btn btn-dark">Cancelar</a>')]))
 
 
+# Valores pré-preenchidos no Documento Acessório do Procurador Jurídico
+# (customização Franco da Rocha)
+DESCRICAO_PARECER_JURIDICO = 'Parecer Jurídico'
+NOME_PARECER_APROVADO = 'Aprovado'
+
+
 class DocumentoAcessorioCrud(MasterDetailCrud):
     model = DocumentoAcessorio
     parent_field = 'materia'
@@ -1962,10 +1968,28 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
 
     class CreateView(MasterDetailCrud.CreateView):
         form_class = DocumentoAcessorioForm
+        logger = logging.getLogger(__name__)
 
         def get_initial(self):
+            from sapl.rules import is_procurador_juridico
+
             initial = super(CreateView, self).get_initial()
             initial['data'] = timezone.now().date()
+
+            # Procurador Jurídico já abre o formulário preenchido como
+            # Parecer Jurídico aprovado (customização Franco da Rocha).
+            # Os campos continuam editáveis.
+            if is_procurador_juridico(self.request.user):
+                tipo = TipoDocumento.objects.filter(
+                    descricao__iexact=DESCRICAO_PARECER_JURIDICO).first()
+                if tipo:
+                    initial['tipo'] = tipo
+                else:
+                    self.logger.warning(
+                        'Tipo de Documento "%s" não cadastrado: o campo Tipo '
+                        'do Documento Acessório não será pré-preenchido.',
+                        DESCRICAO_PARECER_JURIDICO)
+                initial['nome'] = NOME_PARECER_APROVADO
             return initial
 
         def get_success_url(self):

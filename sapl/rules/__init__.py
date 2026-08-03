@@ -97,3 +97,14 @@ SGVP_GROUPS = [
 SGVP_GROUPS_DELETE = [
 
 ]
+
+
+def is_procurador_juridico(user):
+    """Identifica o Procurador Jurídico pelo grupo SGVP_GROUP_NORMA.
+
+    Customização da Câmara de Franco da Rocha: o usuário desse grupo tem a
+    tela inicial reduzida ao módulo de Matérias Legislativas e recebe o
+    Documento Acessório pré-preenchido como Parecer Jurídico aprovado.
+    """
+    return bool(user and user.is_authenticated and
+                user.groups.filter(name=SGVP_GROUP_NORMA).exists())

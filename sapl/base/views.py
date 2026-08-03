@@ -47,6 +47,7 @@ from sapl.parlamentares.models import (
     Filiacao, Legislatura, Mandato, Parlamentar)
 from sapl.protocoloadm.models import (Anexado, Protocolo)
 from sapl.relatorios.views import (relatorio_estatisticas_acesso_normas)
+from sapl.rules import is_procurador_juridico
 from sapl.sessao.models import (Bancada, SessaoPlenaria)
 from sapl.settings import EMAIL_SEND_USER, RATE_LIMITER_RATE
 from sapl.utils import (gerar_hash_arquivo, intervalos_tem_intersecao, mail_service_configured,
@@ -77,10 +78,15 @@ class IndexView(TemplateView):
             # Verifica se é Operador de Protocolo Administrativo
             context['is_operador_protocolo'] = self.request.user.has_perm(
                 'protocoloadm.add_documentoadministrativo')
+            # Procurador Jurídico: tela inicial restrita a Matérias
+            # Legislativas (customização Franco da Rocha)
+            context['is_procurador_juridico'] = is_procurador_juridico(
+                self.request.user)
         else:
             context['is_parlamentar'] = False
             context['autor_id'] = None
             context['is_operador_protocolo'] = False
+            context['is_procurador_juridico'] = False
         return context
 
 
