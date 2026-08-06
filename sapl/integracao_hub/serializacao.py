@@ -23,7 +23,11 @@ def _materia_da_proposicao(proposicao):
         return None
     return {
         'id': materia.pk,
-        'tipo': materia.tipo_id,
+        'tipo': {
+            'id': materia.tipo_id,
+            'sigla': materia.tipo.sigla if materia.tipo else None,
+            'descricao': materia.tipo.descricao if materia.tipo else None,
+        },
         'numero': materia.numero,
         'ano': materia.ano,
         'numero_protocolo': materia.numero_protocolo,
@@ -36,7 +40,10 @@ def serializar_proposicao(proposicao):
         'id': proposicao.pk,
         'ano': proposicao.ano,
         'numero_proposicao': proposicao.numero_proposicao,
-        'tipo': proposicao.tipo_id,
+        'tipo': {
+            'id': proposicao.tipo_id,
+            'descricao': proposicao.tipo.descricao if proposicao.tipo else None,
+        },
         'autor': proposicao.autor_id,
         'ementa': proposicao.descricao,
         'rascunho': proposicao.data_envio is None,
