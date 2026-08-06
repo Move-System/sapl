@@ -45,6 +45,9 @@ def serializar_proposicao(proposicao):
             'descricao': proposicao.tipo.descricao if proposicao.tipo else None,
         },
         'autor': proposicao.autor_id,
+        # Nome para exibição no acervo do consumidor (decisão do arquiteto 2026-08-06):
+        # nunca usado para resolver identidade — contrato §3.2.
+        'autor_nome': proposicao.autor.nome if proposicao.autor else None,
         'ementa': proposicao.descricao,
         'rascunho': proposicao.data_envio is None,
         'cancelado': proposicao.cancelado,

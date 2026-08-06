@@ -180,7 +180,7 @@ class ProposicoesCadastradasPollView(PollView):
                             status=status.HTTP_400_BAD_REQUEST)
         itens = (Proposicao.objects
                  .filter(id__gt=id_gt, cancelado=False)
-                 .select_related('tipo', 'materia_gerada__tipo', 'content_type')
+                 .select_related('tipo', 'autor', 'materia_gerada__tipo', 'content_type')
                  .order_by('id')[:self._limite(request)])
         return self._resposta(itens, serializar_proposicao)
 
@@ -197,7 +197,7 @@ class PollPorDataView(PollView):
         filtro = {'%s__gte' % self.campo_cursor: desde, 'cancelado': False}
         itens = (Proposicao.objects
                  .filter(**filtro)
-                 .select_related('tipo', 'materia_gerada__tipo', 'content_type')
+                 .select_related('tipo', 'autor', 'materia_gerada__tipo', 'content_type')
                  .order_by(self.campo_cursor, 'id')[:self._limite(request)])
         return self._resposta(itens, serializar_proposicao)
 
