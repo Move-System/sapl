@@ -26,6 +26,7 @@ import sapl.audiencia.urls
 import sapl.base.urls
 import sapl.comissoes.urls
 import sapl.compilacao.urls
+import sapl.integracao_hub.urls
 import sapl.lexml.urls
 import sapl.materia.urls
 import sapl.norma.urls
@@ -66,6 +67,8 @@ urlpatterns += [
     url(r'', include(sapl.base.urls)),
 
     url(r'', include(sapl.api.urls)),
+
+    url(r'', include(sapl.integracao_hub.urls)),
 
     url(r'^favicon\.ico$', RedirectView.as_view(
         url='/static/sapl/img/favicon.ico', permanent=True)),

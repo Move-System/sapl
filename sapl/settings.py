@@ -70,6 +70,7 @@ SGVP_APPS = (
     'sapl.api',
     'sapl.rules',
     'sapl.tce',
+    'sapl.integracao_hub',
 )
 
 INSTALLED_APPS = (
