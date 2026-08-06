@@ -1597,7 +1597,8 @@ class TipoProposicaoForm(ModelForm):
                   'content_type',
                   'tipo_conteudo_related_radio',
                   'tipo_conteudo_related',
-                  'perfis']
+                  'perfis',
+                  'dispensa_protocolo']
 
         widgets = {'tipo_conteudo_related': forms.HiddenInput(),
                    'perfis': widgets.CheckboxSelectMultiple()}
@@ -1612,6 +1613,7 @@ class TipoProposicaoForm(ModelForm):
                         Row(
                             to_column(('descricao', 12)),
                             to_column(('perfis', 12)),
+                            to_column(('dispensa_protocolo', 12)),
                         ),
                         5
                     )

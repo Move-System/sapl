@@ -483,7 +483,8 @@ class TipoProposicaoCrud(CrudAux):
 
     class BaseMixin(CrudAux.BaseMixin):
         list_field_names = [
-            "descricao", "content_type", 'tipo_conteudo_related']
+            "descricao", "content_type", 'tipo_conteudo_related',
+            'dispensa_protocolo']
 
     class CreateView(CrudAux.CreateView):
         form_class = TipoProposicaoForm
@@ -1033,6 +1034,13 @@ class UnidadeTramitacaoCrud(CrudAux):
         form_class = UnidadeTramitacaoForm
 
 
+# Tipos de proposição marcados como "Documento de gabinete" não saem do
+# gabinete do autor: não vão ao Protocolo nem ao Setor Legislativo.
+MSG_DISPENSA_PROTOCOLO = _(
+    'Este é um documento de gabinete e não passa pelo Protocolo. '
+    'Ele fica restrito ao seu gabinete.')
+
+
 class ProposicaoCrud(Crud):
     model = Proposicao
     help_topic = 'proposicao'
@@ -1118,7 +1126,9 @@ class ProposicaoCrud(Crud):
             msg_error = ''
             if p and p.autor.operadores.filter(id=request.user.id).exists():
                 if action == 'send':
-                    if p.data_envio and p.data_recebimento:
+                    if p.tipo and p.tipo.dispensa_protocolo:
+                        msg_error = MSG_DISPENSA_PROTOCOLO
+                    elif p.data_envio and p.data_recebimento:
                         msg_error = _('Proposição já foi enviada e recebida.')
                     elif p.data_envio:
                         msg_error = _('Proposição já foi enviada.')
@@ -1214,7 +1224,9 @@ class ProposicaoCrud(Crud):
 
                 elif action == 'send_setor':
                     app_config = sapl.base.models.AppConfig.objects.all().last()
-                    if not app_config or not app_config.revisao_setor_legislativo:
+                    if p.tipo and p.tipo.dispensa_protocolo:
+                        msg_error = MSG_DISPENSA_PROTOCOLO
+                    elif not app_config or not app_config.revisao_setor_legislativo:
                         msg_error = _('Revisão pelo Setor Legislativo não está habilitada.')
                     elif p.data_envio:
                         msg_error = _('Proposição já foi enviada ao protocolo.')
@@ -1469,7 +1481,12 @@ class ProposicaoCrud(Crud):
             status_filter = self.request.GET.get('status', '')
 
             if status_filter == 'elaboracao':
-                qs = qs.filter(data_envio__isnull=True, cancelado=False)
+                qs = qs.filter(
+                    data_envio__isnull=True, cancelado=False
+                ).exclude(tipo__dispensa_protocolo=True)
+            elif status_filter == 'gabinete':
+                qs = qs.filter(tipo__dispensa_protocolo=True,
+                               data_envio__isnull=True, cancelado=False)
             elif status_filter == 'aguardando':
                 qs = qs.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False)
             elif status_filter == 'incorporada':
@@ -1486,7 +1503,8 @@ class ProposicaoCrud(Crud):
             qs_base = super().get_queryset()
             stats = {
                 'total': qs_base.count(),
-                'elaboracao': qs_base.filter(data_envio__isnull=True, cancelado=False).count(),
+                'elaboracao': qs_base.filter(data_envio__isnull=True, cancelado=False).exclude(tipo__dispensa_protocolo=True).count(),
+                'gabinete': qs_base.filter(tipo__dispensa_protocolo=True, data_envio__isnull=True, cancelado=False).count(),
                 'aguardando': qs_base.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False).count(),
                 'incorporada': qs_base.filter(data_recebimento__isnull=False, cancelado=False).count(),
                 'devolvida': qs_base.filter(data_devolucao__isnull=False, cancelado=False).count(),
@@ -1521,6 +1539,10 @@ class ProposicaoCrud(Crud):
                     status = 'aguardando'
                     status_label = 'Aguardando Recebimento'
                     status_icon = 'fa-clock-o'
+                elif obj.tipo and obj.tipo.dispensa_protocolo:
+                    status = 'gabinete'
+                    status_label = 'Documento de Gabinete'
+                    status_icon = 'fa-briefcase'
                 else:
                     status = 'elaboracao'
                     status_label = 'Em Elaboração'

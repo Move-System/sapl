@@ -213,6 +213,9 @@
       <a href="?status=elaboracao" class="{% if status_filter == 'elaboracao' %}active{% endif %}">
         <strong>{{ stats.elaboracao|default:"0" }}</strong> em elaboração
       </a>
+      <a href="?status=gabinete" class="{% if status_filter == 'gabinete' %}active{% endif %}">
+        <strong>{{ stats.gabinete|default:"0" }}</strong> de gabinete
+      </a>
       <a href="?status=aguardando" class="{% if status_filter == 'aguardando' %}active{% endif %}">
         <strong>{{ stats.aguardando|default:"0" }}</strong> enviadas
       </a>

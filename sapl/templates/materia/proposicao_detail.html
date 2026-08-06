@@ -351,7 +351,13 @@
             <a href="{% url 'sapl.materia:onlyoffice_editor' object.pk %}" class="btn btn-primary">
               <i class="fa fa-edit"></i> {% trans "Editar Documento" %}
             </a>
-            {% if object.texto_original or object.texto_articulado.exists %}
+            {% if object.tipo.dispensa_protocolo %}
+              {# Documento de gabinete: não vai ao Protocolo nem ao Setor Legislativo #}
+              <span class="badge badge-secondary align-middle p-2">
+                <i class="fa fa-briefcase"></i>
+                {% trans "Documento de gabinete — não passa pelo Protocolo" %}
+              </span>
+            {% elif object.texto_original or object.texto_articulado.exists %}
               <a href="{{ view.detail_url }}?action=send" class="btn btn-success">
                 <i class="fa fa-paper-plane"></i> {% trans "Enviar Proposição" %}
               </a>

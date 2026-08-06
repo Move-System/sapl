@@ -71,6 +71,15 @@ class TipoProposicao(models.Model):
                     menos um Perfil Estrutural de Texto Articulado.
                     """))
 
+    dispensa_protocolo = models.BooleanField(
+        default=False,
+        verbose_name=_('Documento de gabinete'),
+        help_text=_('Quando marcado, proposições deste tipo não são enviadas '
+                    'ao Protocolo e não se tornam Matéria Legislativa. Ficam '
+                    'restritas ao gabinete do autor. Use para documentos de '
+                    'uso próprio do gabinete, como Ofícios, que não precisam '
+                    'de validação da Casa.'))
+
     class Meta:
         verbose_name = _('Tipo de Proposição')
         verbose_name_plural = _('Tipos de Proposições')
