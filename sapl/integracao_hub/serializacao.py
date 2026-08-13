@@ -14,13 +14,17 @@ def _iso(valor):
 
 
 def _materia_da_proposicao(proposicao):
-    materia = proposicao.materia_gerada
-    if materia is None:
-        conteudo = getattr(proposicao, 'conteudo_gerado_related', None)
-        if isinstance(conteudo, MateriaLegislativa):
-            materia = conteudo
-    if materia is None:
+    """A matéria gerada vem da generic FK, não de um campo direto.
+
+    O `materia_gerada` que aparece no models.py está DENTRO de uma docstring
+    (código morto) — o vínculo real é `conteudo_gerado_related`
+    (content_type + object_id), que aponta para MateriaLegislativa OU para
+    DocumentoAcessorio. Só a matéria interessa ao contrato canônico.
+    """
+    conteudo = proposicao.conteudo_gerado_related
+    if not isinstance(conteudo, MateriaLegislativa):
         return None
+    materia = conteudo
     return {
         'id': materia.pk,
         'tipo': {
@@ -45,6 +49,9 @@ def serializar_proposicao(proposicao):
             'descricao': proposicao.tipo.descricao if proposicao.tipo else None,
         },
         'autor': proposicao.autor_id,
+        # Nome para exibição no acervo do consumidor (refinamento do histórico §3.2):
+        # nunca usado para resolver identidade — contrato §3.2.
+        'autor_nome': proposicao.autor.nome if proposicao.autor else None,
         'ementa': proposicao.descricao,
         'rascunho': proposicao.data_envio is None,
         'cancelado': proposicao.cancelado,
