@@ -73,7 +73,21 @@ def test_inventario_cursores_independentes_para_tramitacao(cliente_hub):
         INVENTARIO, {'id_gt': proposicao.pk - 1, 'tramitacao_id_gt': tramitacao.pk})
 
     assert proposicao.pk in resposta.data['proposicoes']
-    assert tramitacao.pk not in resposta.data['tramitacoes']
+    assert tramitacao.pk not in [t['id'] for t in resposta.data['tramitacoes']]
+
+
+@pytest.mark.django_db(transaction=False)
+def test_inventario_traz_a_materia_de_cada_tramitacao(cliente_hub):
+    # Sem a materia o hub compara id de tramitacao com id de materia e conta o
+    # acervo inteiro como lacuna (incidente de 14/08). A materia e o que diz se
+    # aquela tramitacao pertence a algo que o hub deveria ter integrado.
+    tramitacao = baker.make(Tramitacao)
+
+    resposta = cliente_hub.get(INVENTARIO, {'id_gt': 0, 'tramitacao_id_gt': 0})
+
+    entrada = next(t for t in resposta.data['tramitacoes']
+                   if t['id'] == tramitacao.pk)
+    assert entrada['materia'] == tramitacao.materia_id
 
 
 @pytest.mark.django_db(transaction=False)
