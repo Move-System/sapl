@@ -9,7 +9,10 @@ from rest_framework.test import APIClient
 
 from sapl.base.models import AppConfig, Autor
 from sapl.integracao_hub.models import EventoRecebido
-from sapl.materia.models import Proposicao, TipoProposicao
+from django.contrib.contenttypes.models import ContentType
+
+from sapl.materia.models import (MateriaLegislativa, Proposicao,
+                                 TipoProposicao)
 
 URL = '/api/integracao/proposicoes/'
 
@@ -25,7 +28,9 @@ def cliente_hub(db):
     permissao = Permission.objects.get(
         content_type__app_label='integracao_hub', codename='pode_integrar')
     usuario.user_permissions.add(permissao)
-    token = Token.objects.create(user=usuario)
+    # get_or_create: sapl/api/signals.py:8 ja cria o token no post_save do usuario.
+    # Um create() aqui colide com a UNIQUE de authtoken_token.
+    token, _ = Token.objects.get_or_create(user=usuario)
     cliente = APIClient()
     cliente.credentials(HTTP_AUTHORIZATION='Token %s' % token.key)
     return cliente
@@ -38,7 +43,11 @@ def autor(db):
 
 @pytest.fixture()
 def tipo(db):
-    return baker.make(TipoProposicao)
+    # content_type e NOT NULL e o baker nao preenche FK sozinho — no SAPL ele diz que
+    # conteudo a proposicao gera ao ser recebida (materia, no caso).
+    return baker.make(
+        TipoProposicao,
+        content_type=ContentType.objects.get_for_model(MateriaLegislativa))
 
 
 def corpo(autor, tipo, **extras):
@@ -152,7 +161,9 @@ def test_chave_invalida_da_422(cliente_hub, app_config, autor, tipo):
 @pytest.mark.django_db(transaction=False)
 def test_sem_permissao_da_403(db, app_config, autor, tipo):
     usuario = baker.make('auth.User')
-    token = Token.objects.create(user=usuario)
+    # get_or_create: sapl/api/signals.py:8 ja cria o token no post_save do usuario.
+    # Um create() aqui colide com a UNIQUE de authtoken_token.
+    token, _ = Token.objects.get_or_create(user=usuario)
     cliente = APIClient()
     cliente.credentials(HTTP_AUTHORIZATION='Token %s' % token.key)
 

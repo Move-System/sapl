@@ -8,7 +8,8 @@ from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from sapl.base.models import Autor
-from sapl.materia.models import Proposicao, Tramitacao
+from sapl.materia.models import (Proposicao, StatusTramitacao,
+                                 Tramitacao)
 
 BASE = '/api/integracao/poll/'
 
@@ -19,7 +20,9 @@ def cliente_hub(db):
     permissao = Permission.objects.get(
         content_type__app_label='integracao_hub', codename='pode_integrar')
     usuario.user_permissions.add(permissao)
-    token = Token.objects.create(user=usuario)
+    # get_or_create: sapl/api/signals.py:8 ja cria o token no post_save do usuario.
+    # Um create() aqui colide com a UNIQUE de authtoken_token.
+    token, _ = Token.objects.get_or_create(user=usuario)
     cliente = APIClient()
     cliente.credentials(HTTP_AUTHORIZATION='Token %s' % token.key)
     return cliente
@@ -130,7 +133,9 @@ def test_desde_invalido_da_400(cliente_hub):
 
 @pytest.mark.django_db(transaction=False)
 def test_tramitacoes_por_cursor_de_id(cliente_hub):
-    tramitacao = baker.make(Tramitacao)
+    # status explicito: o envelope canonico exige situacao.id_origem + descricao,
+    # entao tramitacao sem status nao exercita o que importa.
+    tramitacao = baker.make(Tramitacao, status=baker.make(StatusTramitacao))
 
     resposta = cliente_hub.get(BASE + 'tramitacoes/', {'id_gt': 0})
 
@@ -154,7 +159,9 @@ def test_limite_e_respeitado(cliente_hub):
 @pytest.mark.django_db(transaction=False)
 def test_poll_sem_permissao_da_403(db):
     usuario = baker.make('auth.User')
-    token = Token.objects.create(user=usuario)
+    # get_or_create: sapl/api/signals.py:8 ja cria o token no post_save do usuario.
+    # Um create() aqui colide com a UNIQUE de authtoken_token.
+    token, _ = Token.objects.get_or_create(user=usuario)
     cliente = APIClient()
     cliente.credentials(HTTP_AUTHORIZATION='Token %s' % token.key)
 
