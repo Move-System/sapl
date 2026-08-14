@@ -1,6 +1,7 @@
 from django.conf.urls import url
 
-from .views import (ProposicoesCadastradasPollView,
+from .views import (InventarioView,
+                    ProposicoesCadastradasPollView,
                     ProposicoesDevolvidasPollView,
                     ProposicoesEnviadasPollView,
                     ProposicoesRecebidasPollView,
@@ -31,4 +32,8 @@ urlpatterns = [
     url(r'^api/integracao/poll/tramitacoes/$',
         TramitacoesPollView.as_view(),
         name='integracao_hub_poll_tramitacoes'),
+
+    url(r'^api/integracao/reconciliacao/$',
+        InventarioView.as_view(),
+        name='integracao_hub_reconciliacao'),
 ]

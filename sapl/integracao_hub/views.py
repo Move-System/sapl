@@ -2,6 +2,7 @@ import logging
 import uuid
 
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from rest_framework import status
@@ -186,6 +187,15 @@ class ProposicoesCadastradasPollView(PollView):
 
 
 class PollPorDataView(PollView):
+    """Paginação por chave composta (data, id).
+
+    Com o cursor só de data e `>=`, uma página inteira de registros com o MESMO
+    timestamp devolvia sempre o mesmo valor de cursor: ele não avançava e a fonte
+    relia a mesma página para sempre, sem erro e sem nunca progredir. Chave composta
+    elimina o empate como classe de problema — `id_gt` desempata dentro do mesmo
+    instante (refinamento da reconciliação §1.1).
+    """
+
     campo_cursor = None
 
     def get(self, request, *args, **kwargs):
@@ -194,9 +204,17 @@ class PollPorDataView(PollView):
             return Response(
                 {'detalhe': 'desde deve ser um datetime ISO-8601'},
                 status=status.HTTP_400_BAD_REQUEST)
-        filtro = {'%s__gte' % self.campo_cursor: desde, 'cancelado': False}
+        id_gt = self._id_gt(request)
+        if id_gt is None:
+            return Response({'detalhe': 'id_gt deve ser inteiro'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # (campo > desde) OU (campo = desde E id > id_gt) — keyset, sem pular nem repetir.
+        depois_do_instante = Q(**{'%s__gt' % self.campo_cursor: desde})
+        no_mesmo_instante = (Q(**{self.campo_cursor: desde}) & Q(id__gt=id_gt))
+
         itens = (Proposicao.objects
-                 .filter(**filtro)
+                 .filter(depois_do_instante | no_mesmo_instante, cancelado=False)
                  .select_related('tipo', 'autor', 'content_type')
                  .order_by(self.campo_cursor, 'id')[:self._limite(request)])
         return self._resposta(itens, serializar_proposicao)
@@ -227,3 +245,46 @@ class TramitacoesPollView(PollView):
                  .select_related('status')
                  .order_by('id')[:self._limite(request)])
         return self._resposta(itens, serializar_tramitacao)
+
+
+class InventarioView(PollView):
+    """Lista de conferência para a reconciliação do hub (refinamento §3).
+
+    Devolve **ids**, não objetos: é para o hub comparar com o que ele conhece e
+    descobrir o que ficou de fora, não uma segunda via dos dados. O corte é por id
+    porque `Proposicao` não tem campo de criação — o que existe são as datas de
+    estado (envio, recebimento, devolução), e nenhuma delas serve para "quando
+    apareceu". Mesmo filtro dos polls (`cancelado=False`), senão a reconciliação
+    apontaria para sempre as canceladas como ausentes.
+
+    O SAPL continua sem conhecer o canônico (spec §1, princípio 2): ele só diz o
+    que tem.
+    """
+
+    def get(self, request, *args, **kwargs):
+        id_gt = self._id_gt(request)
+        if id_gt is None:
+            return Response({'detalhe': 'id_gt deve ser inteiro'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            tramitacao_id_gt = int(
+                request.query_params.get('tramitacao_id_gt', id_gt))
+        except ValueError:
+            return Response({'detalhe': 'tramitacao_id_gt deve ser inteiro'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        limite = self._limite(request)
+        proposicoes = list(
+            Proposicao.objects.filter(id__gt=id_gt, cancelado=False)
+            .order_by('id').values_list('id', flat=True)[:limite])
+        tramitacoes = list(
+            Tramitacao.objects.filter(id__gt=tramitacao_id_gt)
+            .order_by('id').values_list('id', flat=True)[:limite])
+
+        return Response({
+            'proposicoes': proposicoes,
+            'tramitacoes': tramitacoes,
+            # Diz se a pagina encheu: o hub sabe que precisa pedir a proxima faixa
+            # em vez de concluir que o resto simplesmente nao existe.
+            'truncado': len(proposicoes) >= limite or len(tramitacoes) >= limite,
+        })
