@@ -277,9 +277,15 @@ class InventarioView(PollView):
         proposicoes = list(
             Proposicao.objects.filter(id__gt=id_gt, cancelado=False)
             .order_by('id').values_list('id', flat=True)[:limite])
-        tramitacoes = list(
-            Tramitacao.objects.filter(id__gt=tramitacao_id_gt)
-            .order_by('id').values_list('id', flat=True)[:limite])
+        # Tramitacao vem com a materia junto porque a conferencia do hub NAO e por
+        # id de tramitacao: o hub so integra tramitacao de materia que ele conhece
+        # (proposicao que virou materia depois do marco). Devolver so o id fazia o
+        # hub contar como lacuna toda tramitacao do acervo — falso positivo eterno,
+        # visto em 14/08: 500 "ausentes" que na verdade eram historico.
+        tramitacoes = [
+            {'id': t['id'], 'materia': t['materia_id']}
+            for t in Tramitacao.objects.filter(id__gt=tramitacao_id_gt)
+            .order_by('id').values('id', 'materia_id')[:limite]]
 
         return Response({
             'proposicoes': proposicoes,
