@@ -15,7 +15,7 @@ ENVIADAS = '/api/integracao/poll/proposicoes-enviadas/'
 
 @pytest.fixture()
 def cliente_hub(db):
-    usuario = baker.make('auth.User')
+    usuario = baker.make('auth.User', username='hub-teste')
     usuario.user_permissions.add(
         Permission.objects.get(
             content_type__app_label='integracao_hub', codename='pode_integrar'))
@@ -92,7 +92,7 @@ def test_inventario_traz_a_materia_de_cada_tramitacao(cliente_hub):
 
 @pytest.mark.django_db(transaction=False)
 def test_inventario_sem_permissao_da_403(db):
-    usuario = baker.make('auth.User')
+    usuario = baker.make('auth.User', username='hub-teste')
     # get_or_create: sapl/api/signals.py:8 ja cria o token no post_save do usuario.
     # Um create() aqui colide com a UNIQUE de authtoken_token.
     token, _ = Token.objects.get_or_create(user=usuario)

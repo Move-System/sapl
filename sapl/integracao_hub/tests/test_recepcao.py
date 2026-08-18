@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 
 import pytest
@@ -24,7 +25,7 @@ def app_config(db):
 
 @pytest.fixture()
 def cliente_hub(db):
-    usuario = baker.make('auth.User')
+    usuario = baker.make('auth.User', username='hub-teste')
     permissao = Permission.objects.get(
         content_type__app_label='integracao_hub', codename='pode_integrar')
     usuario.user_permissions.add(permissao)
@@ -103,30 +104,44 @@ def test_texto_e_justificativa_viram_observacao(cliente_hub, app_config,
 
 
 @pytest.mark.django_db(transaction=False)
-def test_arquivo_vira_texto_original(cliente_hub, app_config, autor, tipo):
-    arquivo = SimpleUploadedFile(
-        'proposicao.pdf', b'%PDF-1.4 conteudo', 'application/pdf')
+def test_anexo_do_app_vira_anexo_geral_nao_texto_oficial(
+        cliente_hub, app_config, autor, tipo):
+    """Anexo do app e evidencia da demanda (foto, video), nao o documento legislativo.
+
+    Decisao do arquiteto (17/08/2026): o texto_original continua sendo do fluxo
+    proprio do SAPL; o que chega do app vira AnexoProposicao — gravado com hash
+    dos bytes recebidos, consultavel no futuro, sem tela por ora.
+    """
+    conteudo = b'video-da-rua-esburacada'
+    arquivo = SimpleUploadedFile('rua.mp4', conteudo, 'video/mp4')
 
     resposta = cliente_hub.post(
         URL, corpo(autor, tipo, arquivos=arquivo), format='multipart')
 
     assert resposta.status_code == 201
     proposicao = Proposicao.objects.get(pk=resposta.data['proposicao_id'])
-    assert proposicao.texto_original
+    assert not proposicao.texto_original  # o oficial nasce no fluxo do SAPL
+    anexo = proposicao.anexos_do_app.get()
+    assert anexo.nome_original == 'rua.mp4'
+    assert anexo.mime == 'video/mp4'
+    assert anexo.tamanho_bytes == len(conteudo)
+    assert anexo.hash_sha256 == hashlib.sha256(conteudo).hexdigest()
 
 
 @pytest.mark.django_db(transaction=False)
-def test_mais_de_um_arquivo_e_rejeitado(cliente_hub, app_config, autor, tipo):
+def test_varios_anexos_sao_aceitos(cliente_hub, app_config, autor, tipo):
+    # O limite de 1 era premissa errada (anexo != texto_original). Foto + video convivem.
     arquivos = [
-        SimpleUploadedFile('a.pdf', b'%PDF-1.4 a', 'application/pdf'),
-        SimpleUploadedFile('b.pdf', b'%PDF-1.4 b', 'application/pdf'),
+        SimpleUploadedFile('foto.jpg', b'jpg-bytes', 'image/jpeg'),
+        SimpleUploadedFile('video.mp4', b'mp4-bytes', 'video/mp4'),
     ]
 
     resposta = cliente_hub.post(
         URL, corpo(autor, tipo, arquivos=arquivos), format='multipart')
 
-    assert resposta.status_code == 422
-    assert Proposicao.objects.count() == 0
+    assert resposta.status_code == 201
+    proposicao = Proposicao.objects.get(pk=resposta.data['proposicao_id'])
+    assert proposicao.anexos_do_app.count() == 2
 
 
 @pytest.mark.django_db(transaction=False)
@@ -160,7 +175,7 @@ def test_chave_invalida_da_422(cliente_hub, app_config, autor, tipo):
 
 @pytest.mark.django_db(transaction=False)
 def test_sem_permissao_da_403(db, app_config, autor, tipo):
-    usuario = baker.make('auth.User')
+    usuario = baker.make('auth.User', username='hub-teste')
     # get_or_create: sapl/api/signals.py:8 ja cria o token no post_save do usuario.
     # Um create() aqui colide com a UNIQUE de authtoken_token.
     token, _ = Token.objects.get_or_create(user=usuario)

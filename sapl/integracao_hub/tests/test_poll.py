@@ -16,7 +16,7 @@ BASE = '/api/integracao/poll/'
 
 @pytest.fixture()
 def cliente_hub(db):
-    usuario = baker.make('auth.User')
+    usuario = baker.make('auth.User', username='hub-teste')
     permissao = Permission.objects.get(
         content_type__app_label='integracao_hub', codename='pode_integrar')
     usuario.user_permissions.add(permissao)
@@ -158,7 +158,7 @@ def test_limite_e_respeitado(cliente_hub):
 
 @pytest.mark.django_db(transaction=False)
 def test_poll_sem_permissao_da_403(db):
-    usuario = baker.make('auth.User')
+    usuario = baker.make('auth.User', username='hub-teste')
     # get_or_create: sapl/api/signals.py:8 ja cria o token no post_save do usuario.
     # Um create() aqui colide com a UNIQUE de authtoken_token.
     token, _ = Token.objects.get_or_create(user=usuario)
