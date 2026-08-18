@@ -1,4 +1,5 @@
 import logging
+import hashlib
 import uuid
 
 from django.db import IntegrityError, transaction
@@ -18,7 +19,7 @@ from sapl.materia.forms import ProposicaoForm
 from sapl.materia.models import Proposicao, Tramitacao
 from sapl.utils import get_client_ip
 
-from .models import EventoRecebido
+from .models import AnexoProposicao, EventoRecebido
 from .serializacao import serializar_proposicao, serializar_tramitacao
 
 LIMITE_PADRAO = 100
@@ -80,15 +81,12 @@ class RecepcaoProposicaoView(IntegracaoHubView):
                 'autor %s inexistente no SAPL — conferir o mapa de identidade '
                 'no hub' % request.data.get('autor'))
 
+        # Anexos do app são GERAIS (foto, vídeo — evidência da demanda), não o texto
+        # oficial (decisão do arquiteto, 17/08/2026). O texto_original continua sendo do
+        # fluxo próprio do SAPL; o que chega aqui vira AnexoProposicao, só gravação por ora.
         arquivos = request.FILES.getlist('arquivos')
-        if len(arquivos) > 1:
-            return self._erro(
-                'a proposição no SAPL comporta um único texto_original; '
-                'recebidos %d arquivos' % len(arquivos))
 
-        form = ProposicaoForm(
-            data=self._dados_do_form(request),
-            files={'texto_original': arquivos[0]} if arquivos else None)
+        form = ProposicaoForm(data=self._dados_do_form(request))
         form.instance.autor = autor
 
         if not form.is_valid():
@@ -99,6 +97,8 @@ class RecepcaoProposicaoView(IntegracaoHubView):
                 proposicao = form.save()
                 EventoRecebido.objects.create(
                     chave_idempotencia=chave, proposicao=proposicao)
+                for arquivo in arquivos:
+                    self._gravar_anexo(proposicao, arquivo)
         except IntegrityError:
             # Entrega concorrente do mesmo evento: quem perdeu a corrida
             # devolve a proposição de quem ganhou.
@@ -126,11 +126,24 @@ class RecepcaoProposicaoView(IntegracaoHubView):
             'tipo': request.data.get('tipo'),
             'descricao': request.data.get('ementa'),
             'observacao': observacao.strip(),
-            'tipo_texto': 'D' if request.FILES.getlist('arquivos') else '',
+            # Sem 'D': anexo geral não é texto digital da proposição — o documento
+            # oficial nasce no fluxo do SAPL (Editar Documento / template).
+            'tipo_texto': '',
             'user': request.user.pk,
             'ip': get_client_ip(request),
             'ultima_edicao': timezone.now(),
         }
+
+    def _gravar_anexo(self, proposicao, arquivo):
+        conteudo = arquivo.read()
+        arquivo.seek(0)
+        AnexoProposicao.objects.create(
+            proposicao=proposicao,
+            arquivo=arquivo,
+            nome_original=arquivo.name or 'sem-nome',
+            mime=getattr(arquivo, 'content_type', '') or '',
+            tamanho_bytes=len(conteudo),
+            hash_sha256=hashlib.sha256(conteudo).hexdigest())
 
     def _erro(self, detalhe, erros=None):
         corpo = {'detalhe': detalhe}
