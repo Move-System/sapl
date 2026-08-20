@@ -11,10 +11,13 @@ from model_bakery import baker
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
+from django.contrib.contenttypes.models import ContentType
+
 from sapl.base.models import Autor, OperadorAutor
 from sapl.integracao_hub.models import (AssinaturaRecebida,
                                         DocumentoParaAssinatura)
 from sapl.materia.models import Autoria, MateriaLegislativa
+from sapl.parlamentares.models import Parlamentar, Votante
 
 BASE = '/api/integracao/poll/'
 URL_ASSINATURAS = '/api/integracao/assinaturas/'
@@ -55,6 +58,26 @@ def criar_autor_com_operador(username):
     usuario = baker.make('auth.User', username=username)
     baker.make(OperadorAutor, autor=autor, user=usuario)
     return autor
+
+
+def criar_autor_parlamentar(titular, assessores=(), com_votante=True):
+    """Autor de parlamentar como no dado real de Franco (CESINHA).
+
+    O titular é o Votante do parlamentar; assessores são só operadores. Sem
+    votante e com >1 operador, o titular fica indeterminável de propósito.
+    """
+    parlamentar = baker.make(Parlamentar, nome_parlamentar=titular.upper())
+    ct = ContentType.objects.get_for_model(Parlamentar)
+    autor = baker.make(Autor, nome=titular.upper(),
+                       content_type=ct, object_id=parlamentar.pk)
+    user_titular = baker.make('auth.User', username=titular)
+    baker.make(OperadorAutor, autor=autor, user=user_titular)
+    if com_votante:
+        baker.make(Votante, parlamentar=parlamentar, user=user_titular)
+    for assessor in assessores:
+        user_assessor = baker.make('auth.User', username=assessor)
+        baker.make(OperadorAutor, autor=autor, user=user_assessor)
+    return autor, parlamentar
 
 
 # ---------------------------------------------------------------------------
@@ -360,3 +383,116 @@ def test_autor_fora_da_autoria_da_422(cliente_hub, materia_pronta):
         format='multipart')
 
     assert resposta.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Titular (autoria jurídica) vs operador (rastro) — regra do arquiteto 20/08
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db(transaction=False)
+def test_multi_operador_assina_como_titular_nao_como_assessor(cliente_hub):
+    """Assinatura é ato pessoal e indelegável (dado real: CESINHA).
+
+    O autor tem dois operadores — o vereador 'cesinha' (Votante) e a assessora
+    'juciana'. signed_by TEM que ser o titular, mesmo que a assessora dispare o
+    ato. Escolher 'primeiro por id' gravaria a assessora como signatária.
+    """
+    materia, _ = criar_materia_com_alvo()
+    autor, _ = criar_autor_parlamentar('cesinha', assessores=['juciana'])
+    baker.make(Autoria, materia=materia, autor=autor)
+
+    resposta = cliente_hub.post(
+        URL_ASSINATURAS,
+        corpo_assinatura(materia, autor, operado_por='juciana'),
+        format='multipart')
+
+    assert resposta.status_code == 201
+    materia.refresh_from_db()
+    info = materia.assinatura_info[0]
+    assert info['signed_by'] == 'cesinha'      # titular, nunca a assessora
+    assert info['operado_por'] == 'juciana'    # rastro: quem disparou
+    # assinado_por (FK) também é o titular — a autoria jurídica.
+    assert materia.assinado_por.username == 'cesinha'
+    # E o rastro fica durável na tabela de auditoria.
+    recebida = AssinaturaRecebida.objects.get(materia=materia)
+    assert recebida.operado_por == 'juciana'
+
+
+@pytest.mark.django_db(transaction=False)
+def test_operado_por_default_e_o_titular_quando_evento_nao_traz(cliente_hub):
+    """Hoje o evento do app ainda não carrega o operador real (nota no PR):
+    sem 'operado_por', o rastro recai sobre o próprio titular."""
+    materia, _ = criar_materia_com_alvo()
+    autor, _ = criar_autor_parlamentar('cesinha', assessores=['juciana'])
+    baker.make(Autoria, materia=materia, autor=autor)
+
+    resposta = cliente_hub.post(
+        URL_ASSINATURAS, corpo_assinatura(materia, autor),
+        format='multipart')
+
+    assert resposta.status_code == 201
+    materia.refresh_from_db()
+    assert materia.assinatura_info[0]['operado_por'] == 'cesinha'
+
+
+@pytest.mark.django_db(transaction=False)
+def test_titular_indeterminavel_falha_visivel(cliente_hub):
+    """Multi-operador SEM Votante titular: recusa em vez de adivinhar."""
+    materia, _ = criar_materia_com_alvo()
+    autor, _ = criar_autor_parlamentar(
+        'cesinha', assessores=['juciana'], com_votante=False)
+    baker.make(Autoria, materia=materia, autor=autor)
+
+    resposta = cliente_hub.post(
+        URL_ASSINATURAS, corpo_assinatura(materia, autor),
+        format='multipart')
+
+    assert resposta.status_code == 422
+    assert 'titular indeterminável' in resposta.data['detalhe']
+    materia.refresh_from_db()
+    assert not materia.pdf_assinado
+
+
+@pytest.mark.django_db(transaction=False)
+def test_concluidas_resolve_autor_pelo_titular_votante(cliente_hub):
+    """Resolução inversa signed_by → autor_id via Votante (não 'primeiro por id')."""
+    materia, _ = criar_materia_com_alvo()
+    autor, _ = criar_autor_parlamentar('cesinha', assessores=['juciana'])
+    baker.make(Autoria, materia=materia, autor=autor)
+    materia.pdf_assinado.save(
+        'materia_%s_assinado_1.pdf' % materia.pk,
+        ContentFile(PDF_ASSINADO), save=False)
+    materia.assinatura_info = [{
+        'signed_by': 'cesinha', 'nome': 'Vereador cesinha',
+        'data': '2026-08-20T10:00:00', 'tipo_certificado': 'A1',
+        'operado_por': 'juciana'}]
+    materia.assinado_em = timezone.now()
+    materia.save()
+
+    resposta = cliente_hub.get(
+        BASE + 'assinaturas-concluidas/',
+        {'desde': (timezone.now() - timedelta(days=1)).isoformat(),
+         'id_gt': 0})
+
+    item = next(i for i in resposta.data['resultados']
+                if i['materia']['id'] == materia.pk)
+    assinatura = item['assinaturas'][0]
+    assert assinatura['signed_by'] == 'cesinha'
+    assert assinatura['autor_id'] == autor.pk   # resolvido via Votante
+    assert assinatura['operado_por'] == 'juciana'
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pendencia_do_titular_some_apos_assinatura_do_titular(cliente_hub):
+    """Pendência por autor usa o titular: assinou o titular, some a pendência."""
+    materia, _ = criar_materia_com_alvo()
+    autor, _ = criar_autor_parlamentar('cesinha', assessores=['juciana'])
+    baker.make(Autoria, materia=materia, autor=autor)
+    materia.assinatura_info = [{'signed_by': 'cesinha'}]
+    materia.save()
+
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/', {'id_gt': 0})
+
+    item = next(i for i in resposta.data['resultados']
+                if i['materia']['id'] == materia.pk)
+    assert autor.pk not in item['autores_pendentes']

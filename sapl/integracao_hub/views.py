@@ -17,7 +17,7 @@ from rest_framework.views import APIView
 from django.core.files.base import ContentFile
 from django.http import FileResponse, Http404
 
-from sapl.base.models import Autor, OperadorAutor
+from sapl.base.models import Autor
 from sapl.materia.forms import ProposicaoForm
 from sapl.materia.models import (MateriaLegislativa, Proposicao,
                                  Tramitacao)
@@ -25,7 +25,8 @@ from sapl.utils import get_client_ip
 
 from .models import (AnexoProposicao, AssinaturaRecebida,
                      DocumentoParaAssinatura, EventoRecebido)
-from .serializacao import (serializar_materia_assinada,
+from .serializacao import (resolver_titular,
+                           serializar_materia_assinada,
                            serializar_pendencia,
                            serializar_proposicao,
                            serializar_tramitacao)
@@ -454,12 +455,16 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
                 'autor %s não está na autoria da matéria %s — a pendência '
                 'nunca existiu para ele' % (autor.pk, materia.pk))
 
-        operador = (OperadorAutor.objects.filter(autor=autor)
-                    .select_related('user').order_by('id').first())
-        if operador is None:
+        # Autoria jurídica = SEMPRE o vereador titular (ato pessoal e
+        # indelegável). O assessor pode OPERAR o ato, mas nunca aparece como
+        # signatário. Titular indeterminável falha visível — melhor que gravar
+        # a assinatura no nome errado.
+        titular = resolver_titular(autor)
+        if titular is None:
             return self._erro(
-                'autor %s não tem operador (OperadorAutor) — sem username '
-                'para signed_by' % autor.pk)
+                'autor %s com titular indeterminável (múltiplos operadores e '
+                'nenhum/ambíguo Votante do parlamentar) — cadastrar o Votante '
+                'titular no SAPL' % autor.pk)
 
         arquivo = request.FILES.get('pdf_assinado')
         if arquivo is None:
@@ -480,6 +485,13 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
         hash_assinado = hashlib.sha256(conteudo).hexdigest()
         agora = timezone.now()
 
+        # Rastro operacional: quem DISPAROU o ato (o vereador ou um assessor
+        # agindo por ele). Registro interno, NÃO altera a autoria. O evento do
+        # app ainda não carrega a identidade do assessor logado; até lá recai
+        # sobre o próprio titular (ver nota no PR).
+        operado_por = (request.data.get('operado_por')
+                       or titular.username)
+
         try:
             with transaction.atomic():
                 nome = 'materia_%s_assinado_%s.pdf' % (
@@ -490,15 +502,16 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
                 # APPEND no formato da sprint — multiassinatura incremental.
                 assinaturas = self._normalizar(materia.assinatura_info)
                 assinaturas.append({
-                    'signed_by': operador.user.username,
+                    'signed_by': titular.username,
                     'nome': request.data.get('nome') or autor.nome,
                     'data': agora.isoformat(),
                     'tipo_certificado':
                         request.data.get('tipo_certificado') or '',
+                    'operado_por': operado_por,
                 })
                 materia.assinatura_info = assinaturas
                 materia.assinado_em = agora
-                materia.assinado_por = operador.user
+                materia.assinado_por = titular
                 if not materia.codigo_autenticacao:
                     # Primeira assinatura gera o código público de verificação,
                     # como no fluxo local — a partir dos bytes do ALVO (é o
@@ -515,7 +528,7 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
 
                 AssinaturaRecebida.objects.create(
                     chave_idempotencia=chave, materia=materia,
-                    hash_assinado=hash_assinado)
+                    hash_assinado=hash_assinado, operado_por=operado_por)
         except IntegrityError:
             # Entrega concorrente da mesma chave: devolve o que já foi gravado.
             recebida = AssinaturaRecebida.objects.filter(
@@ -529,8 +542,8 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
 
         self.logger.info(
             'integracao_hub: assinatura %s gravada na matéria %s '
-            '(signed_by=%s, autor=%s)', chave, materia.pk,
-            operador.user.username, autor.pk)
+            '(signed_by=%s, autor=%s, operado_por=%s)', chave, materia.pk,
+            titular.username, autor.pk, operado_por)
         return Response(
             {'materia_id': materia.pk, 'hash_assinado': hash_assinado},
             status=status.HTTP_201_CREATED)

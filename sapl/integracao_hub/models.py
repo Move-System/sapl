@@ -111,6 +111,17 @@ class AssinaturaRecebida(models.Model):
         max_length=64,
         verbose_name=_('SHA-256 do PDF assinado recebido'))
 
+    operado_por = models.CharField(
+        max_length=150,
+        blank=True,
+        verbose_name=_('Operado por'),
+        help_text=_(
+            'Rastro operacional: quem DISPAROU o ato (o próprio vereador ou um '
+            'assessor agindo por ele). NÃO é a autoria jurídica — o signatário '
+            'é sempre o vereador titular (assinatura é ato pessoal e '
+            'indelegável). Hoje o evento do app ainda não carrega a identidade '
+            'do assessor logado; até lá recebe o próprio titular.'))
+
     recebido_em = models.DateTimeField(
         auto_now_add=True,
         verbose_name=_('Recebido em'))
