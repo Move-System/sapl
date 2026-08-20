@@ -68,8 +68,153 @@ def _extrair_posicao_custom(post_data):
             'sig_height': float(sig_height),
             'sig_page':   int(sig_page),
         }
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
+        # Descartar a posição em silêncio faz a assinatura cair no bloco automático
+        # da grade em vez de onde foi pedido — diferença de layout que ninguém
+        # consegue explicar depois olhando só o PDF.
+        logger.warning(
+            f'Posicao customizada da assinatura ignorada (valores invalidos): {exc}'
+        )
         return None
+
+
+class ErroAssinaturaUsuario(Exception):
+    """
+    Erro que o operador entende e consegue corrigir sozinho.
+
+    Senha errada, arquivo que não é um .pfx, certificado vencido: nada disso é
+    falha do sistema, e responder 500 com o texto cru do erro só assusta quem
+    está assinando. Separado do Exception genérico para as views devolverem 400
+    com a mensagem — que é o que o caminho local já fazia em `_validar_certificado`.
+    """
+
+
+def _erro_de_assinatura(exc):
+    """
+    Converte um AssinaturaAPIError na exceção certa para o chamador levantar.
+
+    HTTP 400 do microserviço é recusa de validação (certificado fora da validade,
+    senha incorreta, parâmetro faltando) — problema do usuário. Qualquer outra
+    coisa (conexão, timeout, 5xx) é falha de infraestrutura e continua sendo erro
+    genérico.
+    """
+    if getattr(exc, 'status_code', None) == 400:
+        return ErroAssinaturaUsuario(str(exc))
+    return Exception(str(exc))
+
+
+def _metadados_certificado_via_api(certificado_bytes, senha):
+    """
+    Lê os metadados do certificado no microserviço (POST /validate-pfx).
+
+    Existe por dois motivos:
+
+    1. Preencher `subject`, `issuer`, `serial`, `valid_from` e `valid_to` no
+       `assinatura_info`. Quando o SAPL delega a assinatura, ele não abre o PFX —
+       e sem esta chamada esses campos ficavam string vazia, deixando emissor,
+       série e validade em branco em tudo que lê o `assinatura_info`.
+    2. Recusar certificado fora da validade antes de assinar, com a mesma
+       mensagem do caminho local (`_validar_certificado`).
+
+    A senha é usada só nesta requisição e não é persistida em lugar nenhum.
+
+    Retorna dict com as chaves já no formato do `assinatura_info` (vazio se o
+    microserviço não respondeu). Lança ErroAssinaturaUsuario para PFX recusado.
+    """
+    from sapl.materia.assinatura_api_client import (
+        AssinaturaAPIError, validar_pfx_via_api,
+    )
+
+    try:
+        info = validar_pfx_via_api(certificado_bytes, senha) or {}
+    except AssinaturaAPIError as exc:
+        if getattr(exc, 'status_code', None) == 400:
+            # PFX ilegível ou senha incorreta: o /sign recusaria do mesmo jeito,
+            # e aqui a mensagem chega antes de enviar o documento.
+            raise ErroAssinaturaUsuario(str(exc))
+        # Indisponibilidade do /validate-pfx não pode impedir a assinatura: o
+        # /sign também recusa certificado vencido. Só perdemos os metadados.
+        logger.warning(
+            f'[assinatura-api] Nao foi possivel ler os metadados do certificado '
+            f'(/validate-pfx): {exc}. A assinatura segue sem eles.'
+        )
+        return {}
+
+    if info.get('is_valid_now') is False:
+        validade = ' a '.join(
+            v for v in (info.get('not_valid_before'), info.get('not_valid_after')) if v
+        )
+        raise ErroAssinaturaUsuario(
+            'Certificado expirado ou ainda não válido.'
+            + (f' Validade: {validade}.' if validade else '')
+        )
+
+    serial = info.get('serial_number')
+    return {
+        'subject': info.get('subject') or '',
+        'issuer': info.get('issuer') or '',
+        'serial': '' if serial is None else str(serial),
+        'valid_from': info.get('not_valid_before') or '',
+        'valid_to': info.get('not_valid_after') or '',
+    }
+
+
+def _tipo_certificado_pelo_emissor(issuer):
+    """Rotula o certificado a partir do emissor (mesma regra nos dois backends)."""
+    issuer_str = str(issuer or '').upper()
+    if 'ICP-BRASIL' in issuer_str or 'ICP BRASIL' in issuer_str:
+        return 'ICP-Brasil'
+    return 'Certificado Digital'
+
+
+def _ler_brasao():
+    """
+    Bytes do logotipo da casa, ou None.
+
+    Precisa ir em TODAS as assinaturas da mesma matéria: o brasão desloca a grade
+    de blocos em 3 mm, então mandá-lo só na primeira desalinharia os blocos
+    seguintes com o que já está desenhado na página.
+    """
+    caminho = _encontrar_logo()
+    if not caminho:
+        return None
+    try:
+        with open(caminho, 'rb') as f:
+            return f.read()
+    except OSError as exc:
+        logger.warning(f'Nao foi possivel ler o brasao em {caminho}: {exc}')
+        return None
+
+
+def _compor_pagina_auth_localmente(pdf_bytes, request, tipo_doc, pk_doc, blocos):
+    """
+    Anexa a página de autenticação ao PDF aqui mesmo (caminho pré-C3).
+
+    Continua em uso pelo backend local (pyhanko no Django) e pelo caso de posição
+    explícita, em que o microserviço não pode compor. Retorna (pdf, codigo).
+    """
+    from PyPDF4 import PdfFileReader, PdfFileWriter
+
+    original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
+    last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
+    page_width = float(last_page.mediaBox.getWidth())
+    page_height = float(last_page.mediaBox.getHeight())
+
+    codigo = _gerar_codigo_autenticacao(pdf_bytes)
+    url_verificacao = _construir_url_verificacao(request, tipo_doc, pk_doc, codigo)
+    auth_page_bytes = _gerar_pagina_autenticacao(
+        blocos, codigo, url_verificacao, page_width, page_height
+    )
+
+    auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
+    output_pdf = PdfFileWriter()
+    for page_num in range(original_pdf.getNumPages()):
+        output_pdf.addPage(original_pdf.getPage(page_num))
+    output_pdf.addPage(auth_page_pdf.getPage(0))
+
+    buf = io.BytesIO()
+    output_pdf.write(buf)
+    return buf.getvalue(), codigo
 
 
 def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
@@ -79,32 +224,50 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                                  posicao_custom=None,
                                  hash_doc=''):
     """
-    Orquestra a assinatura digital completa de um PDF:
-      - Monta a página de autenticação (1ª assinatura) ou assina incrementalmente
-        (assinaturas subsequentes).
-      - Usa a API externa quando ASSINATURA_API_URL estiver configurado;
-        caso contrário usa pyhanko localmente.
+    Orquestra a assinatura digital completa de um PDF.
+
+    Dois backends, escolhidos por ASSINATURA_API_URL:
+
+    - **API externa (padrão quando configurada)**: desde a fase C3 (AB#1473) quem
+      compõe a página de autenticação é o microserviço. O SAPL manda os dados da
+      casa legislativa (URL de verificação, nome, brasão, bloco do assinante) e
+      recebe de volta o PDF já composto e assinado, mais o código impresso. Não
+      manda posição: a grade é do microserviço, e é isso que faz SAPL e app do AMU
+      produzirem o mesmo artefato sem reimplementar o desenho.
+    - **pyhanko local (ASSINATURA_API_URL vazio)**: compõe a página aqui e assina
+      no próprio Django, como sempre fez.
 
     posicao_custom : dict opcional com chaves sig_left, sig_bottom, sig_width,
                      sig_height (em pontos PDF) e sig_page (1-based).
-                     Quando fornecido, substitui o cálculo automático de grid.
-    hash_doc       : código de autenticação do documento, usado apenas no
-                     carimbo visual do backend local.
+                     Quando fornecido, substitui o cálculo automático de grid —
+                     e, na API externa, mantém a composição local, porque
+                     coordenada explícita e composição no microserviço disputam
+                     o mesmo campo.
+    hash_doc       : código de autenticação já emitido para o documento. Vai para
+                     o carimbo visual no backend local e, na API externa, é o
+                     `codigo_autenticacao` devolvido ao microserviço da 2ª
+                     assinatura em diante.
 
     Retorna (signed_pdf_bytes, nova_assinatura_dict, codigo_autenticacao_ou_None).
       - codigo_autenticacao_ou_None é não-None apenas na 1ª assinatura.
 
-    Lança Exception em caso de erro.
+    Lança ErroAssinaturaUsuario quando o problema é do operador (certificado
+    vencido, senha incorreta) e Exception nos demais casos.
     """
-    from PyPDF4 import PdfFileReader, PdfFileWriter
+    from PyPDF4 import PdfFileReader
 
     ja_tem_pdf_assinado = bool(assinaturas_existentes)
 
     # ── Informações do assinante ──────────────────────────────────────────────
-    # Para API externa: não há signer local; tentamos extrair info do certificado
-    # de forma leve (apenas para metadados visuais).
+    # Na API externa o SAPL não abre o PFX: quem assina é o microserviço. O nome
+    # que vai no PDF é o do parlamentar (relação User → Autor), e os dados do
+    # certificado vêm do /validate-pfx.
     if _usar_api_externa():
-        from sapl.materia.assinatura_api_client import assinar_pdf_via_api, AssinaturaAPIError
+        from sapl.materia.assinatura_api_client import (
+            AssinaturaAPIError,
+            assinar_pdf_com_pagina_autenticacao,
+            assinar_pdf_via_api,
+        )
 
         # Obter nome/cargo via relação User → Autor (sem pyhanko)
         nome_assinante = request.user.get_full_name() or request.user.username
@@ -124,98 +287,115 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                     parl = autor.autor_related
                     tipo_nome = AppConfig.attr('assinatura_nome')
                     nome_assinante = parl.nome_completo if tipo_nome == 'C' else parl.nome_parlamentar
-        except Exception:
-            pass
+        except Exception as exc:
+            # Cair no username do operador significa imprimir no PDF um nome que
+            # não é o do vereador. Não derruba a assinatura, mas precisa aparecer.
+            logger.warning(
+                f'Nao foi possivel resolver o parlamentar de '
+                f'{request.user.username}: {exc}. A assinatura sai com '
+                f'"{nome_assinante}".'
+            )
 
         data_assinatura = timezone.localtime(timezone.now())
         data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
         data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
         codigo_retorno = None
 
-        if not ja_tem_pdf_assinado:
-            # 1ª assinatura: montar PDF com página de autenticação ANTES de enviar
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-            page_width = float(last_page.mediaBox.getWidth())
-            page_height = float(last_page.mediaBox.getHeight())
+        # Metadados do certificado: o /validate-pfx responde ANTES de assinar quem
+        # emitiu, qual a série e até quando vale. Sem esta chamada esses campos iam
+        # vazios para o assinatura_info — e o SAPL exibia "Válido até:" em branco.
+        # Ela também é a checagem de validade que o caminho local faz em
+        # `_validar_certificado`: certificado vencido não chega a ser enviado.
+        cert_api = _metadados_certificado_via_api(certificado_bytes, senha)
 
-            codigo = _gerar_codigo_autenticacao(pdf_bytes)
-            url_verificacao = _construir_url_verificacao(request, tipo_doc, pk_doc, codigo)
+        # O bloco desta assinatura — o único que a página precisa desenhar agora.
+        bloco_atual = {
+            'nome_assinante': nome_assinante,
+            'cargo': cargo,
+            'data_assinatura': data_simples,
+        }
 
-            nova_assinatura_info_visual = {
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_simples,
-            }
-            auth_page_bytes = _gerar_pagina_autenticacao(
-                [nova_assinatura_info_visual], codigo, url_verificacao,
-                page_width, page_height
-            )
-
-            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
-            output_pdf = PdfFileWriter()
-            for page_num in range(original_pdf.getNumPages()):
-                output_pdf.addPage(original_pdf.getPage(page_num))
-            output_pdf.addPage(auth_page_pdf.getPage(0))
-
-            buf_combinado = io.BytesIO()
-            output_pdf.write(buf_combinado)
-            pdf_para_assinar = buf_combinado.getvalue()
-            codigo_retorno = codigo
-        else:
-            pdf_para_assinar = pdf_bytes  # já inclui página de autenticação
-
-        # Calcula a posição do campo de assinatura na última página (página de autenticação)
-        # para que a assinatura visual fique no bloco correto do grid.
-        # Se posicao_custom foi fornecido pelo usuário, usa ele diretamente.
         if posicao_custom:
-            sig_page   = posicao_custom.get('sig_page')
-            sig_left   = posicao_custom.get('sig_left')
-            sig_bottom = posicao_custom.get('sig_bottom')
-            sig_width  = posicao_custom.get('sig_width')
-            sig_height = posicao_custom.get('sig_height')
-        else:
-            n_assinatura = len(assinaturas_existentes)
-            try:
-                temp_pypdf = PdfFileReader(io.BytesIO(pdf_para_assinar))
-                auth_pg = temp_pypdf.getPage(temp_pypdf.getNumPages() - 1)
-                auth_w = float(auth_pg.mediaBox.getWidth())
-                auth_h = float(auth_pg.mediaBox.getHeight())
-                sig_x1, sig_y1, sig_x2, sig_y2 = _posicao_bloco_assinatura(
-                    n_assinatura, auth_w, auth_h
+            # Posição explícita pedida pelo chamador. Quando o microserviço compõe a
+            # página, é ELE quem decide a posição do bloco (a grade é dele), então
+            # `auth_page` e coordenada explícita não convivem: pedir os dois faria a
+            # coordenada do usuário ser silenciosamente descartada. Neste caso — e só
+            # nele — a composição continua sendo feita aqui, como antes da C3.
+            if not ja_tem_pdf_assinado:
+                pdf_para_assinar, codigo_retorno = _compor_pagina_auth_localmente(
+                    pdf_bytes, request, tipo_doc, pk_doc, [bloco_atual]
                 )
-                sig_page = temp_pypdf.getNumPages()  # 1-based, última página
-                sig_left = sig_x1
-                sig_bottom = sig_y1
-                sig_width = sig_x2 - sig_x1
-                sig_height = sig_y2 - sig_y1
-            except Exception:
-                sig_page = sig_left = sig_bottom = sig_width = sig_height = None
+            else:
+                pdf_para_assinar = pdf_bytes  # já inclui página de autenticação
 
-        try:
-            pdf_assinado_bytes = assinar_pdf_via_api(
-                pdf_para_assinar,
-                certificado_bytes=certificado_bytes,
-                senha=senha,
-                reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                location='Câmara Municipal',
-                signature_page=sig_page,
-                signature_left=sig_left,
-                signature_bottom=sig_bottom,
-                signature_width=sig_width,
-                signature_height=sig_height,
-            )
-        except AssinaturaAPIError as exc:
-            raise Exception(str(exc))
+            try:
+                pdf_assinado_bytes = assinar_pdf_via_api(
+                    pdf_para_assinar,
+                    certificado_bytes=certificado_bytes,
+                    senha=senha,
+                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                    location='Câmara Municipal',
+                    signature_page=posicao_custom.get('sig_page'),
+                    signature_left=posicao_custom.get('sig_left'),
+                    signature_bottom=posicao_custom.get('sig_bottom'),
+                    signature_width=posicao_custom.get('sig_width'),
+                    signature_height=posicao_custom.get('sig_height'),
+                )
+            except AssinaturaAPIError as exc:
+                raise _erro_de_assinatura(exc)
+        else:
+            # Caminho normal (C3): o microserviço compõe a página de autenticação —
+            # código, URL de verificação, QR e os blocos — e escolhe o bloco desta
+            # assinatura contando as que já existem no PDF. O SAPL só manda o que é
+            # da casa legislativa. Nenhum `signature_*` vai junto, de propósito.
+            try:
+                resultado = assinar_pdf_com_pagina_autenticacao(
+                    pdf_bytes,
+                    certificado_bytes=certificado_bytes,
+                    senha=senha,
+                    verification_url_base=_construir_url_verificacao_base(
+                        request, tipo_doc, pk_doc
+                    ),
+                    assinaturas=[bloco_atual],
+                    casa_legislativa=_obter_nome_casa_legislativa(),
+                    signer_name=nome_assinante,
+                    signer_role=cargo,
+                    # Da 2ª assinatura em diante o código já está impresso na página:
+                    # o PDF mudou ao ser assinado e o hash de agora não o reproduz.
+                    codigo_autenticacao=(hash_doc or '') if ja_tem_pdf_assinado else None,
+                    brasao_bytes=_ler_brasao(),
+                    brasao_filename=os.path.basename(_encontrar_logo() or 'brasao.png'),
+                    reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
+                    location='Câmara Municipal',
+                )
+            except AssinaturaAPIError as exc:
+                raise _erro_de_assinatura(exc)
+
+            if not resultado.auth_page_suportado:
+                # Sem os cabeçalhos do auth_page o microserviço ignorou a composição:
+                # o PDF sairia sem página de autenticação e sem código verificável.
+                # Falhar aqui é melhor do que gravar um documento inverificável.
+                raise Exception(
+                    'O microserviço de assinatura não compôs a página de '
+                    'autenticação (resposta sem X-Auth-Page-Applied). Atualize o '
+                    'microserviço para a versão com suporte a auth_page.'
+                )
+
+            pdf_assinado_bytes = resultado.pdf
+            if resultado.auth_page_aplicada:
+                codigo_retorno = resultado.codigo_autenticacao
 
         nova_assinatura = {
             'tipo_certificado': tipo_cert_input.upper(),
-            'tipo_certificado_display': f'Certificado Digital – {tipo_cert_input.upper()}',
-            'subject': '',
-            'issuer': '',
-            'serial': '',
-            'valid_from': '',
-            'valid_to': '',
+            'tipo_certificado_display': (
+                f'{_tipo_certificado_pelo_emissor(cert_api.get("issuer", ""))} – '
+                f'{tipo_cert_input.upper()}'
+            ),
+            'subject': cert_api.get('subject', ''),
+            'issuer': cert_api.get('issuer', ''),
+            'serial': cert_api.get('serial', ''),
+            'valid_from': cert_api.get('valid_from', ''),
+            'valid_to': cert_api.get('valid_to', ''),
             'signed_by': request.user.username,
             'nome_assinante': nome_assinante,
             'cargo': cargo,
@@ -311,39 +491,14 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
 
         else:
             # Primeira assinatura: página de autenticação + pyhanko
-            original_pdf = PdfFileReader(io.BytesIO(pdf_bytes))
-            last_page = original_pdf.getPage(original_pdf.getNumPages() - 1)
-            page_width = float(last_page.mediaBox.getWidth())
-            page_height = float(last_page.mediaBox.getHeight())
-
-            codigo = _gerar_codigo_autenticacao(pdf_bytes)
-            url_verificacao = _construir_url_verificacao(request, tipo_doc, pk_doc, codigo)
-            nova_assinatura_info_visual = {
-                'nome_assinante': nome_assinante,
-                'cargo': cargo,
-                'data_assinatura': data_simples,
-            }
-            auth_page_bytes = _gerar_pagina_autenticacao(
-                [nova_assinatura_info_visual], codigo, url_verificacao,
-                page_width, page_height
+            stamped_bytes, codigo = _compor_pagina_auth_localmente(
+                pdf_bytes, request, tipo_doc, pk_doc,
+                [{
+                    'nome_assinante': nome_assinante,
+                    'cargo': cargo,
+                    'data_assinatura': data_simples,
+                }],
             )
-
-            auth_page_pdf = PdfFileReader(io.BytesIO(auth_page_bytes))
-            output_pdf = PdfFileWriter()
-            for page_num in range(original_pdf.getNumPages()):
-                output_pdf.addPage(original_pdf.getPage(page_num))
-            output_pdf.addPage(auth_page_pdf.getPage(0))
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as tmp_f:
-                tmp_path = tmp_f.name
-                output_pdf.write(tmp_f)
-
-            try:
-                with open(tmp_path, 'rb') as f:
-                    stamped_bytes = f.read()
-            finally:
-                if os.path.exists(tmp_path):
-                    os.unlink(tmp_path)
 
             signed_buffer = io.BytesIO()
             with io.BytesIO(stamped_bytes) as inf:
@@ -405,17 +560,24 @@ def _gerar_qrcode_image(url):
     return buf
 
 
-def _construir_url_verificacao(request, tipo, pk, codigo):
-    """Monta URL pública de verificação."""
+def _construir_url_verificacao_base(request, tipo, pk):
+    """
+    URL pública de verificação SEM o `?codigo=`.
+
+    É o que vai para o microserviço: só o SAPL sabe a URL pública da casa, mas o
+    código quem gera é quem compõe a página — então a montagem final é lá.
+    """
     if tipo == 'materia':
         url_name = 'sapl.materia:materia_verificar_documento'
     else:
         url_name = 'sapl.materia:docacessorio_verificar_documento'
 
-    base_url = request.build_absolute_uri(
-        reverse(url_name, kwargs={'pk': pk})
-    )
-    return f'{base_url}?codigo={codigo}'
+    return request.build_absolute_uri(reverse(url_name, kwargs={'pk': pk}))
+
+
+def _construir_url_verificacao(request, tipo, pk, codigo):
+    """Monta URL pública de verificação."""
+    return f'{_construir_url_verificacao_base(request, tipo, pk)}?codigo={codigo}'
 
 
 def _obter_nome_casa_legislativa():
@@ -734,13 +896,7 @@ def _obter_info_assinante(request, cert_info):
     except Exception:
         pass
 
-    issuer_str = str(cert_info.issuer).upper()
-    if 'ICP-BRASIL' in issuer_str or 'ICP BRASIL' in issuer_str:
-        tipo_cert = "ICP-Brasil"
-    else:
-        tipo_cert = "Certificado Digital"
-
-    return nome_assinante, cargo, tipo_cert
+    return nome_assinante, cargo, _tipo_certificado_pelo_emissor(cert_info.issuer)
 
 
 def _carregar_certificado(certificado_file, senha):
@@ -1074,6 +1230,14 @@ def materia_assinar_a1(request, pk):
             'success': False,
             'error': 'Biblioteca de assinatura não instalada. Contate o administrador.'
         }, status=500)
+    except ErroAssinaturaUsuario as e:
+        # Certificado vencido, senha incorreta: o operador resolve sozinho, então
+        # a resposta é 400 com a mensagem — não 500 com o erro cru.
+        logger.warning(f"Assinatura da matéria {pk} recusada: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
     except Exception as e:
         logger.error(f"Erro ao assinar PDF da matéria {pk}: {e}")
         return JsonResponse({
@@ -1556,6 +1720,14 @@ def docacessorio_assinar_a1(request, pk):
             'success': False,
             'error': 'Biblioteca de assinatura não instalada. Contate o administrador.'
         }, status=500)
+    except ErroAssinaturaUsuario as e:
+        # Certificado vencido, senha incorreta: o operador resolve sozinho, então
+        # a resposta é 400 com a mensagem — não 500 com o erro cru.
+        logger.warning(f"Assinatura do doc acessório {pk} recusada: {e}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=400)
     except Exception as e:
         logger.error(f"Erro ao assinar PDF do doc acessório {pk}: {e}")
         return JsonResponse({

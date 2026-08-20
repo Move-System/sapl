@@ -14,6 +14,12 @@ Contrato real da API (descoberto via /openapi.json):
   Resposta 200: Content-Type: application/pdf  →  bytes do PDF assinado
   Resposta 4xx/5xx: JSON com campo "detail"
 
+A partir da fase C3 (AB#1473) o /sign também sabe COMPOR a página de autenticação
+(código, URL de verificação, QR e os blocos da grade) — capacidade que antes só o
+SAPL tinha. Quem quer delegar a composição usa
+`assinar_pdf_com_pagina_autenticacao()`, que manda o bloco de parâmetros do
+`auth_page` e devolve os cabeçalhos de resposta junto com o PDF.
+
 Outros endpoints:
   POST /validate-pfx  – valida certificado PFX
   POST /validate      – valida assinaturas de um PDF
@@ -21,6 +27,7 @@ Outros endpoints:
   GET  /              – health check
 """
 
+import json
 import logging
 
 import requests
@@ -56,53 +63,37 @@ def _url(endpoint):
     return f'{base}/{endpoint}'
 
 
-def assinar_pdf_via_api(pdf_bytes, *, certificado_bytes, senha,
-                        reason=None, location=None,
-                        signature_page=None,
-                        signature_left=None, signature_bottom=None,
-                        signature_width=None, signature_height=None):
+class ResultadoAssinatura:
     """
-    Envia o PDF ao pyHanko Sign Service e retorna o PDF assinado como bytes.
+    Resposta do /sign quando a composição da página é delegada ao microserviço.
 
-    Parâmetros
-    ----------
-    pdf_bytes : bytes           — PDF a assinar
-    certificado_bytes : bytes   — arquivo .pfx/.p12
-    senha : str                 — senha do certificado
-    reason : str                — motivo (exibido na assinatura visual)
-    location : str              — local (exibido na assinatura visual)
-    signature_page : int        — página 1-based (None = última)
-    signature_left/bottom/width/height : float — coordenadas em pontos PDF
-
-    Retorna: bytes do PDF assinado.
-    Lança: AssinaturaAPIError em caso de erro.
+    Além do PDF, o microserviço devolve em cabeçalhos o que só ele sabe depois de
+    compor: o código impresso na página (que o cidadão digita na verificação
+    pública) e qual bloco da grade esta assinatura ocupou.
     """
-    if not _api_configurada():
-        raise AssinaturaAPIError(
-            'Microserviço de assinatura não configurado (ASSINATURA_API_URL vazio).'
-        )
 
-    files = {
-        'pdf': ('documento.pdf', pdf_bytes, 'application/pdf'),
-        'pfx': ('certificado.pfx', certificado_bytes, 'application/octet-stream'),
-    }
-    data = {'pfx_password': senha}
+    __slots__ = ('pdf', 'codigo_autenticacao', 'signature_index',
+                 'auth_page_aplicada', 'auth_page_suportado')
 
-    if reason:
-        data['reason'] = reason
-    if location:
-        data['location'] = location
-    if signature_page is not None:
-        data['signature_page'] = str(signature_page)
-    if signature_left is not None:
-        data['signature_left'] = str(signature_left)
-    if signature_bottom is not None:
-        data['signature_bottom'] = str(signature_bottom)
-    if signature_width is not None:
-        data['signature_width'] = str(signature_width)
-    if signature_height is not None:
-        data['signature_height'] = str(signature_height)
+    def __init__(self, pdf, codigo_autenticacao, signature_index,
+                 auth_page_aplicada, auth_page_suportado):
+        self.pdf = pdf
+        self.codigo_autenticacao = codigo_autenticacao
+        self.signature_index = signature_index
+        #: True quando ESTA chamada anexou a página de autenticação
+        self.auth_page_aplicada = auth_page_aplicada
+        #: False quando o microserviço não devolveu os cabeçalhos do auth_page —
+        #: ou seja, é uma versão anterior à C2 e ignorou os parâmetros enviados.
+        self.auth_page_suportado = auth_page_suportado
 
+
+def _post_sign(files, data):
+    """
+    POST /sign com o tratamento de erro comum aos dois modos de uso.
+
+    Retorna o `requests.Response` de sucesso; lança AssinaturaAPIError caso
+    contrário. O corpo da resposta é o PDF assinado.
+    """
     timeout = getattr(settings, 'ASSINATURA_API_TIMEOUT', 120)
 
     try:
@@ -143,6 +134,159 @@ def assinar_pdf_via_api(pdf_bytes, *, certificado_bytes, senha,
         raise AssinaturaAPIError(
             f'Resposta inesperada do microservico (Content-Type: {content_type}).'
         )
+
+    return response
+
+
+def assinar_pdf_com_pagina_autenticacao(
+        pdf_bytes, *, certificado_bytes, senha,
+        verification_url_base, assinaturas,
+        casa_legislativa=None, signer_name=None, signer_role=None,
+        codigo_autenticacao=None, brasao_bytes=None, brasao_filename='brasao.png',
+        reason=None, location=None):
+    """
+    Assina delegando ao microserviço a composição da página de autenticação.
+
+    Diferença para `assinar_pdf_via_api`: aqui o SAPL **não** monta a página nem
+    calcula a posição do bloco — manda os dados da casa legislativa e o
+    microserviço compõe (fase C3 da convergência dos assinadores, AB#1473).
+    Por isso nenhum `signature_*` é enviado: quem conhece a grade é o
+    microserviço, e mandar coordenada junto faz o `auth_page` e a posição
+    explícita disputarem o mesmo campo.
+
+    Parâmetros
+    ----------
+    verification_url_base : str  — URL pública de verificação SEM o `?codigo=`
+                                   (o microserviço acrescenta)
+    assinaturas : list[dict]     — blocos a desenhar
+                                   ([{nome_assinante, cargo, data_assinatura}])
+    casa_legislativa : str       — nome impresso no cabeçalho da página
+    signer_name / signer_role    — nome e cargo exibidos (no legislativo, o nome
+                                   parlamentar do vereador, não o CN do certificado)
+    codigo_autenticacao : str    — código já emitido. OBRIGATÓRIO da segunda
+                                   assinatura em diante: o PDF mudou ao ser
+                                   assinado e o hash de agora não reproduz o que
+                                   está impresso na página. Na primeira, deixe
+                                   vazio — o microserviço deriva do próprio PDF.
+    brasao_bytes : bytes         — brasão da câmara. Mande em TODAS as assinaturas
+                                   da mesma matéria: ele desloca a grade em 3 mm e
+                                   omiti-lo depois desalinharia os blocos seguintes.
+
+    Retorna: ResultadoAssinatura.
+    Lança: AssinaturaAPIError em caso de erro.
+    """
+    if not _api_configurada():
+        raise AssinaturaAPIError(
+            'Microserviço de assinatura não configurado (ASSINATURA_API_URL vazio).'
+        )
+
+    files = {
+        'pdf': ('documento.pdf', pdf_bytes, 'application/pdf'),
+        'pfx': ('certificado.pfx', certificado_bytes, 'application/octet-stream'),
+    }
+    if brasao_bytes:
+        files['brasao'] = (brasao_filename, brasao_bytes, 'application/octet-stream')
+
+    data = {
+        'pfx_password': senha,
+        'auth_page': 'auto',
+        'verification_url_base': verification_url_base,
+        'assinaturas': json.dumps(assinaturas or [], ensure_ascii=False),
+    }
+    if casa_legislativa:
+        data['casa_legislativa'] = casa_legislativa
+    if signer_name:
+        data['signer_name'] = signer_name
+    if signer_role:
+        data['signer_role'] = signer_role
+    if codigo_autenticacao:
+        data['codigo_autenticacao'] = codigo_autenticacao
+    if reason:
+        data['reason'] = reason
+    if location:
+        data['location'] = location
+
+    response = _post_sign(files, data)
+
+    headers = response.headers
+    # A ausência do cabeçalho é o sinal de que o microserviço IGNOROU o auth_page
+    # (versão anterior à C2). Quem chama precisa saber: sem a composição, o PDF
+    # sai sem página de autenticação e sem código verificável.
+    auth_page_suportado = 'X-Auth-Page-Applied' in headers
+
+    try:
+        signature_index = int(headers.get('X-Signature-Index', ''))
+    except (TypeError, ValueError):
+        signature_index = None
+
+    resultado = ResultadoAssinatura(
+        pdf=response.content,
+        codigo_autenticacao=(headers.get('X-Codigo-Autenticacao') or '').strip(),
+        signature_index=signature_index,
+        auth_page_aplicada=(headers.get('X-Auth-Page-Applied', '').strip().lower()
+                            == 'true'),
+        auth_page_suportado=auth_page_suportado,
+    )
+    logger.info(
+        '[assinatura-api] PDF assinado com pagina de autenticacao composta pelo '
+        f'microservico (bloco={resultado.signature_index}, '
+        f'pagina_anexada={resultado.auth_page_aplicada}).'
+    )
+    return resultado
+
+
+def assinar_pdf_via_api(pdf_bytes, *, certificado_bytes, senha,
+                        reason=None, location=None,
+                        signature_page=None,
+                        signature_left=None, signature_bottom=None,
+                        signature_width=None, signature_height=None):
+    """
+    Envia o PDF ao pyHanko Sign Service e retorna o PDF assinado como bytes.
+
+    Modo "posição explícita": o PDF já chega composto e o chamador diz onde o
+    carimbo vai. Para delegar a composição da página de autenticação ao
+    microserviço, use `assinar_pdf_com_pagina_autenticacao`.
+
+    Parâmetros
+    ----------
+    pdf_bytes : bytes           — PDF a assinar
+    certificado_bytes : bytes   — arquivo .pfx/.p12
+    senha : str                 — senha do certificado
+    reason : str                — motivo (exibido na assinatura visual)
+    location : str              — local (exibido na assinatura visual)
+    signature_page : int        — página 1-based (None = última)
+    signature_left/bottom/width/height : float — coordenadas em pontos PDF
+
+    Retorna: bytes do PDF assinado.
+    Lança: AssinaturaAPIError em caso de erro.
+    """
+    if not _api_configurada():
+        raise AssinaturaAPIError(
+            'Microserviço de assinatura não configurado (ASSINATURA_API_URL vazio).'
+        )
+
+    files = {
+        'pdf': ('documento.pdf', pdf_bytes, 'application/pdf'),
+        'pfx': ('certificado.pfx', certificado_bytes, 'application/octet-stream'),
+    }
+    data = {'pfx_password': senha}
+
+    if reason:
+        data['reason'] = reason
+    if location:
+        data['location'] = location
+    if signature_page is not None:
+        data['signature_page'] = str(signature_page)
+    if signature_left is not None:
+        data['signature_left'] = str(signature_left)
+    if signature_bottom is not None:
+        data['signature_bottom'] = str(signature_bottom)
+    if signature_width is not None:
+        data['signature_width'] = str(signature_width)
+    if signature_height is not None:
+        data['signature_height'] = str(signature_height)
+
+    response = _post_sign(files, data)
 
     logger.info('[assinatura-api] PDF assinado com sucesso pelo microservico.')
     return response.content
