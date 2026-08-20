@@ -7,3 +7,11 @@ EMAIL_HOST = ''
 EMAIL_HOST_USER = ''
 EMAIL_SEND_USER = ''
 EMAIL_HOST_PASSWORD = ''
+
+# Microserviço de Assinatura Digital (pyHanko Sign Service)
+# Deixe ASSINATURA_API_URL vazio para assinar localmente com pyhanko dentro do
+# Django. Se preenchido, o SAPL delega a assinatura dos PDFs ao microserviço.
+# ASSINATURA_API_KEY é opcional (enviado como "Authorization: Bearer <key>").
+ASSINATURA_API_URL = ''
+ASSINATURA_API_KEY = ''
+ASSINATURA_API_TIMEOUT = 120
