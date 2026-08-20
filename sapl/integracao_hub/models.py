@@ -39,6 +39,90 @@ def _caminho_anexo(instancia, nome):
     return 'integracao_hub/proposicao_%s/%s' % (instancia.proposicao_id, nome)
 
 
+def _caminho_pdf_alvo(instancia, nome):
+    return 'integracao_hub/materia_%s/%s' % (instancia.materia_id, nome)
+
+
+class DocumentoParaAssinatura(models.Model):
+    """O PDF-alvo persistido da matéria — o invariante do documento único (§5).
+
+    O PDF que o SAPL assina, o que o app exibe e o que aparece assinado são o
+    MESMO binário: gerado uma única vez pela materialização (management command
+    `materializar_pdfs_para_assinatura`) e referenciado por hash em cada salto.
+    Vive neste app isolado, não em `MateriaLegislativa`, pelo mesmo racional do
+    `AnexoProposicao`: custo zero de rebase do fork (refinamento §10).
+
+    `hash_origem` é o sha256 do `texto_original` usado na geração — é ele que
+    detecta retificação: mudou o texto depois da conversão, o alvo está defasado
+    e o processo de assinatura zera (decisão do arquiteto 19/08, §5.1).
+    """
+
+    materia = models.OneToOneField(
+        'materia.MateriaLegislativa',
+        on_delete=models.PROTECT,
+        related_name='documento_para_assinatura',
+        verbose_name=_('Matéria Legislativa'))
+
+    arquivo = models.FileField(
+        upload_to=_caminho_pdf_alvo,
+        verbose_name=_('PDF-alvo da assinatura'))
+
+    hash_sha256 = models.CharField(
+        max_length=64,
+        verbose_name=_('SHA-256 do PDF-alvo'))
+
+    hash_origem = models.CharField(
+        max_length=64,
+        verbose_name=_('SHA-256 do texto_original usado na geração'))
+
+    gerado_em = models.DateTimeField(
+        auto_now=True,
+        verbose_name=_('Gerado em'))
+
+    class Meta:
+        verbose_name = _('Documento para Assinatura')
+        verbose_name_plural = _('Documentos para Assinatura')
+
+    def __str__(self):
+        return 'PDF-alvo da matéria %s' % self.materia_id
+
+
+class AssinaturaRecebida(models.Model):
+    """Dedupe do `POST /api/integracao/assinaturas/` — padrão do EventoRecebido.
+
+    Uma linha por assinatura entregue pelo hub; chave repetida é reentrega e
+    devolve a mesma resposta sem efeito colateral. `hash_assinado` fica aqui
+    para a reentrega responder o que a primeira entrega respondeu. A linha
+    também marca a ORIGEM da gravação (anti-eco do refinamento §5.1): o hub
+    correlaciona o que ele mesmo entregou.
+    """
+
+    chave_idempotencia = models.UUIDField(
+        unique=True,
+        verbose_name=_('Chave de Idempotência'))
+
+    materia = models.ForeignKey(
+        'materia.MateriaLegislativa',
+        on_delete=models.PROTECT,
+        related_name='+',
+        verbose_name=_('Matéria Legislativa'))
+
+    hash_assinado = models.CharField(
+        max_length=64,
+        verbose_name=_('SHA-256 do PDF assinado recebido'))
+
+    recebido_em = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name=_('Recebido em'))
+
+    class Meta:
+        verbose_name = _('Assinatura Recebida do Hub')
+        verbose_name_plural = _('Assinaturas Recebidas do Hub')
+
+    def __str__(self):
+        return str(self.chave_idempotencia)
+
+
 class AnexoProposicao(models.Model):
     """Anexo GERAL vindo do app (foto, vídeo, qualquer mídia) — não é o texto oficial.
 
