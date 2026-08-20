@@ -23,8 +23,25 @@ SAPL tinha. Quem quer delegar a composição usa
 Outros endpoints:
   POST /validate-pfx  – valida certificado PFX
   POST /validate      – valida assinaturas de um PDF
-  POST /sign/batch    – assina múltiplos PDFs em lote
   GET  /              – health check
+
+Por que não há cliente de `/sign/batch` aqui
+--------------------------------------------
+O microserviço expõe `POST /sign/batch`, mas ele **não compõe a página de
+autenticação**: os parâmetros da composição são por documento (a URL de
+verificação carrega o id da matéria, o código sai do hash daquele PDF), e o
+lote manda um único conjunto de parâmetros para todos. Um documento assinado
+por ali sairia sem página de autenticação, sem código verificável e sem os
+metadados do certificado no `assinatura_info` — artefato diferente do que o
+SAPL emite. Para matéria legislativa e documento acessório, assine em série
+pelo `/sign` (`assinar_pdf_com_pagina_autenticacao`).
+
+O caso de uso real de lote hoje é o do sgvp-online, que chama o `/sign/batch`
+direto do front para documentos sem página de autenticação. Existiu aqui um
+`assinar_pdf_lote_via_api()` copiado desse fluxo, sem nenhum chamador no SAPL;
+removido na C3 justamente para não virar atalho. Antes de reintroduzir
+assinatura em bloco no SAPL, fale com o arquiteto: a decisão da C3 (AB#1473) é
+que a composição vive no microserviço, então o lote correto nasce lá, não aqui.
 """
 
 import json
@@ -290,145 +307,6 @@ def assinar_pdf_via_api(pdf_bytes, *, certificado_bytes, senha,
 
     logger.info('[assinatura-api] PDF assinado com sucesso pelo microservico.')
     return response.content
-
-
-def assinar_pdf_lote_via_api(itens, *, certificado_bytes, senha,
-                             reason=None, location=None,
-                             download_workers=8):
-    """
-    Assina múltiplos PDFs em uma única chamada POST /sign/batch e baixa os
-    resultados em paralelo via download_url do S3.
-
-    Parâmetros
-    ----------
-    itens : list[dict]  — cada item deve ter:
-        'id'              : identificador (qualquer hashable — preservado no resultado)
-        'pdf_bytes'       : bytes do PDF a assinar
-        'signature_page'  : int 1-based (opcional, mesmo para todos)
-        'signature_left'  : float (opcional)
-        'signature_bottom': float (opcional)
-        'signature_width' : float (opcional)
-        'signature_height': float (opcional)
-    certificado_bytes : bytes  — arquivo .pfx/.p12 (compartilhado por todos)
-    senha : str                — senha do certificado
-    reason, location : str     — metadados da assinatura
-    download_workers : int     — threads para baixar resultados do S3 (default 8)
-
-    Retorna: list[dict] na mesma ordem de `itens`, com campos:
-        'id'        : o mesmo id do item de entrada
-        'ok'        : True / False
-        'pdf_bytes' : bytes do PDF assinado (apenas quando ok=True)
-        'error'     : mensagem de erro (apenas quando ok=False)
-    """
-    if not _api_configurada():
-        raise AssinaturaAPIError(
-            'Microserviço de assinatura não configurado (ASSINATURA_API_URL vazio).'
-        )
-
-    timeout = getattr(settings, 'ASSINATURA_API_TIMEOUT', 120)
-
-    # ── 1. Enviar todos os PDFs em uma única chamada /sign/batch ─────────────
-    # O campo 'signature_page/left/bottom/width/height' é único para o lote —
-    # usamos os valores do primeiro item (todos partilham a mesma posição).
-    primeiro = itens[0] if itens else {}
-    data = {'pfx_password': senha}
-    if reason:
-        data['reason'] = reason
-    if location:
-        data['location'] = location
-    if primeiro.get('signature_page') is not None:
-        data['signature_page'] = str(primeiro['signature_page'])
-    if primeiro.get('signature_left') is not None:
-        data['signature_left'] = str(primeiro['signature_left'])
-    if primeiro.get('signature_bottom') is not None:
-        data['signature_bottom'] = str(primeiro['signature_bottom'])
-    if primeiro.get('signature_width') is not None:
-        data['signature_width'] = str(primeiro['signature_width'])
-    if primeiro.get('signature_height') is not None:
-        data['signature_height'] = str(primeiro['signature_height'])
-
-    # multipart: múltiplos campos 'pdfs' + um 'pfx'
-    files = [('pfx', ('certificado.pfx', certificado_bytes, 'application/octet-stream'))]
-    for idx, item in enumerate(itens):
-        filename = f'doc{idx + 1}.pdf'
-        files.append(('pdfs', (filename, item['pdf_bytes'], 'application/pdf')))
-
-    try:
-        response = requests.post(
-            _url('sign/batch'),
-            files=files,
-            data=data,
-            headers=_montar_headers(),
-            timeout=timeout,
-        )
-    except requests.exceptions.ConnectionError as exc:
-        logger.error(f'[assinatura-api/batch] Falha de conexão: {exc}')
-        raise AssinaturaAPIError(
-            'Não foi possível conectar ao microserviço de assinatura.'
-        )
-    except requests.exceptions.Timeout:
-        raise AssinaturaAPIError(
-            f'Timeout ao aguardar resposta do microserviço (limite: {timeout}s).'
-        )
-    except requests.exceptions.RequestException as exc:
-        raise AssinaturaAPIError(f'Erro ao comunicar com o microserviço: {exc}')
-
-    if not response.ok:
-        try:
-            detail = response.json()
-            msg = detail.get('detail') or str(detail)
-        except Exception:
-            msg = response.text[:300] or f'HTTP {response.status_code}'
-        logger.error(f'[assinatura-api/batch] Erro HTTP {response.status_code}: {msg}')
-        raise AssinaturaAPIError(msg, status_code=response.status_code)
-
-    try:
-        batch_result = response.json()
-    except Exception:
-        raise AssinaturaAPIError('Resposta do /sign/batch não é JSON válido.')
-
-    resultados_api = batch_result.get('results', [])
-    if len(resultados_api) != len(itens):
-        raise AssinaturaAPIError(
-            f'Resposta do /sign/batch retornou {len(resultados_api)} itens, '
-            f'esperado {len(itens)}.'
-        )
-
-    logger.info(f'[assinatura-api/batch] {len(resultados_api)} PDFs assinados. Baixando...')
-
-    # ── 2. Baixar PDFs assinados em paralelo via download_url ─────────────────
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
-    def _baixar(idx_url):
-        idx, url = idx_url
-        try:
-            r = requests.get(url, timeout=60)
-            if not r.ok:
-                return idx, None, f'Erro ao baixar PDF assinado: HTTP {r.status_code}'
-            if not r.content[:5] == b'%PDF-':
-                return idx, None, 'Conteúdo baixado não é um PDF válido.'
-            return idx, r.content, None
-        except Exception as exc:
-            return idx, None, str(exc)
-
-    urls_indexadas = [
-        (idx, res['download_url'])
-        for idx, res in enumerate(resultados_api)
-    ]
-
-    resultados_finais = [None] * len(itens)
-    with ThreadPoolExecutor(max_workers=download_workers) as executor:
-        futures = {executor.submit(_baixar, item): item for item in urls_indexadas}
-        for future in as_completed(futures):
-            idx, pdf_bytes, error = future.result()
-            item_id = itens[idx]['id']
-            if error:
-                logger.error(f'[assinatura-api/batch] item {idx} (id={item_id}): {error}')
-                resultados_finais[idx] = {'id': item_id, 'ok': False, 'error': error}
-            else:
-                resultados_finais[idx] = {'id': item_id, 'ok': True, 'pdf_bytes': pdf_bytes}
-
-    return resultados_finais
 
 
 def validar_pfx_via_api(certificado_bytes, senha):
