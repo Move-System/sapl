@@ -2,8 +2,88 @@
 {% load i18n %}
 {% load crispy_forms_tags %}
 
-{% block extra_js %}
+{% block extra_css %}
 <style>
+    /* =====================================================
+       Componente de co-autores com busca + checkboxes
+       ===================================================== */
+    #coautores-search-box {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        font-size: 0.95em;
+        margin-bottom: 8px;
+        box-sizing: border-box;
+    }
+    #coautores-search-box:focus {
+        outline: none;
+        border-color: #007bff;
+        box-shadow: 0 0 0 2px rgba(0,123,255,0.2);
+    }
+    #coautores-list-container {
+        max-height: 220px;
+        overflow-y: auto;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        background: #fff;
+        padding: 6px 0;
+    }
+    #coautores-list-container .coautores-item {
+        display: flex;
+        align-items: center;
+        padding: 6px 12px;
+        cursor: pointer;
+        transition: background 0.15s;
+    }
+    #coautores-list-container .coautores-item:hover {
+        background: #f0f7ff;
+    }
+    #coautores-list-container .coautores-item input[type="checkbox"] {
+        margin-right: 10px;
+        width: 16px;
+        height: 16px;
+        accent-color: #007bff;
+        cursor: pointer;
+        flex-shrink: 0;
+    }
+    #coautores-list-container .coautores-item label {
+        margin: 0;
+        cursor: pointer;
+        font-weight: normal;
+        color: #343a40;
+        font-size: 0.95em;
+    }
+    #coautores-no-results {
+        padding: 10px 12px;
+        color: #6c757d;
+        font-style: italic;
+        font-size: 0.9em;
+        display: none;
+    }
+    #coautores-counter {
+        font-size: 0.85em;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    #div_id_coautores {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        margin-bottom: 15px;
+    }
+    #div_id_coautores > label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+        display: block;
+    }
+    #div_id_coautores .form-text {
+        color: #6c757d;
+        font-size: 0.875em;
+        margin-top: 5px;
+    }
     /* =====================================================
        Estilo para o container do tipo de proposição
        ===================================================== */
@@ -188,9 +268,118 @@
         padding: 8px 25px;
     }
 </style>
+{% endblock %}
 
+{% block extra_js %}
 <script type="text/javascript">
 $(document).ready(function(){
+
+    // =====================================================
+    // Componente checkbox + busca para co-autores
+    // =====================================================
+    (function() {
+        var $fieldDiv = $('#div_id_coautores');
+        // O Django renderiza os checkboxes nativos dentro de um <ul> — vamos substituí-los
+        var $originalWidget = $fieldDiv.find('ul, .checkbox-select, select');
+
+        // Coletar todos os checkboxes originais gerados pelo CheckboxSelectMultiple
+        var checkboxes = [];
+        $fieldDiv.find('input[type="checkbox"]').each(function() {
+            checkboxes.push({
+                value: $(this).val(),
+                label: $(this).closest('label').text().trim() ||
+                       $fieldDiv.find('label[for="' + $(this).attr('id') + '"]').text().trim(),
+                checked: $(this).prop('checked'),
+                id: $(this).attr('id'),
+                name: $(this).attr('name')
+            });
+        });
+
+        if (checkboxes.length === 0) return; // Sem autores cadastrados, não renderizar
+
+        // Esconder widget original (manter checkboxes no DOM para submit)
+        $fieldDiv.find('ul').css('display', 'none');
+
+        // Inserir campo de busca e container customizado após a label
+        var $label = $fieldDiv.find('label').first();
+        var $helpText = $fieldDiv.find('.form-text, small.text-muted');
+
+        var $searchInput = $('<input>', {
+            type: 'text',
+            id: 'coautores-search-box',
+            placeholder: '{% trans "Buscar co-autor por nome..." %}',
+            autocomplete: 'off'
+        });
+
+        var $listContainer = $('<div>', { id: 'coautores-list-container' });
+        var $noResults = $('<div>', { id: 'coautores-no-results', text: '{% trans "Nenhum autor encontrado." %}' });
+        var $counter = $('<div>', { id: 'coautores-counter' });
+
+        $listContainer.append($noResults);
+
+        // Renderizar itens
+        function renderItem(cb) {
+            var $item = $('<div>', { 'class': 'coautores-item' });
+            var $chk = $('<input>', {
+                type: 'checkbox',
+                id: cb.id + '_custom',
+                value: cb.value,
+                checked: cb.checked
+            });
+            var $lbl = $('<label>', {
+                'for': cb.id + '_custom',
+                text: cb.label
+            });
+            $item.append($chk).append($lbl);
+
+            // Sincronizar com checkbox original (para submit)
+            $chk.on('change', function() {
+                $('#' + cb.id).prop('checked', $(this).prop('checked'));
+                updateCounter();
+            });
+
+            return $item;
+        }
+
+        checkboxes.forEach(function(cb) {
+            $listContainer.append(renderItem(cb));
+        });
+
+        function updateCounter() {
+            var total = $listContainer.find('input[type="checkbox"]:checked').length;
+            if (total === 0) {
+                $counter.text('');
+            } else if (total === 1) {
+                $counter.text('1 {% trans "co-autor selecionado" %}');
+            } else {
+                $counter.text(total + ' {% trans "co-autores selecionados" %}');
+            }
+        }
+
+        // Busca em tempo real
+        $searchInput.on('input', function() {
+            var term = $(this).val().toLowerCase().trim();
+            var visible = 0;
+            $listContainer.find('.coautores-item').each(function() {
+                var name = $(this).find('label').text().toLowerCase();
+                if (!term || name.indexOf(term) !== -1) {
+                    $(this).show();
+                    visible++;
+                } else {
+                    $(this).hide();
+                }
+            });
+            $noResults.toggle(visible === 0);
+        });
+
+        // Inserir no DOM
+        $label.after($searchInput, $listContainer, $counter);
+        if ($helpText.length) {
+            $counter.after($helpText.detach());
+        }
+
+        updateCounter();
+    })();
 
     // =====================================================
     // Configuração do botão "Novo Tipo"
@@ -200,7 +389,6 @@ $(document).ready(function(){
     var $tipoSelect = $("select[name=tipo]");
 
     if ($tipoLabel.length > 0 && $tipoSelect.length > 0) {
-        // Criar header com label e botão
         var $header = $('<div class="tipo-header"></div>');
         var $btnNovoTipo = $(`
             <a href="/sistema/proposicao/tipo/create"
@@ -210,8 +398,6 @@ $(document).ready(function(){
                 <i class="fa fa-plus"></i> Novo Tipo
             </a>
         `);
-
-        // Mover label para o header e adicionar botão
         $tipoLabel.wrap($header);
         $tipoLabel.after($btnNovoTipo);
     }
@@ -223,54 +409,37 @@ $(document).ready(function(){
         var tipoTextoValue = $("input[name=tipo_texto]:checked").val();
 
         if (tipoTextoValue === 'D') {
-            // Arquivo Digital: mostrar campo de upload
             $("#div_id_texto_original").slideDown(200);
             $("#onlyoffice-info").slideUp(200);
         } else if (tipoTextoValue === 'T') {
-            // Texto Articulado: esconder ambos
             $("#div_id_texto_original").slideUp(200);
             $("#onlyoffice-info").slideUp(200);
         } else if (tipoTextoValue === 'O') {
-            // OnlyOffice: mostrar mensagem informativa
             $("#div_id_texto_original").slideUp(200);
             $("#onlyoffice-info").slideDown(200);
         }
 
-        // Atualizar visual dos labels
         $("#div_id_tipo_texto .form-check label, #div_id_tipo_texto .form-check-inline").removeClass('checked');
         $("input[name=tipo_texto]:checked").closest('label').addClass('checked');
     }
 
-    // Event listener para mudança de tipo de texto
     $("input[name=tipo_texto]").change(function() {
         updateTipoTextoDisplay();
     });
 
-    // =====================================================
-    // Mostrar opções de tipo de texto
-    // =====================================================
     function showTipoTextoOptions() {
         var $tipoTextoContainer = $("input[name=tipo_texto]").closest('.form-group').parent();
         $tipoTextoContainer.removeClass('hidden');
-
         $("input[name=tipo_texto]").prop('disabled', false);
         $("input[name=tipo_texto]").closest('label').removeClass('disabled');
-
-        // Selecionar primeira opção se nenhuma estiver selecionada
         if ($("input[name=tipo_texto]:checked").length === 0) {
             $("input[name=tipo_texto]").first().prop('checked', true);
         }
-
         updateTipoTextoDisplay();
     }
 
-    // Mostrar opções ao carregar a página
     showTipoTextoOptions();
-
-    // Atualizar quando tipo de proposição mudar
-    $("select[name=tipo]").change(function() {
-        showTipoTextoOptions();
-    });
+    $("select[name=tipo]").change(function() { showTipoTextoOptions(); });
 
     // =====================================================
     // Busca de matéria legislativa para vinculação
@@ -281,15 +450,11 @@ $(document).ready(function(){
             'ano': $("input[name=ano_materia]").val(),
             'numero': $("input[name=numero_materia]").val(),
         };
-
-        // Validar se todos os campos estão preenchidos
         if (!formData.tipo || !formData.ano || !formData.numero) {
             $(".ementa_materia").html('').addClass('hidden');
             return;
         }
-
         var url = '{% url "sapl.api:materialegislativa-list" %}';
-
         $.get(url, formData).done(function(data) {
             if (data.pagination.total_entries === 1) {
                 $(".ementa_materia")
@@ -309,24 +474,15 @@ $(document).ready(function(){
         });
     }
 
-    // Event listeners para busca de matéria
     $("select[name=tipo_materia], input[name=numero_materia], input[name=ano_materia]")
-        .on('change keyup', function() {
-            buscarMateria();
-        });
+        .on('change keyup', function() { buscarMateria(); });
 
     // =====================================================
     // Inicialização
     // =====================================================
-
-    // Disparar eventos iniciais
     $("select[name=tipo]").trigger('change');
     buscarMateria();
-
-    // Garantir que o onlyoffice-info comece escondido
     $("#onlyoffice-info").hide();
-
-    // Atualizar display inicial
     setTimeout(updateTipoTextoDisplay, 100);
 
 });

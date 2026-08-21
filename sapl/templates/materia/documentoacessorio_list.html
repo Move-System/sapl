@@ -58,6 +58,17 @@
     <div class="actions btn-group float-right" role="group">
         <a href="{% url 'sapl.materia:compress_docacessorios' root_pk %}" class="btn btn-outline-primary">{% trans 'Baixar documentos compactados' %}</a>
     </div>
+    {% if docs_pendentes_lote %}
+    <div class="actions btn-group float-right ml-2" role="group">
+      <button type="button" id="btn-assinar-doc-lote"
+              class="btn btn-outline-warning"
+              title="Assinar digitalmente os {{ docs_pendentes_lote|length }} documento(s) acessório(s) pendentes">
+        <i class="fa fa-certificate"></i>
+        Assinar em Lote
+        <span class="badge badge-warning text-dark ml-1">{{ docs_pendentes_lote|length }}</span>
+      </button>
+    </div>
+    {% endif %}
   </div>
 
 {% if pode_upload %}
@@ -168,5 +179,9 @@
   }
 })();
 </script>
+{% endif %}
+
+{% if docs_pendentes_lote %}
+  {% include "materia/assinatura_doc_lote_modal.html" %}
 {% endif %}
 {% endblock %}

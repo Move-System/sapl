@@ -34,8 +34,8 @@ PROJECT_DIR = Path(__file__).ancestor(2)
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = config('SECRET_KEY', default='32jk1h412l3kjh421lkj4hlkj234')
 # SECURITY WARNING: don't run with debug turned on in production!
-#DEBUG = config('DEBUG', default=False, cast=bool)
-DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
+# Aceita tanto DEBUG quanto DJANGO_DEBUG (compatibilidade com docker-compose legado)
+DEBUG = config('DEBUG', default=False, cast=bool) or config('DJANGO_DEBUG', default=False, cast=bool)
 
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
@@ -235,6 +235,8 @@ TEMPLATES = [
                 'sapl.context_processors.mail_service_configured',
                 'sapl.context_processors.google_recaptcha_configured',
                 'sapl.context_processors.enable_sapn',
+                'sapl.context_processors.pendencias_assinatura',
+                'sapl.context_processors.ged_configurado',
             ],
             'debug': DEBUG
         },
@@ -317,6 +319,13 @@ ONLYOFFICE_JWT_ENABLED = config('ONLYOFFICE_JWT_ENABLED', cast=bool, default=Fal
 # Quando não configurada, usa a URL do request (funciona quando OnlyOffice
 # consegue acessar o SAPL pela mesma URL que o navegador)
 SAPL_INTERNAL_URL = config('SAPL_INTERNAL_URL', default='')
+
+# Microserviço de Assinatura Digital
+# Quando ASSINATURA_API_URL estiver configurado, o SAPL delega a assinatura
+# dos PDFs ao microserviço em vez de usar pyhanko localmente.
+ASSINATURA_API_URL = config('ASSINATURA_API_URL', default='')
+ASSINATURA_API_KEY = config('ASSINATURA_API_KEY', default='')
+ASSINATURA_API_TIMEOUT = config('ASSINATURA_API_TIMEOUT', cast=int, default=120)
 
 # Integração externa de matérias da sessão
 SESSAO_MATERIAS_API_URL = config('SESSAO_MATERIAS_API_URL', default='')

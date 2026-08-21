@@ -71,6 +71,15 @@ class TipoProposicao(models.Model):
                     menos um Perfil Estrutural de Texto Articulado.
                     """))
 
+    dispensa_protocolo = models.BooleanField(
+        default=False,
+        verbose_name=_('Documento de gabinete'),
+        help_text=_('Quando marcado, proposições deste tipo não são enviadas '
+                    'ao Protocolo e não se tornam Matéria Legislativa. Ficam '
+                    'restritas ao gabinete do autor. Use para documentos de '
+                    'uso próprio do gabinete, como Ofícios, que não precisam '
+                    'de validação da Casa.'))
+
     class Meta:
         verbose_name = _('Tipo de Proposição')
         verbose_name_plural = _('Tipos de Proposições')
@@ -345,7 +354,10 @@ class MateriaLegislativa(models.Model):
         verbose_name_plural = _('Matérias Legislativas')
         unique_together = (("tipo", "numero", "ano"),)
         ordering = ['-ano', 'tipo', 'numero']
-        permissions = (("can_access_impressos", "Can access impressos"),)
+        permissions = (
+            ("can_access_impressos", "Can access impressos"),
+            ("can_remove_assinatura", "Pode remover assinatura digital"),
+        )
 
     def __str__(self):
         return _('%(tipo)s nº %(numero)s de %(ano)s') % {
@@ -634,6 +646,9 @@ class DocumentoAcessorio(models.Model):
         verbose_name = _('Documento Acessório')
         verbose_name_plural = _('Documentos Acessórios')
         ordering = ('data', 'id')
+        permissions = (
+            ("can_remove_assinatura_doc", "Pode remover assinatura digital de documento acessório"),
+        )
 
     def __str__(self):
         return _('%(tipo)s - %(nome)s de %(data)s por %(autor)s') % {
@@ -1156,6 +1171,40 @@ class Proposicao(models.Model):
                                  force_update=force_update,
                                  using=using,
                                  update_fields=update_fields)
+
+
+class AutoriaProposicao(models.Model):
+    """
+    Modelo para co-autores de uma Proposição.
+    Permite que o autor da proposição indique múltiplos co-autores
+    que serão transferidos para a Autoria da matéria ao incorporar.
+    """
+    proposicao = models.ForeignKey(
+        Proposicao,
+        on_delete=models.CASCADE,
+        verbose_name=_('Proposição'),
+        related_name='coautores'
+    )
+    autor = models.ForeignKey(
+        Autor,
+        on_delete=models.PROTECT,
+        verbose_name=_('Co-autor')
+    )
+    primeiro_autor = models.BooleanField(
+        verbose_name=_('Primeiro Autor'),
+        choices=YES_NO_CHOICES,
+        default=False
+    )
+
+    class Meta:
+        verbose_name = _('Co-autoria da Proposição')
+        verbose_name_plural = _('Co-autorias da Proposição')
+        unique_together = (('proposicao', 'autor'),)
+        ordering = ('-primeiro_autor', 'autor__nome')
+
+    def __str__(self):
+        return _('Co-autoria: %(autor)s - %(proposicao)s') % {
+            'autor': self.autor, 'proposicao': self.proposicao}
 
 
 class HistoricoProposicao(models.Model):

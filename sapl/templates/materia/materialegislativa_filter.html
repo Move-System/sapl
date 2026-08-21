@@ -7,36 +7,162 @@
 {% load static %}
 
   {% block actions %}
+  <style>
+    .sapl-ab {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      width: 100%;
+      padding-bottom: .75rem;
+    }
+    /* Linha 1: botões de ação (esquerda) + navegação (direita) */
+    .sapl-ab-row1 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    /* Linha 2: filtro de assinatura + assinar em lote — só aparece quando necessário */
+    .sapl-ab-row2 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .sapl-ab-left {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .sapl-ab-right {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .sapl-ab-sep {
+      width: 1px;
+      height: 28px;
+      background: #dee2e6;
+      flex-shrink: 0;
+      margin: 0 2px;
+    }
+    #select-status-assinatura { min-width: 190px; max-width: 230px; }
+    @media (max-width: 576px) {
+      #select-status-assinatura { min-width: 140px; }
+      .sapl-ab-sep { display: none; }
+    }
+  </style>
 
-  {% if show_results %}
-    <div class="float-left">
-      {% with 'sapl.materia:pesquisar_materia' as url_reverse %}
-        {% include "crud/format_options.html" %}
-      {% endwith %}
-      <button id="btn-download-todos-pdfs" class="btn btn-outline-secondary" title="Baixar todos os PDFs das matérias filtradas">
-        <i class="fas fa-download"></i>
-      </button>
+  <div class="sapl-ab">
+
+    {# ── Linha 1: ações + navegação ─────────────────────────────────── #}
+    <div class="sapl-ab-row1">
+
+      <div class="sapl-ab-left">
+        {% if show_results %}
+        {# Exportações (CSV, XLS, etc) #}
+        {% with 'sapl.materia:pesquisar_materia' as url_reverse %}
+          {% include "crud/format_options.html" %}
+        {% endwith %}
+
+        {# Download todos os PDFs desta página #}
+        <button id="btn-download-todos-pdfs"
+                class="btn btn-outline-secondary btn-sm"
+                title="Baixar todos os PDFs das matérias filtradas desta página">
+          <i class="fas fa-download"></i>
+          <span> Baixar PDFs</span>
+        </button>
+
+        <div class="sapl-ab-sep"></div>
+
+        {# Impressão em massa #}
+        <button id="btn-imprimir-selecionados"
+                class="btn btn-outline-danger btn-sm"
+                title="Ativar seleção para impressão em massa">
+          <i class="fas fa-print"></i>
+          <span> Imprimir Matérias</span>
+          <span class="badge badge-danger ml-1" id="badge-print-total" style="display:none;">0</span>
+        </button>
+        <button id="btn-selecionar-todos-print"
+                class="btn btn-outline-secondary btn-sm"
+                title="Selecionar / desselecionar todos desta página"
+                style="display:none;">
+          <i class="fas fa-check-square"></i>
+          <span> Todos</span>
+        </button>
+        {% endif %}
+      </div>
+
+      <div class="sapl-ab-right">
+        {% switch "SOLR_SWITCH" %}
+        <a href="{% url 'sapl.base:haystack_search' %}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-search"></i>
+          <span class="d-none d-md-inline"> Pesquisa Textual</span>
+        </a>
+        {% endswitch %}
+        {% if perms.materia.add_materialegislativa %}
+        <a href="{% url 'sapl.materia:materialegislativa_create' %}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-plus"></i>
+          <span class="d-none d-md-inline"> {% blocktrans with verbose_name=view.verbose_name %}Adicionar Matéria Legislativa{% endblocktrans %}</span>
+        </a>
+        {% endif %}
+        {% if show_results %}
+        <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn btn-outline-primary btn-sm">
+          <i class="fas fa-redo-alt"></i>
+          <span class="d-none d-sm-inline"> {% trans 'Nova pesquisa' %}</span>
+        </a>
+        {% endif %}
+      </div>
+
     </div>
-  {% endif %}
+    {# ── /Linha 1 ────────────────────────────────────────────────────── #}
 
-    <div class="actions btn-group float-right pb-4" role="group">
-      {% switch "SOLR_SWITCH" %}
-      <a href="{% url 'sapl.base:haystack_search' %}" class="btn btn-outline-primary">
-          Pesquisa Textual
-      </a>
-      {% endswitch %}
-      {% if perms.materia.add_materialegislativa %}
-      <a href="{% url 'sapl.materia:materialegislativa_create' %}" class="btn btn-outline-primary">
-          {% blocktrans with verbose_name=view.verbose_name %} Adicionar Matéria Legislativa {% endblocktrans %}
+    {# ── Linha 2: filtro de assinatura + assinar em lote ─────────────── #}
+    <div class="sapl-ab-row2">
+      <label class="mb-0 text-secondary font-weight-bold" style="white-space:nowrap; font-size:.82rem;">
+        <i class="fas fa-signature mr-1"></i>Assinatura:
+      </label>
+      {% with status_atual=request.GET.status_assinatura %}
+      <select id="select-status-assinatura" class="custom-select custom-select-sm">
+        <option value="" {% if not status_atual %}selected{% endif %}>Todas as matérias</option>
+        <option value="pendente" {% if status_atual == 'pendente' %}selected{% endif %}>⚠ Pendente de Assinatura</option>
+        <option value="assinada" {% if status_atual == 'assinada' %}selected{% endif %}>✔ Assinada</option>
+      </select>
+      {% endwith %}
+
+      {# Assinar em Lote — só aparece quando há pendentes #}
+      {% if materias_pendentes_lote %}
+      <button type="button"
+              id="btn-assinar-em-lote"
+              class="btn btn-outline-warning btn-sm"
+              title="Assinar digitalmente as {{ materias_pendentes_lote|length }} matéria(s) pendentes desta pesquisa">
+        <i class="fa fa-certificate"></i>
+        Assinar em Lote
+        <span class="badge badge-warning text-dark ml-1" id="badge-lote-total">{{ materias_pendentes_lote|length }}</span>
+      </button>
+      {% endif %}
+
+      {# Assinar Despachos em Lote — atalho exclusivo do Presidente da Mesa Diretora #}
+      {% if is_presidente_mesa %}
+      <a href="{% url 'sapl.materia:despachos_pendentes_lote' %}"
+         class="btn btn-warning btn-sm"
+         title="Assinar todos os despachos pendentes do sistema em lote (acesso exclusivo do Presidente da Mesa Diretora)">
+        <i class="fas fa-stamp"></i>
+        Assinar Despachos em Lote
       </a>
       {% endif %}
-    {% if show_results %}
-        <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn btn-outline-primary">{% trans 'Fazer nova pesquisa' %}</a>
-    {% endif %}
     </div>
+    {# ── /Linha 2 ────────────────────────────────────────────────────── #}
+
+  </div>
+
   {% endblock %}
 
   {% block detail_content %}
+
     {% if not show_results %}
       {% crispy filter.form %}
     {% endif %}
@@ -58,8 +184,16 @@
           {% endif %}
 
           {% for m in page_obj %}
-            <tr>
+            <tr class="materia-row" data-materia-id="{{ m.id }}">
               <td>
+                {# Checkbox para seleção de impressão em massa #}
+                <div class="print-select-col" style="display:none; float:left; margin-right:8px; margin-top:2px;">
+                  <input type="checkbox"
+                         class="print-chk form-check-input"
+                         data-materia-id="{{ m.id }}"
+                         title="Selecionar para impressão"
+                         style="width:18px;height:18px;cursor:pointer;">
+                </div>
                 <strong><a href="{% url 'sapl.materia:materialegislativa_detail' m.id %}">{{m.tipo.sigla}} {{m.numero}}/{{m.ano}} - {{m.tipo}}</strong></a>
                 <a href="{% url 'sapl.relatorios:etiqueta_materia_legislativa' m.pk %}"><img src="{% webpack_static 'img/etiqueta.png' %}" alt="Etiqueta Individual"></a>
                 </br>
@@ -215,6 +349,19 @@
                         Texto Original
                       </a>
                     </strong>
+                    &nbsp;
+                    {% if m.pdf_assinado %}
+                      <a href="{% url 'sapl.materia:materia_pdf_assinado' m.pk %}" target="_blank"
+                         class="badge badge-success"
+                         title="PDF assinado disponível — clique para baixar">
+                        <i class="fas fa-signature"></i> Assinado{% if m.assinado_em %} em {{ m.assinado_em|date:"d/m/Y" }}{% endif %}
+                      </a>
+                    {% elif m.texto_original %}
+                      <span class="badge badge-warning text-dark"
+                            title="Documento ainda não possui assinatura digital">
+                        <i class="fas fa-clock"></i> Pendente de Assinatura
+                      </span>
+                    {% endif %}
                     </br>
                   {% endif %}
                   {% if m.texto_articulado.exists %}<strong><a href="{% url 'sapl.materia:materia_ta' m.id%}">Texto Articulado</a></strong></br>{% endif %}
@@ -250,13 +397,521 @@
       </table>
       {% include "paginacao.html" %}
     {% endif %}
+
+    {# ── Toolbar flutuante de impressão em massa ─────────────────────────── #}
+    {% if show_results %}
+    <div id="print-toolbar"
+         style="display:none; position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+                z-index:1050; background:#fff; border:2px solid #dc3545;
+                border-radius:50px; padding:10px 20px;
+                box-shadow:0 8px 32px rgba(220,53,69,.25), 0 2px 8px rgba(0,0,0,.12);
+                white-space:nowrap;">
+      <div class="d-flex align-items-center" style="gap:10px;">
+
+        {# Contagem #}
+        <span class="text-danger font-weight-bold" style="font-size:.95rem;">
+          <i class="fas fa-print mr-1"></i>
+          <span id="print-toolbar-count">0</span> selecionado(s)
+        </span>
+
+        <div class="border-left" style="height:22px;"></div>
+
+        {# Ações #}
+        <button id="print-toolbar-btn-imprimir"
+                class="btn btn-danger btn-sm rounded-pill px-3"
+                title="Gerar PDF unificado e abrir para impressão">
+          <i class="fas fa-print mr-1"></i> Imprimir
+        </button>
+        <button id="print-toolbar-btn-download"
+                class="btn btn-outline-danger btn-sm rounded-pill px-3"
+                title="Baixar PDF unificado">
+          <i class="fas fa-download mr-1"></i> Baixar PDF
+        </button>
+
+        <div class="border-left" style="height:22px;"></div>
+
+        <button id="print-toolbar-btn-limpar"
+                class="btn btn-link btn-sm text-secondary p-0"
+                title="Cancelar seleção">
+          <i class="fas fa-times-circle fa-lg"></i>
+        </button>
+      </div>
+
+      {# Info + loading (ocultos por padrão) #}
+      <div class="text-center mt-1" style="font-size:.72rem; color:#888;">
+        <i class="fas fa-info-circle"></i>
+        Máx. 200 docs. Apenas matérias com PDF disponível serão incluídas.
+      </div>
+      <div id="print-toolbar-loading" style="display:none;" class="mt-2">
+        <div class="progress" style="height:4px; border-radius:2px;">
+          <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" style="width:100%"></div>
+        </div>
+        <div class="text-center mt-1" style="font-size:.75rem; color:#888;">Gerando PDF, aguarde…</div>
+      </div>
+    </div>
+    {% endif %}
+    {# ────────────────────────────────────────────────────────────────────── #}
+
     {% endblock detail_content %}
   {% block table_content %}
   {% endblock table_content %}
   {% block extra_js %}
   <script src="{% static 'js/materia_pesquisa_download_pdfs.js' %}"></script>
+  <script src="{% static 'js/materia_impressao_em_massa.js' %}"></script>
 
-  <script type="text/javascript" >
+  {% if materias_pendentes_lote %}
+  {# ── Modal de Assinatura em Lote ─────────────────────────────────────── #}
+  <div class="modal fade" id="assinaturaLoteModal" tabindex="-1" role="dialog" aria-labelledby="assinaturaLoteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+      <div class="modal-content">
+        <div class="modal-header bg-warning">
+          <h5 class="modal-title" id="assinaturaLoteModalLabel">
+            <i class="fa fa-certificate"></i>
+            Assinar em Lote — <strong id="lote-titulo-total">{{ materias_pendentes_lote|length }}</strong> matéria(s) pendente(s)
+          </h5>
+          <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </div>
+
+        <div class="modal-body">
+
+          {# ── Passo 0: seleção de matérias ── #}
+          <div id="lote-selecao-step">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="font-weight-bold">
+                <i class="fa fa-list-ul"></i>
+                Selecione as matérias a assinar
+              </span>
+              <div>
+                <button type="button" class="btn btn-sm btn-outline-secondary mr-1" id="lote-btn-todas">
+                  <i class="fa fa-check-square-o"></i> Todas
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="lote-btn-nenhuma">
+                  <i class="fa fa-square-o"></i> Nenhuma
+                </button>
+              </div>
+            </div>
+            <div id="lote-lista-checkboxes" style="max-height:320px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;padding:8px;">
+              {% for m in materias_pendentes_lote %}
+              <div class="form-check py-1" style="border-bottom:1px solid #f0f0f0;">
+                <input class="form-check-input lote-chk" type="checkbox"
+                       id="lote-chk-{{ m.id }}" value="{{ m.id }}" checked>
+                <label class="form-check-label w-100" for="lote-chk-{{ m.id }}" style="cursor:pointer;">
+                  {{ m.descricao }}
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+            <p class="text-muted small mt-2 mb-0">
+              <span id="lote-selecao-contagem">{{ materias_pendentes_lote|length }}</span> matéria(s) selecionada(s)
+            </p>
+          </div>
+
+          {# ── Passo 1: formulário de certificado ── #}
+          <div id="lote-form-step" style="display:none;">
+            <div class="alert alert-warning">
+              <i class="fa fa-exclamation-triangle"></i>
+              <strong>Atenção:</strong> Esta operação assinará digitalmente
+              <strong><span id="lote-alerta-total">{{ materias_pendentes_lote|length }}</span> matéria(s)</strong>
+              com validade jurídica nos termos da MP 2.200-2/2001.
+              Certifique-se de que os documentos estão corretos antes de prosseguir.
+            </div>
+
+            <form id="form-assinatura-lote" enctype="multipart/form-data">
+              {% csrf_token %}
+              <div class="form-group">
+                <label for="lote-certificado">
+                  <i class="fa fa-file"></i> Certificado Digital (.pfx / .p12)
+                </label>
+                <div class="custom-file">
+                  <input type="file" class="custom-file-input" id="lote-certificado"
+                         name="certificado" accept=".pfx,.p12" required>
+                  <label class="custom-file-label" for="lote-certificado">
+                    Selecione o arquivo do certificado...
+                  </label>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="lote-senha">
+                  <i class="fa fa-lock"></i> Senha do Certificado
+                </label>
+                <input type="password" class="form-control" id="lote-senha"
+                       name="senha" placeholder="Digite a senha do certificado" required>
+              </div>
+            </form>
+          </div>
+
+          {# ── Passo 1.5: prévia dos documentos ── #}
+          <div id="lote-previa-step" style="display:none;">
+            <div class="alert alert-info mb-3">
+              <i class="fa fa-eye"></i>
+              <strong>Revise os documentos antes de assinar.</strong>
+              Clique em cada matéria para visualizar o PDF em uma nova aba.
+              A assinatura digital tem validade jurídica e não pode ser desfeita sem permissão especial.
+            </div>
+
+            <div id="lote-previa-lista" style="max-height:300px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;padding:8px;" class="mb-3">
+              {# Preenchido via JS com as matérias selecionadas + link para PDF #}
+            </div>
+
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" id="lote-previa-confirmacao">
+              <label class="form-check-label font-weight-bold text-danger" for="lote-previa-confirmacao">
+                <i class="fa fa-check-square-o"></i>
+                Confirmo que revisei os documentos e que estão corretos para assinatura.
+              </label>
+            </div>
+          </div>
+
+          {# ── Passo 2: progresso ── #}
+          <div id="lote-progresso-step" style="display:none;">
+            <h6 class="mb-3">
+              <i class="fa fa-spinner fa-spin text-primary"></i>
+              Processando assinaturas…
+            </h6>
+            <div class="progress mb-3" style="height:22px;">
+              <div id="lote-progress-bar"
+                   class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                   role="progressbar" style="width:0%">0%</div>
+            </div>
+            <p class="text-muted small" id="lote-status-texto">Iniciando…</p>
+            <div id="lote-resultados-parciais" class="mt-2" style="max-height:220px;overflow-y:auto;"></div>
+          </div>
+
+          {# ── Passo 3: resumo final ── #}
+          <div id="lote-resumo-step" style="display:none;">
+            <div id="lote-resumo-alerta"></div>
+            <div id="lote-resumo-lista" style="max-height:300px;overflow-y:auto;"></div>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-dismiss="modal" id="lote-btn-fechar">
+            <i class="fa fa-times"></i> Fechar
+          </button>
+          {# Passo 0 → 1 #}
+          <button type="button" class="btn btn-warning" id="lote-btn-proximo">
+            <i class="fa fa-arrow-right"></i>
+            Continuar — <span id="lote-btn-proximo-contagem">{{ materias_pendentes_lote|length }}</span> Matéria(s)
+          </button>
+          {# Passo 1 → 1.5 #}
+          <button type="button" class="btn btn-outline-secondary" id="lote-btn-voltar" style="display:none;">
+            <i class="fa fa-arrow-left"></i> Voltar
+          </button>
+          <button type="button" class="btn btn-info" id="lote-btn-previa" style="display:none;">
+            <i class="fa fa-eye"></i> Visualizar Documentos
+          </button>
+          {# Passo 1.5 → 2 #}
+          <button type="button" class="btn btn-outline-secondary" id="lote-btn-voltar-form" style="display:none;">
+            <i class="fa fa-arrow-left"></i> Voltar
+          </button>
+          <button type="button" class="btn btn-warning" id="lote-btn-assinar" style="display:none;" disabled>
+            <i class="fa fa-certificate"></i>
+            Assinar <span id="lote-btn-assinar-contagem">{{ materias_pendentes_lote|length }}</span> Matéria(s)
+          </button>
+          <button type="button" class="btn btn-success" id="lote-btn-recarregar" style="display:none;"
+                  onclick="location.reload()">
+            <i class="fa fa-refresh"></i> Atualizar página
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    // Dados injetados pelo servidor: [{id: N, descricao: "..."}, ...]
+    var MATERIAS_LOTE = {{ materias_pendentes_lote|safe }};
+    var URL_LOTE = "{% url 'sapl.materia:materia_assinar_lote' %}";
+
+    function getCSRF() {
+      var el = document.querySelector('#form-assinatura-lote [name=csrfmiddlewaretoken]');
+      if (el) return el.value;
+      var match = document.cookie.match(/csrftoken=([^;]+)/);
+      return match ? match[1] : '';
+    }
+
+    // Retorna lista de IDs marcados nos checkboxes
+    function getIdsSelecionados() {
+      return Array.from(
+        document.querySelectorAll('.lote-chk:checked')
+      ).map(function(c){ return parseInt(c.value, 10); });
+    }
+
+    // Atualiza contagens em todos os elementos dinâmicos
+    function atualizarContagem() {
+      var n = getIdsSelecionados().length;
+      document.getElementById('lote-selecao-contagem').textContent   = n;
+      document.getElementById('lote-btn-proximo-contagem').textContent = n;
+      document.getElementById('lote-btn-assinar-contagem').textContent = n;
+      document.getElementById('lote-alerta-total').textContent        = n;
+      document.getElementById('lote-titulo-total').textContent        = n;
+      // badge no botão da página
+      var badge = document.getElementById('badge-lote-total');
+      if (badge) badge.textContent = n;
+      // desabilita "Continuar" se nenhuma selecionada
+      document.getElementById('lote-btn-proximo').disabled = (n === 0);
+    }
+
+    // Delega evento nos checkboxes
+    document.getElementById('lote-lista-checkboxes').addEventListener('change', function(e){
+      if (e.target && e.target.classList.contains('lote-chk')) {
+        atualizarContagem();
+      }
+    });
+
+    // Selecionar todas / nenhuma
+    document.getElementById('lote-btn-todas').addEventListener('click', function(){
+      document.querySelectorAll('.lote-chk').forEach(function(c){ c.checked = true; });
+      atualizarContagem();
+    });
+    document.getElementById('lote-btn-nenhuma').addEventListener('click', function(){
+      document.querySelectorAll('.lote-chk').forEach(function(c){ c.checked = false; });
+      atualizarContagem();
+    });
+
+    // Atualiza label do file input
+    document.getElementById('lote-certificado').addEventListener('change', function () {
+      var label = this.nextElementSibling;
+      label.textContent = this.files[0] ? this.files[0].name : 'Selecione o arquivo do certificado...';
+    });
+
+    function irParaSelecao() {
+      document.getElementById('lote-selecao-step').style.display   = 'block';
+      document.getElementById('lote-form-step').style.display      = 'none';
+      document.getElementById('lote-previa-step').style.display    = 'none';
+      document.getElementById('lote-progresso-step').style.display = 'none';
+      document.getElementById('lote-resumo-step').style.display    = 'none';
+      document.getElementById('lote-btn-proximo').style.display    = 'inline-block';
+      document.getElementById('lote-btn-voltar').style.display     = 'none';
+      document.getElementById('lote-btn-previa').style.display     = 'none';
+      document.getElementById('lote-btn-voltar-form').style.display= 'none';
+      document.getElementById('lote-btn-assinar').style.display    = 'none';
+      document.getElementById('lote-btn-recarregar').style.display = 'none';
+      document.getElementById('lote-btn-fechar').disabled          = false;
+    }
+
+    function irParaForm() {
+      document.getElementById('lote-selecao-step').style.display   = 'none';
+      document.getElementById('lote-form-step').style.display      = 'block';
+      document.getElementById('lote-previa-step').style.display    = 'none';
+      document.getElementById('lote-progresso-step').style.display = 'none';
+      document.getElementById('lote-resumo-step').style.display    = 'none';
+      document.getElementById('lote-btn-proximo').style.display    = 'none';
+      document.getElementById('lote-btn-voltar').style.display     = 'inline-block';
+      document.getElementById('lote-btn-previa').style.display     = 'inline-block';
+      document.getElementById('lote-btn-voltar-form').style.display= 'none';
+      document.getElementById('lote-btn-assinar').style.display    = 'none';
+      document.getElementById('lote-btn-recarregar').style.display = 'none';
+    }
+
+    function irParaPrevia() {
+      var certFile = document.getElementById('lote-certificado').files[0];
+      var senha    = document.getElementById('lote-senha').value;
+      if (!certFile) { alert('Selecione o arquivo do certificado.'); return; }
+      if (!senha)    { alert('Digite a senha do certificado.'); return; }
+
+      var idsSel = getIdsSelecionados();
+
+      // Monta lista de matérias com link para prévia do PDF
+      var html = '';
+      MATERIAS_LOTE.filter(function(m){ return idsSel.indexOf(m.id) !== -1; })
+        .forEach(function(m) {
+          html += '<div class="d-flex align-items-center justify-content-between py-2" ' +
+                  'style="border-bottom:1px solid #f0f0f0;">' +
+                  '<span><i class="fa fa-file-pdf-o text-danger mr-1"></i>' +
+                  '<strong>' + escHtml(m.descricao) + '</strong></span>' +
+                  '<a href="/materia/' + m.id + '/pdf-previa" target="_blank" ' +
+                  'class="btn btn-sm btn-outline-primary ml-2" title="Visualizar PDF">' +
+                  '<i class="fa fa-eye"></i> Visualizar PDF</a>' +
+                  '</div>';
+        });
+      document.getElementById('lote-previa-lista').innerHTML = html || '<p class="text-muted">Nenhuma matéria selecionada.</p>';
+
+      // Reset checkbox de confirmação
+      var chk = document.getElementById('lote-previa-confirmacao');
+      chk.checked = false;
+      document.getElementById('lote-btn-assinar').disabled = true;
+
+      document.getElementById('lote-selecao-step').style.display   = 'none';
+      document.getElementById('lote-form-step').style.display      = 'none';
+      document.getElementById('lote-previa-step').style.display    = 'block';
+      document.getElementById('lote-progresso-step').style.display = 'none';
+      document.getElementById('lote-resumo-step').style.display    = 'none';
+      document.getElementById('lote-btn-proximo').style.display    = 'none';
+      document.getElementById('lote-btn-voltar').style.display     = 'none';
+      document.getElementById('lote-btn-previa').style.display     = 'none';
+      document.getElementById('lote-btn-voltar-form').style.display= 'inline-block';
+      document.getElementById('lote-btn-assinar').style.display    = 'inline-block';
+      document.getElementById('lote-btn-recarregar').style.display = 'none';
+    }
+
+    // Abre modal ao clicar no botão externo
+    document.getElementById('btn-assinar-em-lote').addEventListener('click', function () {
+      // Reset checkboxes para todos marcados
+      document.querySelectorAll('.lote-chk').forEach(function(c){ c.checked = true; });
+      document.getElementById('form-assinatura-lote').reset();
+      document.querySelector('#form-assinatura-lote .custom-file-label').textContent =
+        'Selecione o arquivo do certificado...';
+      atualizarContagem();
+      irParaSelecao();
+      $('#assinaturaLoteModal').modal('show');
+    });
+
+    // Passo 0 → 1: Continuar
+    document.getElementById('lote-btn-proximo').addEventListener('click', function () {
+      if (getIdsSelecionados().length === 0) {
+        alert('Selecione ao menos uma matéria para assinar.');
+        return;
+      }
+      irParaForm();
+    });
+
+    // Passo 1 → 0: Voltar
+    document.getElementById('lote-btn-voltar').addEventListener('click', irParaSelecao);
+
+    // Passo 1 → 1.5: Visualizar Prévia
+    document.getElementById('lote-btn-previa').addEventListener('click', irParaPrevia);
+
+    // Passo 1.5 → 1: Voltar ao formulário
+    document.getElementById('lote-btn-voltar-form').addEventListener('click', irParaForm);
+
+    // Habilitar botão assinar apenas quando confirmação marcada
+    document.getElementById('lote-previa-confirmacao').addEventListener('change', function() {
+      document.getElementById('lote-btn-assinar').disabled = !this.checked;
+    });
+
+    // Botão Assinar (passo 1.5 → 2)
+    document.getElementById('lote-btn-assinar').addEventListener('click', function () {
+      var certFile = document.getElementById('lote-certificado').files[0];
+      var senha    = document.getElementById('lote-senha').value;
+      var idsSel   = getIdsSelecionados();
+
+      if (!certFile)        { alert('Selecione o arquivo do certificado.'); return; }
+      if (!senha)           { alert('Digite a senha do certificado.'); return; }
+      if (!idsSel.length)   { alert('Nenhuma matéria selecionada.'); return; }
+
+      var fd = new FormData();
+      fd.append('certificado', certFile);
+      fd.append('senha', senha);
+      fd.append('ids', JSON.stringify(idsSel));
+
+      document.getElementById('lote-previa-step').style.display    = 'none';
+      document.getElementById('lote-progresso-step').style.display = 'block';
+      document.getElementById('lote-btn-voltar-form').style.display= 'none';
+      document.getElementById('lote-btn-assinar').style.display    = 'none';
+      document.getElementById('lote-btn-fechar').disabled          = true;
+
+      // Calcula fases de progresso em função do número de matérias selecionadas
+      var nDocs = idsSel.length;
+      var fases = [
+        { ate: 10, label: 'Enviando certificado e iniciando assinatura…',   ms: 700 },
+        { ate: 25, label: 'Validando certificado e gerando PDFs…',           ms: Math.min(600, 200 + nDocs * 30) },
+        { ate: 50, label: 'Preparando ' + nDocs + ' documento(s) para assinatura…', ms: Math.min(800, 200 + nDocs * 50) },
+        { ate: 70, label: 'Enviando ao microserviço de assinatura…',         ms: Math.min(1000, 300 + nDocs * 60) },
+        { ate: 85, label: 'Aguardando resposta do servidor…',               ms: Math.min(800, 300 + nDocs * 40) },
+        { ate: 93, label: 'Salvando documentos assinados…',                 ms: 500 },
+        { ate: 97, label: 'Finalizando…',                                   ms: 300 },
+      ];
+      var faseIdx = 0, progrAtual = 0, progrTimer = null;
+      function avancarProgresso() {
+        if (faseIdx >= fases.length) return;
+        var fase = fases[faseIdx];
+        if (progrAtual < fase.ate) {
+          progrAtual = Math.min(progrAtual + 1, fase.ate);
+          setProgresso(progrAtual, fase.label);
+        } else { faseIdx++; }
+        progrTimer = setTimeout(avancarProgresso, fases[Math.min(faseIdx, fases.length-1)].ms / (fase.ate - (faseIdx > 0 ? fases[faseIdx-1].ate : 0)));
+      }
+      progrTimer = setTimeout(avancarProgresso, 400);
+
+      fetch(URL_LOTE, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-CSRFToken': getCSRF() }
+      })
+      .then(function (r) {
+        clearTimeout(progrTimer);
+        setProgresso(98, 'Processando resposta…');
+        if (!r.ok) {
+          return r.json().then(function(d){ throw new Error(d.error || ('HTTP ' + r.status)); });
+        }
+        return r.json();
+      })
+      .then(function (data) {
+        clearTimeout(progrTimer);
+        setProgresso(100, 'Concluído.');
+        document.getElementById('lote-btn-fechar').disabled = false;
+        mostrarResumo(data);
+      })
+      .catch(function (err) {
+        clearTimeout(progrTimer);
+        document.getElementById('lote-btn-fechar').disabled = false;
+        setProgresso(100, 'Erro.');
+        mostrarErroFatal(err.message || String(err));
+      });
+    });
+
+    function setProgresso(pct, texto) {
+      var bar = document.getElementById('lote-progress-bar');
+      bar.style.width = pct + '%';
+      bar.textContent = pct + '%';
+      document.getElementById('lote-status-texto').textContent = texto;
+    }
+
+    function mostrarResumo(data) {
+      document.getElementById('lote-progresso-step').style.display = 'none';
+      document.getElementById('lote-resumo-step').style.display    = 'block';
+      document.getElementById('lote-btn-recarregar').style.display = 'inline-block';
+
+      var temErro   = data.erros > 0;
+      var alertaCls = data.sucesso > 0 ? (temErro ? 'alert-warning' : 'alert-success') : 'alert-danger';
+      var icone     = data.sucesso > 0 ? (temErro ? 'exclamation-triangle' : 'check-circle') : 'times-circle';
+
+      document.getElementById('lote-resumo-alerta').innerHTML =
+        '<div class="alert ' + alertaCls + '">' +
+        '<i class="fa fa-' + icone + '"></i> ' +
+        '<strong>' + data.sucesso + ' assinada(s)</strong> com sucesso' +
+        (temErro ? ', <strong>' + data.erros + '</strong> com erro(s).' : '.') +
+        ' Total: ' + data.total + ' matéria(s).' +
+        '</div>';
+
+      var html = '<ul class="list-group">';
+      (data.resultados || []).forEach(function (r) {
+        var cls  = r.success ? 'list-group-item-success' : 'list-group-item-danger';
+        var icon = r.success ? 'check text-success' : 'times text-danger';
+        html += '<li class="list-group-item list-group-item-sm ' + cls + '">' +
+                '<i class="fa fa-' + icon + ' mr-1"></i>' +
+                '<strong>' + escHtml(r.descricao) + '</strong>' +
+                (r.error ? ' — <small class="text-muted">' + escHtml(r.error) + '</small>' : '') +
+                '</li>';
+      });
+      html += '</ul>';
+      document.getElementById('lote-resumo-lista').innerHTML = html;
+    }
+
+    function mostrarErroFatal(msg) {
+      document.getElementById('lote-progresso-step').style.display = 'none';
+      document.getElementById('lote-resumo-step').style.display    = 'block';
+      document.getElementById('lote-resumo-alerta').innerHTML =
+        '<div class="alert alert-danger"><i class="fa fa-times-circle"></i> ' +
+        '<strong>Erro:</strong> ' + escHtml(msg) + '</div>';
+      document.getElementById('lote-resumo-lista').innerHTML = '';
+    }
+
+    function escHtml(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+  })();
+  </script>
+  {% endif %}
+
+  <script type="text/javascript">
   $( document ).ready(function() {
       $('.link_votacao_nominal').on('click', function(event) {
         event.preventDefault();
@@ -265,7 +920,6 @@
 
   function pesquisaAvancada(){
      $('.pesquisa_avancada').toggle();
-
      var id_btn = "#btn_pesquisa_avancada_id";
      if ($(id_btn).val().endsWith('>>>')){
        $(id_btn).val($(id_btn).val().replace('>>>', '<<<'))
@@ -276,7 +930,6 @@
 
   function votacaoNominal(id){
      $('#div_' + id).toggle();
-
      var id_link = "#link_votacao_nominal_" + id;
      if ($(id_link).text().indexOf('>>>') > -1){
        $(id_link).text($(id_link).text().replace('>>>', '<<<'))

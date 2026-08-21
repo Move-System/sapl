@@ -821,3 +821,210 @@ def materia_gerar_pdf_assinatura(request, pk):
         logger.error(f"Erro inesperado na geração de PDF: {e}")
         messages.error(request, 'Erro inesperado ao gerar o PDF.')
         return redirect('sapl.materia:materialegislativa_detail', pk=pk)
+
+
+# ============================================================
+# Prévia de PDF para Documento Acessório
+# ============================================================
+
+# ============================================================
+# Prévia de PDF para Documento Acessório
+# ============================================================
+
+@login_required
+@require_http_methods(["GET"])
+def materia_gerar_pdf_previa(request, pk):
+    """
+    Gera o PDF da matéria para prévia antes da assinatura.
+    Diferente do materia_gerar_pdf_assinatura, não exige numero_protocolo.
+    Se já for PDF, retorna direto. Caso seja DOCX, converte via OnlyOffice.
+    """
+    import requests as http_requests
+    import xml.etree.ElementTree as ET
+
+    materia = get_object_or_404(MateriaLegislativa, pk=pk)
+
+    if not materia.texto_original:
+        return HttpResponse('Matéria não possui documento de texto original.', status=404)
+
+    file_name = materia.texto_original.name.lower()
+
+    if file_name.endswith('.pdf'):
+        try:
+            with open(materia.texto_original.path, 'rb') as f:
+                content = f.read()
+            response = HttpResponse(content, content_type='application/pdf')
+            response['Content-Disposition'] = (
+                f'inline; filename="Materia_{materia.tipo}_{materia.numero}_{materia.ano}.pdf"'
+            )
+            return response
+        except Exception as e:
+            logger.error(f"Erro ao ler PDF da materia {pk}: {e}")
+            return HttpResponse('Erro ao ler o arquivo PDF.', status=500)
+
+    download_url = build_onlyoffice_url(
+        request,
+        reverse('sapl.materia:materia_onlyoffice_download', kwargs={'pk': pk})
+    )
+
+    conversion_url = f'{settings.ONLYOFFICE_URL}/ConvertService.ashx'
+
+    conversion_data = {
+        "async": False,
+        "filetype": "docx",
+        "key": generate_file_key("materia_previa", pk, request.user.pk),
+        "outputtype": "pdf",
+        "title": f"Materia_{materia.tipo}_{materia.numero}_{materia.ano}.pdf",
+        "url": download_url,
+    }
+
+    if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+        import jwt
+        token = jwt.encode(conversion_data, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+        conversion_data['token'] = token
+
+    try:
+        headers = {'Content-Type': 'application/json'}
+
+        if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+            import jwt
+            header_token = jwt.encode({"payload": conversion_data}, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+            headers['Authorization'] = f'Bearer {header_token}'
+
+        conversion_response = http_requests.post(
+            conversion_url,
+            json=conversion_data,
+            headers=headers,
+            timeout=60
+        )
+
+        if conversion_response.status_code != 200:
+            return HttpResponse('Erro ao converter o documento.', status=500)
+
+        try:
+            root = ET.fromstring(conversion_response.text)
+        except ET.ParseError as e:
+            logger.error(f"Erro ao parsear resposta XML (materia previa): {e}")
+            return HttpResponse('Erro ao processar resposta do serviço.', status=500)
+
+        error_elem = root.find('Error')
+        if error_elem is not None:
+            return HttpResponse(f'Erro na conversão: {error_elem.text}', status=500)
+
+        file_url_elem = root.find('FileUrl')
+        if file_url_elem is None or not file_url_elem.text:
+            return HttpResponse('URL do PDF não retornada.', status=500)
+
+        pdf_response = http_requests.get(file_url_elem.text, timeout=60)
+        if pdf_response.status_code != 200:
+            return HttpResponse('Erro ao baixar PDF convertido.', status=500)
+
+        filename = f"Materia_{materia.tipo}_{materia.numero}_{materia.ano}.pdf"
+        filename = filename.replace(' ', '_').replace('/', '-')
+        response = HttpResponse(pdf_response.content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
+
+    except http_requests.exceptions.Timeout:
+        logger.error(f"Timeout na conversão OnlyOffice (materia previa pk={pk})")
+        return HttpResponse('Tempo limite excedido ao converter o documento.', status=504)
+    except http_requests.exceptions.ConnectionError:
+        logger.error(f"Erro de conexão com OnlyOffice (materia previa pk={pk})")
+        return HttpResponse('Não foi possível conectar ao serviço de conversão.', status=502)
+    except Exception as e:
+        logger.error(f"Erro inesperado na previa PDF (materia pk={pk}): {e}")
+        return HttpResponse('Erro inesperado ao gerar o PDF.', status=500)
+
+
+@login_required
+@require_http_methods(["GET"])
+def docacessorio_gerar_pdf_previa(request, pk):
+    """
+    Gera o PDF do documento acessório para prévia antes da assinatura.
+    Se já for PDF, retorna direto. Caso seja DOCX, converte via OnlyOffice.
+    """
+    import requests as http_requests
+    import xml.etree.ElementTree as ET
+
+    docacessorio = get_object_or_404(DocumentoAcessorio, pk=pk)
+
+    if not docacessorio.arquivo:
+        return HttpResponse('Documento sem arquivo.', status=404)
+
+    file_name = docacessorio.arquivo.name.lower()
+
+    if file_name.endswith('.pdf'):
+        try:
+            with open(docacessorio.arquivo.path, 'rb') as f:
+                content = f.read()
+            response = HttpResponse(content, content_type='application/pdf')
+            response['Content-Disposition'] = f'inline; filename="DocAcessorio_{pk}.pdf"'
+            return response
+        except Exception as e:
+            logger.error(f"Erro ao ler arquivo PDF do doc acessorio: {e}")
+            return HttpResponse('Erro ao ler o arquivo PDF.', status=500)
+
+    download_url = build_onlyoffice_url(
+        request,
+        reverse('sapl.materia:docacessorio_onlyoffice_download', kwargs={'pk': pk})
+    )
+
+    conversion_url = f'{settings.ONLYOFFICE_URL}/ConvertService.ashx'
+
+    conversion_data = {
+        "async": False,
+        "filetype": "docx",
+        "key": generate_file_key("docacessorio_pdf", pk, request.user.pk),
+        "outputtype": "pdf",
+        "title": f"DocAcessorio_{pk}.pdf",
+        "url": download_url,
+    }
+
+    if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+        import jwt
+        token = jwt.encode(conversion_data, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+        conversion_data['token'] = token
+
+    try:
+        headers = {'Content-Type': 'application/json'}
+
+        if getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False) and getattr(settings, 'ONLYOFFICE_JWT_SECRET', None):
+            import jwt
+            header_token = jwt.encode({"payload": conversion_data}, settings.ONLYOFFICE_JWT_SECRET, algorithm='HS256')
+            headers['Authorization'] = f'Bearer {header_token}'
+
+        conversion_response = http_requests.post(
+            conversion_url,
+            json=conversion_data,
+            headers=headers,
+            timeout=60
+        )
+
+        if conversion_response.status_code != 200:
+            return HttpResponse('Erro ao converter o documento.', status=500)
+
+        try:
+            root = ET.fromstring(conversion_response.text)
+        except ET.ParseError as e:
+            logger.error(f"Erro ao parsear resposta XML: {e}")
+            return HttpResponse('Erro ao processar resposta do serviço.', status=500)
+
+        error_elem = root.find('Error')
+        if error_elem is not None:
+            return HttpResponse(f'Erro na conversão: {error_elem.text}', status=500)
+
+        file_url_elem = root.find('FileUrl')
+        if file_url_elem is None or not file_url_elem.text:
+            return HttpResponse('URL do PDF não retornada.', status=500)
+
+        pdf_response = http_requests.get(file_url_elem.text, timeout=60)
+        if pdf_response.status_code != 200:
+            return HttpResponse('Erro ao baixar PDF convertido.', status=500)
+
+        response = HttpResponse(pdf_response.content, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="DocAcessorio_{pk}.pdf"'
+        return response
+
+    except Exception as e:
+        logger.error(f"Erro inesperado na previa PDF (docacessorio): {e}")
+        return HttpResponse('Erro inesperado ao gerar o PDF.', status=500)
