@@ -159,6 +159,51 @@ def _metadados_certificado_via_api(certificado_bytes, senha):
     }
 
 
+def _nome_e_cargo_do_assinante(request):
+    """
+    Nome e cargo que vão IMPRESSOS no documento, via Autor.operadores → Parlamentar.
+
+    Fonte única para os dois backends. Existia em duas cópias — uma aqui e outra
+    inline no ramo da API — que hoje coincidiam por acaso: mudar o critério em uma
+    faria o mesmo vereador sair com nomes diferentes conforme o backend da casa.
+
+    Quem assina é o vereador, então o nome impresso é o dele. O operador (assessor)
+    fica registrado à parte, em `signed_by`.
+    """
+    nome_assinante = request.user.get_full_name() or request.user.username
+    cargo = 'Usuário do Sistema'
+
+    try:
+        from sapl.base.models import Autor
+        from sapl.parlamentares.models import Parlamentar
+
+        autor = Autor.objects.filter(operadores=request.user).first()
+        if autor:
+            # Tipo do autor vira cargo (ex.: "Parlamentar" → "Vereador(a)")
+            tipo_descricao = autor.tipo.descricao if autor.tipo else ''
+            if tipo_descricao == 'Parlamentar':
+                cargo = 'Vereador(a)'
+            elif tipo_descricao:
+                cargo = tipo_descricao
+
+            if isinstance(autor.autor_related, Parlamentar):
+                parlamentar = autor.autor_related
+                tipo_nome = AppConfig.attr('assinatura_nome')
+                nome_assinante = (
+                    parlamentar.nome_completo if tipo_nome == 'C'
+                    else parlamentar.nome_parlamentar
+                )
+    except Exception as exc:
+        # Cair no username do operador significa imprimir no PDF um nome que não é
+        # o do vereador. Não derruba a assinatura, mas não pode passar em silêncio.
+        logger.warning(
+            f'Nao foi possivel resolver o parlamentar de {request.user.username}: '
+            f'{exc}. A assinatura sai com "{nome_assinante}".'
+        )
+
+    return nome_assinante, cargo
+
+
 def _tipo_certificado_pelo_emissor(issuer):
     """Rotula o certificado a partir do emissor (mesma regra nos dois backends)."""
     issuer_str = str(issuer or '').upper()
@@ -269,32 +314,9 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
             assinar_pdf_via_api,
         )
 
-        # Obter nome/cargo via relação User → Autor (sem pyhanko)
-        nome_assinante = request.user.get_full_name() or request.user.username
-        cargo = 'Usuário do Sistema'
-
-        try:
-            from sapl.base.models import Autor
-            from sapl.parlamentares.models import Parlamentar
-            autor = Autor.objects.filter(operadores=request.user).first()
-            if autor:
-                tipo_desc = autor.tipo.descricao if autor.tipo else ''
-                if tipo_desc == 'Parlamentar':
-                    cargo = 'Vereador(a)'
-                elif tipo_desc:
-                    cargo = tipo_desc
-                if isinstance(autor.autor_related, Parlamentar):
-                    parl = autor.autor_related
-                    tipo_nome = AppConfig.attr('assinatura_nome')
-                    nome_assinante = parl.nome_completo if tipo_nome == 'C' else parl.nome_parlamentar
-        except Exception as exc:
-            # Cair no username do operador significa imprimir no PDF um nome que
-            # não é o do vereador. Não derruba a assinatura, mas precisa aparecer.
-            logger.warning(
-                f'Nao foi possivel resolver o parlamentar de '
-                f'{request.user.username}: {exc}. A assinatura sai com '
-                f'"{nome_assinante}".'
-            )
+        # Nome/cargo pela MESMA função do backend local: o vereador não pode sair
+        # com nome diferente conforme a casa usa microserviço ou pyhanko.
+        nome_assinante, cargo = _nome_e_cargo_do_assinante(request)
 
         data_assinatura = timezone.localtime(timezone.now())
         data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
@@ -334,7 +356,7 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                     certificado_bytes=certificado_bytes,
                     senha=senha,
                     reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    location='Câmara Municipal',
+                    location=_obter_nome_casa_legislativa(),
                     signature_page=posicao_custom.get('sig_page'),
                     signature_left=posicao_custom.get('sig_left'),
                     signature_bottom=posicao_custom.get('sig_bottom'),
@@ -366,7 +388,7 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                     brasao_bytes=_ler_brasao(),
                     brasao_filename=os.path.basename(_encontrar_logo() or 'brasao.png'),
                     reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-                    location='Câmara Municipal',
+                    location=_obter_nome_casa_legislativa(),
                 )
             except AssinaturaAPIError as exc:
                 raise _erro_de_assinatura(exc)
@@ -424,17 +446,26 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                 passphrase=senha.encode('utf-8')
             )
         except Exception as cert_error:
-            raise Exception(f'Erro ao carregar certificado: {cert_error}')
+            logger.warning(f'Falha ao abrir o PFX: {cert_error}')
+            raise ErroAssinaturaUsuario(_mensagem_de_erro_do_pfx(cert_error))
         finally:
             if os.path.exists(tmp_cert_path):
                 os.unlink(tmp_cert_path)
+
+        if signer is None:
+            raise ErroAssinaturaUsuario(
+                'Não foi possível carregar o certificado. Verifique se o arquivo '
+                '.pfx/.p12 é válido e contém uma chave de assinatura.'
+            )
 
         cert_info = signer.signing_cert
         error_response = _validar_certificado(cert_info)
         if error_response:
             import json as _json
             data = _json.loads(error_response.content)
-            raise Exception(data.get('error', 'Certificado inválido.'))
+            # Certificado vencido é problema do operador, não falha do sistema: 400
+            # com a mensagem, igual ao que o microserviço devolve no outro backend.
+            raise ErroAssinaturaUsuario(data.get('error', 'Certificado inválido.'))
 
         nome_assinante, cargo, tipo_cert_display = _obter_info_assinante(request, cert_info)
         data_assinatura = timezone.localtime(timezone.now())
@@ -473,7 +504,7 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
 
                 meta = signers.PdfSignatureMetadata(
                     field_name=sig_field_name,
-                    location='Câmara Municipal',
+                    location=_obter_nome_casa_legislativa(),
                     reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
                     name=nome_assinante
                 )
@@ -505,7 +536,7 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                 w = IncrementalPdfFileWriter(inf)
                 meta = signers.PdfSignatureMetadata(
                     field_name='AssinaturaDigital',
-                    location='Câmara Municipal',
+                    location=_obter_nome_casa_legislativa(),
                     reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
                     name=nome_assinante
                 )
@@ -866,83 +897,30 @@ def _criar_stamp_style(nome_assinante, cargo, hash_doc=''):
 def _obter_info_assinante(request, cert_info):
     """
     Obtém informações do assinante (nome, cargo, tipo_cert).
-    Busca via Autor.operadores → Parlamentar (GenericFK).
     Retorna (nome_assinante, cargo, tipo_cert).
     """
-    nome_assinante = request.user.get_full_name() or request.user.username
-    cargo = "Usuário do Sistema"
-
-    try:
-        from sapl.base.models import Autor
-        from sapl.parlamentares.models import Parlamentar
-
-        autor = Autor.objects.filter(operadores=request.user).first()
-        if autor:
-            # Usa tipo do autor como cargo (ex: "Parlamentar" → "Vereador(a)")
-            tipo_descricao = autor.tipo.descricao if autor.tipo else ''
-            if tipo_descricao == 'Parlamentar':
-                cargo = "Vereador(a)"
-            elif tipo_descricao:
-                cargo = tipo_descricao
-
-            # Se o autor está vinculado a um Parlamentar, usa o nome dele
-            if isinstance(autor.autor_related, Parlamentar):
-                parlamentar = autor.autor_related
-                tipo_nome = AppConfig.attr('assinatura_nome')
-                if tipo_nome == 'C':
-                    nome_assinante = parlamentar.nome_completo
-                else:
-                    nome_assinante = parlamentar.nome_parlamentar
-    except Exception:
-        pass
-
+    nome_assinante, cargo = _nome_e_cargo_do_assinante(request)
     return nome_assinante, cargo, _tipo_certificado_pelo_emissor(cert_info.issuer)
 
 
-def _carregar_certificado(certificado_file, senha):
+def _mensagem_de_erro_do_pfx(exc):
     """
-    Carrega certificado PKCS12 de um arquivo.
-    Retorna (signer, error_response) — se error_response não é None, retornar direto.
+    Traduz a falha do pyhanko ao abrir o PKCS12 para algo que o operador resolve.
+
+    Sem isto, senha errada vira `Exception` genérica e a view responde 500 com o
+    texto cru da biblioteca — quem está assinando não tem como saber que só errou
+    a senha. É a mesma tradução que o caminho via microserviço faz ao converter o
+    HTTP 400 em `ErroAssinaturaUsuario`; os dois backends precisam falar igual.
     """
-    from pyhanko.sign import signers
-
-    cert_data = certificado_file.read()
-
-    import tempfile as tmp_module
-    with tmp_module.NamedTemporaryFile(delete=False, suffix='.pfx') as tmp_cert:
-        tmp_cert.write(cert_data)
-        tmp_cert_path = tmp_cert.name
-
-    try:
-        signer = signers.SimpleSigner.load_pkcs12(
-            pfx_file=tmp_cert_path,
-            passphrase=senha.encode('utf-8')
-        )
-        if os.path.exists(tmp_cert_path):
-            os.unlink(tmp_cert_path)
-    except Exception as cert_error:
-        logger.error(f"Erro ao carregar certificado: {cert_error}")
-        if os.path.exists(tmp_cert_path):
-            os.unlink(tmp_cert_path)
-        error_msg = str(cert_error)
-        if 'password' in error_msg.lower() or 'mac' in error_msg.lower():
-            error_detail = 'Senha incorreta.'
-        elif 'decode' in error_msg.lower() or 'parse' in error_msg.lower():
-            error_detail = 'Arquivo não é um certificado válido (.pfx/.p12).'
-        else:
-            error_detail = f'Detalhes: {error_msg}'
-        return None, JsonResponse({
-            'success': False,
-            'error': f'Erro ao carregar certificado: {error_detail}'
-        }, status=400)
-
-    if signer is None:
-        return None, JsonResponse({
-            'success': False,
-            'error': 'Não foi possível carregar o certificado. Verifique se o arquivo .pfx/.p12 é válido e contém uma chave de assinatura.'
-        }, status=400)
-
-    return signer, None
+    texto = str(exc)
+    minusculo = texto.lower()
+    if 'password' in minusculo or 'mac' in minusculo:
+        detalhe = 'Senha incorreta.'
+    elif 'decode' in minusculo or 'parse' in minusculo:
+        detalhe = 'Arquivo não é um certificado válido (.pfx/.p12).'
+    else:
+        detalhe = f'Detalhes: {texto}'
+    return f'Erro ao carregar certificado: {detalhe}'
 
 
 def _validar_certificado(cert_info):
@@ -1417,7 +1395,7 @@ def materia_assinar_a3_finalizar(request, pk):
                 # Metadados da assinatura
                 meta = signers.PdfSignatureMetadata(
                     field_name='AssinaturaDigital',
-                    location='Câmara Municipal',
+                    location=_obter_nome_casa_legislativa(),
                     reason='Assinatura Digital de Matéria Legislativa (A3)',
                     name=request.user.get_full_name() or request.user.username
                 )
