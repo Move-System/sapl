@@ -14,13 +14,22 @@ from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
 
+from django.core.files.base import ContentFile
+from django.http import FileResponse, Http404
+
 from sapl.base.models import Autor
 from sapl.materia.forms import ProposicaoForm
-from sapl.materia.models import Proposicao, Tramitacao
+from sapl.materia.models import (MateriaLegislativa, Proposicao,
+                                 Tramitacao)
 from sapl.utils import get_client_ip
 
-from .models import AnexoProposicao, EventoRecebido
-from .serializacao import serializar_proposicao, serializar_tramitacao
+from .models import (AnexoProposicao, AssinaturaRecebida,
+                     DocumentoParaAssinatura, EventoRecebido)
+from .serializacao import (resolver_titular,
+                           serializar_materia_assinada,
+                           serializar_pendencia,
+                           serializar_proposicao,
+                           serializar_tramitacao)
 
 LIMITE_PADRAO = 100
 LIMITE_MAXIMO = 500
@@ -307,3 +316,245 @@ class InventarioView(PollView):
             # em vez de concluir que o resto simplesmente nao existe.
             'truncado': len(proposicoes) >= limite or len(tramitacoes) >= limite,
         })
+
+
+class AssinaturasPendentesPollView(PollView):
+    """Fonte de poll da pendência de assinatura (refinamento §3, keyset por id).
+
+    SÓ devolve matéria com o PDF-alvo já materializado (§5.1): DOCX ainda não
+    convertido não sai do SAPL — segue visível apenas na tela local. O cursor
+    anda sobre o id da MATÉRIA (o alvo é OneToOne), então página sem pendência
+    por autor ainda avança o cursor — item com `autores_pendentes` vazio é
+    ruído inofensivo, nunca loop.
+    """
+
+    def get(self, request, *args, **kwargs):
+        id_gt = self._id_gt(request)
+        if id_gt is None:
+            return Response({'detalhe': 'id_gt deve ser inteiro'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        alvos = (DocumentoParaAssinatura.objects
+                 .filter(materia_id__gt=id_gt)
+                 .select_related('materia')
+                 .prefetch_related(
+                     'materia__autoria_set__autor__operadorautor_set__user')
+                 .order_by('materia_id')[:self._limite(request)])
+        return Response({'resultados': [
+            serializar_pendencia(alvo, request) for alvo in alvos]})
+
+
+class AssinaturasConcluidasPollView(PollView):
+    """Matérias com `pdf_assinado` — cursor composto (assinado_em, id).
+
+    Mesmo keyset das fontes por data (proposicoes-enviadas): `(campo > desde)
+    OU (campo = desde E id > id_gt)` — empate de timestamp não trava o cursor
+    (refinamento da reconciliação §1.1). Multiassinatura reapresenta a matéria
+    porque `assinado_em` avança a cada ato — o dedupe do hub mata a releitura
+    do mesmo estado (marcador = hash do documento).
+    """
+
+    def get(self, request, *args, **kwargs):
+        desde = self._desde(request)
+        if desde is None:
+            return Response(
+                {'detalhe': 'desde deve ser um datetime ISO-8601'},
+                status=status.HTTP_400_BAD_REQUEST)
+        id_gt = self._id_gt(request)
+        if id_gt is None:
+            return Response({'detalhe': 'id_gt deve ser inteiro'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        depois_do_instante = Q(assinado_em__gt=desde)
+        no_mesmo_instante = Q(assinado_em=desde) & Q(id__gt=id_gt)
+        itens = (MateriaLegislativa.objects
+                 .filter(depois_do_instante | no_mesmo_instante)
+                 .exclude(pdf_assinado__isnull=True)
+                 .exclude(pdf_assinado='')
+                 .order_by('assinado_em', 'id')[:self._limite(request)])
+        return Response({'resultados': [
+            serializar_materia_assinada(m, request) for m in itens]})
+
+
+class DocumentoAssinaturaView(IntegracaoHubView):
+    """Serve os bytes do PDF ao hub (token + pode_integrar) — refinamento §5.
+
+    O hub baixa daqui e confere o sha256 do poll antes de repassar: o
+    Authorization nunca vaza para o consumidor final (padrão dos anexos).
+    """
+
+    campo = None  # 'alvo' | 'assinado'
+
+    def get(self, request, materia_id, *args, **kwargs):
+        if self.campo == 'alvo':
+            alvo = DocumentoParaAssinatura.objects.filter(
+                materia_id=materia_id).first()
+            arquivo = alvo.arquivo if alvo else None
+        else:
+            materia = MateriaLegislativa.objects.filter(
+                pk=materia_id).first()
+            arquivo = materia.pdf_assinado if (
+                materia and materia.pdf_assinado) else None
+        if not arquivo:
+            raise Http404
+        return FileResponse(
+            arquivo.open('rb'), content_type='application/pdf')
+
+
+class DocumentoAlvoView(DocumentoAssinaturaView):
+    campo = 'alvo'
+
+
+class DocumentoAssinadoView(DocumentoAssinaturaView):
+    campo = 'assinado'
+
+
+class RecepcaoAssinaturaView(IntegracaoHubView):
+    """Recebe do hub o PDF assinado pelo app (refinamento §5, F2).
+
+    Idempotente por chave (padrão do EventoRecebido); o hash do alvo é
+    conferido ANTES de gravar — retificação no meio do caminho (alvo
+    regenerado entre o poll e a entrega) devolve 409 e a assinatura sobre
+    binário defasado é impossível por construção. A gravação usa o MESMO
+    formato da sprint (`assinatura_info`, nome-padrão do arquivo): para a
+    tela do SAPL, indistinguível de assinatura local.
+    """
+
+    logger = logging.getLogger(__name__)
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        try:
+            chave = uuid.UUID(str(request.data.get('chave_idempotencia', '')))
+        except ValueError:
+            return self._erro('chave_idempotencia ausente ou não é um UUID')
+
+        recebida = AssinaturaRecebida.objects.filter(
+            chave_idempotencia=chave).first()
+        if recebida:
+            self.logger.info(
+                'integracao_hub: assinatura %s reentregue — devolvendo '
+                'resposta original (matéria %s)', chave, recebida.materia_id)
+            return Response(
+                {'materia_id': recebida.materia_id,
+                 'hash_assinado': recebida.hash_assinado},
+                status=status.HTTP_200_OK)
+
+        materia = MateriaLegislativa.objects.filter(
+            pk=request.data.get('materia')).first()
+        if materia is None:
+            return self._erro(
+                'materia %s inexistente no SAPL' % request.data.get('materia'))
+
+        autor = Autor.objects.filter(pk=request.data.get('autor')).first()
+        if autor is None:
+            return self._erro(
+                'autor %s inexistente no SAPL — conferir o mapa de identidade '
+                'no hub' % request.data.get('autor'))
+        if not materia.autoria_set.filter(autor=autor).exists():
+            return self._erro(
+                'autor %s não está na autoria da matéria %s — a pendência '
+                'nunca existiu para ele' % (autor.pk, materia.pk))
+
+        # Autoria jurídica = SEMPRE o vereador titular (ato pessoal e
+        # indelegável). O assessor pode OPERAR o ato, mas nunca aparece como
+        # signatário. Titular indeterminável falha visível — melhor que gravar
+        # a assinatura no nome errado.
+        titular = resolver_titular(autor)
+        if titular is None:
+            return self._erro(
+                'autor %s com titular indeterminável (múltiplos operadores e '
+                'nenhum/ambíguo Votante do parlamentar) — cadastrar o Votante '
+                'titular no SAPL' % autor.pk)
+
+        arquivo = request.FILES.get('pdf_assinado')
+        if arquivo is None:
+            return self._erro('arquivo pdf_assinado ausente')
+
+        alvo = DocumentoParaAssinatura.objects.filter(materia=materia).first()
+        hash_esperado = (request.data.get('hash_alvo_esperado') or '').lower()
+        if alvo is None or alvo.hash_sha256 != hash_esperado:
+            # Retificação no meio do caminho: o alvo de hoje não é o binário
+            # que o app exibiu/assinou (§5.1). O hub relê a pendência nova.
+            return Response(
+                {'detalhe': 'hash do PDF-alvo divergente — alvo retificado '
+                            'após a solicitação',
+                 'hash_atual': alvo.hash_sha256 if alvo else None},
+                status=status.HTTP_409_CONFLICT)
+
+        conteudo = arquivo.read()
+        hash_assinado = hashlib.sha256(conteudo).hexdigest()
+        agora = timezone.now()
+
+        # Rastro operacional: quem DISPAROU o ato (o vereador ou um assessor
+        # agindo por ele). Registro interno, NÃO altera a autoria. O evento do
+        # app ainda não carrega a identidade do assessor logado; até lá recai
+        # sobre o próprio titular (ver nota no PR).
+        operado_por = (request.data.get('operado_por')
+                       or titular.username)
+
+        try:
+            with transaction.atomic():
+                nome = 'materia_%s_assinado_%s.pdf' % (
+                    materia.pk, int(agora.timestamp()))
+                materia.pdf_assinado.save(
+                    nome, ContentFile(conteudo), save=False)
+
+                # APPEND no formato da sprint — multiassinatura incremental.
+                assinaturas = self._normalizar(materia.assinatura_info)
+                assinaturas.append({
+                    'signed_by': titular.username,
+                    'nome': request.data.get('nome') or autor.nome,
+                    'data': agora.isoformat(),
+                    'tipo_certificado':
+                        request.data.get('tipo_certificado') or '',
+                    'operado_por': operado_por,
+                })
+                materia.assinatura_info = assinaturas
+                materia.assinado_em = agora
+                materia.assinado_por = titular
+                if not materia.codigo_autenticacao:
+                    # Primeira assinatura gera o código público de verificação,
+                    # como no fluxo local — a partir dos bytes do ALVO (é o
+                    # documento que a página de autenticação identifica).
+                    from sapl.materia.views_assinatura import \
+                        _gerar_codigo_autenticacao
+                    alvo.arquivo.open('rb')
+                    try:
+                        materia.codigo_autenticacao = \
+                            _gerar_codigo_autenticacao(alvo.arquivo.read())
+                    finally:
+                        alvo.arquivo.close()
+                materia.save()
+
+                AssinaturaRecebida.objects.create(
+                    chave_idempotencia=chave, materia=materia,
+                    hash_assinado=hash_assinado, operado_por=operado_por)
+        except IntegrityError:
+            # Entrega concorrente da mesma chave: devolve o que já foi gravado.
+            recebida = AssinaturaRecebida.objects.filter(
+                chave_idempotencia=chave).first()
+            if recebida is None:
+                raise
+            return Response(
+                {'materia_id': recebida.materia_id,
+                 'hash_assinado': recebida.hash_assinado},
+                status=status.HTTP_200_OK)
+
+        self.logger.info(
+            'integracao_hub: assinatura %s gravada na matéria %s '
+            '(signed_by=%s, autor=%s, operado_por=%s)', chave, materia.pk,
+            titular.username, autor.pk, operado_por)
+        return Response(
+            {'materia_id': materia.pk, 'hash_assinado': hash_assinado},
+            status=status.HTTP_201_CREATED)
+
+    def _normalizar(self, info):
+        if info is None:
+            return []
+        if isinstance(info, dict):
+            return [info]
+        return list(info)
+
+    def _erro(self, detalhe):
+        return Response({'detalhe': detalhe},
+                        status=status.HTTP_422_UNPROCESSABLE_ENTITY)

@@ -1,10 +1,15 @@
 from django.conf.urls import url
 
-from .views import (InventarioView,
+from .views import (AssinaturasConcluidasPollView,
+                    AssinaturasPendentesPollView,
+                    DocumentoAlvoView,
+                    DocumentoAssinadoView,
+                    InventarioView,
                     ProposicoesCadastradasPollView,
                     ProposicoesDevolvidasPollView,
                     ProposicoesEnviadasPollView,
                     ProposicoesRecebidasPollView,
+                    RecepcaoAssinaturaView,
                     RecepcaoProposicaoView,
                     TramitacoesPollView)
 
@@ -32,6 +37,26 @@ urlpatterns = [
     url(r'^api/integracao/poll/tramitacoes/$',
         TramitacoesPollView.as_view(),
         name='integracao_hub_poll_tramitacoes'),
+
+    url(r'^api/integracao/poll/assinaturas-pendentes/$',
+        AssinaturasPendentesPollView.as_view(),
+        name='integracao_hub_poll_assinaturas_pendentes'),
+
+    url(r'^api/integracao/poll/assinaturas-concluidas/$',
+        AssinaturasConcluidasPollView.as_view(),
+        name='integracao_hub_poll_assinaturas_concluidas'),
+
+    url(r'^api/integracao/documentos-assinatura/(?P<materia_id>\d+)/alvo/$',
+        DocumentoAlvoView.as_view(),
+        name='integracao_hub_documento_alvo'),
+
+    url(r'^api/integracao/documentos-assinatura/(?P<materia_id>\d+)/assinado/$',
+        DocumentoAssinadoView.as_view(),
+        name='integracao_hub_documento_assinado'),
+
+    url(r'^api/integracao/assinaturas/$',
+        RecepcaoAssinaturaView.as_view(),
+        name='integracao_hub_recepcao_assinatura'),
 
     url(r'^api/integracao/reconciliacao/$',
         InventarioView.as_view(),
