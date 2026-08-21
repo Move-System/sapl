@@ -36,12 +36,26 @@ metadados do certificado no `assinatura_info` — artefato diferente do que o
 SAPL emite. Para matéria legislativa e documento acessório, assine em série
 pelo `/sign` (`assinar_pdf_com_pagina_autenticacao`).
 
-O caso de uso real de lote hoje é o do sgvp-online, que chama o `/sign/batch`
-direto do front para documentos sem página de autenticação. Existiu aqui um
-`assinar_pdf_lote_via_api()` copiado desse fluxo, sem nenhum chamador no SAPL;
-removido na C3 justamente para não virar atalho. Antes de reintroduzir
-assinatura em bloco no SAPL, fale com o arquiteto: a decisão da C3 (AB#1473) é
-que a composição vive no microserviço, então o lote correto nasce lá, não aqui.
+Existiu aqui um `assinar_pdf_lote_via_api()`, vindo com o resto do cliente na C2
+(commit 6a26350c da `sp_importante_virou_urgente`, AB#1349/1347) e **sem nenhum
+chamador nesta linha** — nem na `dev`, que sequer tem este arquivo. Removido na
+C3 para não virar atalho para quem fosse implementar assinatura em bloco.
+
+Onde existe lote de verdade, e por que ele funciona
+---------------------------------------------------
+Na branch `3.1.2` há a tela "Assinar Despachos em Lote" (Presidente da Mesa),
+com `docacessorio_assinar_lote` e `materia_assinar_lote` em views_assinatura.
+Ela **compõe a página localmente, documento por documento** (`codigo`, URL de
+verificação com o pk, blocos da grade) e só então manda ao `/sign/batch` com
+coordenadas explícitas — o batch ali é só carimbo, e por isso o artefato sai
+correto. O que o microserviço não faz é compor no lote; carimbar em lote um PDF
+já composto e posicionado ele faz.
+
+Consequência para quem for mexer nisso: lote pós-C3 continua possível, mas ao
+preço de manter a composição no SAPL — ou seja, dois compositores, exatamente o
+que a C3 foi eliminar. Não é decisão de implementação: **fale com o arquiteto**
+antes. Se a escolha for delegar, o lote correto nasce no microserviço, com
+parâmetros por documento.
 """
 
 import json
