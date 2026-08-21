@@ -6,6 +6,21 @@
 {% block base_content%}
   <div class="container-home">
     <div id="homeIndex">
+      {% if is_procurador_juridico %}
+      <!-- Procurador Jurídico: tela inicial restrita a Matérias Legislativas -->
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-file-alt"></i>
+        </div>
+        <h3 class="card-title">Matérias Legislativas</h3>
+        <p class="card-description">Projetos de lei e proposições</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.materia:pesquisar_materia' %}" class="btn-action" title="Pesquisar Matérias">
+            <i class="fas fa-search"></i> Pesquisar
+          </a>
+        </div>
+      </div>
+      {% else %}
       <!-- Proposições -->
       {% if is_parlamentar %}
       <div class="homeBlock">
@@ -155,6 +170,21 @@
           </a>
         </div>
       </div>
+      <!-- Acervo Histórico (GED) -->
+      {% if ged_configurado %}
+      <div class="homeBlock">
+        <div class="card-icon">
+          <i class="fas fa-archive"></i>
+        </div>
+        <h3 class="card-title">Acervo Histórico</h3>
+        <p class="card-description">Matérias anteriores a 2026 (sistema legado)</p>
+        <div class="card-actions">
+          <a href="{% url 'sapl.materia:ged_historico' %}" class="btn-action" title="Acessar Acervo Histórico">
+            <i class="fas fa-folder-open"></i> Acessar
+          </a>
+        </div>
+      </div>
+      {% endif %}
 
       <!-- Relatórios -->
       <div class="homeBlock">
@@ -232,6 +262,7 @@
           </a>
         </div>
       </div>
+      {% endif %}
       {% endif %}
     </div>
   </div>

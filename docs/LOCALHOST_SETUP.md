@@ -61,9 +61,10 @@ EMAIL_USE_TLS=True
 EMAIL_PORT=587
 ```
 
-> **`DJANGO_DEBUG`, não `DEBUG`**: o `settings.py` lê o modo debug do Django de
-> `DJANGO_DEBUG` (linha 38). A variável `DEBUG` só controla o log de conexão do banco.
-> Defina as duas.
+> **`DEBUG` ou `DJANGO_DEBUG`**: desde a conciliação com a `3.1.2`, o `settings.py`
+> aceita as duas (`settings.py:38` — `DEBUG or DJANGO_DEBUG`, compatibilidade com o
+> docker-compose legado). Definir uma basta; definir as duas não faz mal. Em versões
+> anteriores deste documento, só `DJANGO_DEBUG` valia.
 >
 > **Senha com caractere especial** precisa ser URL-encoded no `DATABASE_URL`:
 > `@` → `%40`, `:` → `%3A`, `/` → `%2F`. Ex.: `S3nh@2026` vira `S3nh%402026`.
@@ -219,3 +220,28 @@ curl -s http://localhost:8001/ | grep -o '<title>[^<]*</title>'
 Acesse <http://localhost:8001> — o título deve ser
 `SGVP - Câmara Municipal de Franco da Rocha`. Use os usuários já cadastrados no banco
 (os mesmos do remoto, se você fez a cópia da seção 4) para logar.
+
+## 7) Problemas comuns
+
+Vindos do roteiro que a `3.1.2` mantinha em paralelo.
+
+### O container não alcança o banco remoto
+
+O `docker-compose-dev.yml` já configura `extra_hosts: host-gateway`. Se ainda assim
+falhar, teste o alcance antes de mexer no Django:
+
+```bash
+nc -zv <host-do-banco> 5432
+```
+
+### Static files não carregam com Gunicorn
+
+```bash
+docker exec -it sapl-dev python manage.py collectstatic --noinput
+```
+
+> O roteiro da `3.1.2` descrevia também um `docker/docker-compose-local.yml` (aplicação
+> + Postgres no mesmo `up`). **Esse arquivo não existe** em nenhuma das duas linhas — os
+> composes versionados são `docker-compose.yaml`, `docker-compose-dev.yml` e
+> `docker-compose-dev-db.yml`. As instruções que dependiam dele ficaram de fora da
+> conciliação de propósito; se o arquivo existir na sua máquina, ele nunca foi commitado.

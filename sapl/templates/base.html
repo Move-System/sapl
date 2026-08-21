@@ -74,6 +74,19 @@
                   {% block sections_navbar %} {% navbar 'navbar.yaml' %} {% endblock sections_navbar %}
 
                   <ul class="nav navbar-nav justify-content-end" id="autenticacao">
+                    {% if user.is_authenticated and pendencias_assinatura_total > 0 %}
+                      <li class="nav-item">
+                        <a class="nav-link position-relative"
+                           href="{{ pendencias_assinatura_url }}"
+                           title="{{ pendencias_assinatura_total }} matéria(s) pendente(s) de assinatura">
+                          <i class="fa fa-bell text-warning" style="font-size:1.2rem;"></i>
+                          <span class="badge badge-danger"
+                                style="position:absolute;top:4px;right:2px;font-size:.65rem;padding:2px 5px;border-radius:10px;">
+                            {{ pendencias_assinatura_total }}
+                          </span>
+                        </a>
+                      </li>
+                    {% endif %}
                     {% if not user.is_authenticated %}
                       <li class="nav-item">
                         <a class="nav-link d-flex align-items-center" href="{% url 'sapl.base:login' %}">

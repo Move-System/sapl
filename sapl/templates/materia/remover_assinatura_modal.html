@@ -1,0 +1,135 @@
+{% load i18n %}
+
+<!-- Modal de Confirmação: Remover Assinatura Digital -->
+<div class="modal fade" id="removerAssinaturaModal" tabindex="-1" role="dialog"
+     aria-labelledby="removerAssinaturaModalLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="removerAssinaturaModalLabel">
+          <i class="fa fa-exclamation-triangle"></i>
+          {% trans "Remover Assinatura Digital" %}
+        </h5>
+        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="remover-assinatura-confirmacao">
+          <div class="alert alert-warning">
+            <i class="fa fa-exclamation-triangle"></i>
+            <strong>{% trans "Atenção: esta ação não pode ser desfeita." %}</strong>
+          </div>
+          <p>
+            {% trans "Você está prestes a remover a assinatura digital do documento:" %}
+          </p>
+          <p class="font-weight-bold" id="remover-assinatura-nome-doc"></p>
+          <p>
+            {% trans "A remoção da assinatura digital apagará o PDF assinado e todos os metadados da assinatura. O documento voltará ao estado não assinado e poderá ser editado novamente." %}
+          </p>
+          <p class="text-danger">
+            <i class="fa fa-info-circle"></i>
+            {% trans "Esta operação fica registrada no log do sistema." %}
+          </p>
+        </div>
+
+        <div id="remover-assinatura-processando" style="display:none;" class="text-center py-3">
+          <i class="fa fa-spinner fa-spin fa-2x text-danger mb-2"></i>
+          <p>{% trans "Removendo assinatura..." %}</p>
+        </div>
+
+        <div id="remover-assinatura-sucesso" style="display:none;">
+          <div class="alert alert-success">
+            <i class="fa fa-check-circle"></i>
+            {% trans "Assinatura removida com sucesso. A página será recarregada." %}
+          </div>
+        </div>
+
+        <div id="remover-assinatura-erro" style="display:none;">
+          <div class="alert alert-danger">
+            <i class="fa fa-times-circle"></i>
+            <strong>{% trans "Erro ao remover assinatura:" %}</strong>
+            <p id="remover-assinatura-mensagem-erro" class="mb-0 mt-1"></p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal" id="btn-cancelar-remocao">
+          <i class="fa fa-times"></i> {% trans "Cancelar" %}
+        </button>
+        <button type="button" class="btn btn-danger" id="btn-confirmar-remocao">
+          <i class="fa fa-trash"></i> {% trans "Confirmar Remoção" %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var urlRemocao = null;
+
+  // Abre o modal ao clicar em qualquer botão .btn-remover-assinatura
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('.btn-remover-assinatura');
+    if (!btn) return;
+
+    urlRemocao = btn.dataset.url;
+    var nome = btn.dataset.nome || '';
+
+    // Reset modal
+    document.getElementById('remover-assinatura-confirmacao').style.display = 'block';
+    document.getElementById('remover-assinatura-processando').style.display = 'none';
+    document.getElementById('remover-assinatura-sucesso').style.display = 'none';
+    document.getElementById('remover-assinatura-erro').style.display = 'none';
+    document.getElementById('remover-assinatura-nome-doc').textContent = nome;
+    document.getElementById('btn-confirmar-remocao').style.display = 'inline-block';
+    document.getElementById('btn-cancelar-remocao').textContent = 'Cancelar';
+
+    $('#removerAssinaturaModal').modal('show');
+  });
+
+  document.getElementById('btn-confirmar-remocao').addEventListener('click', function () {
+    if (!urlRemocao) return;
+
+    // Obter CSRF token
+    var csrfToken = null;
+    var cookieMatch = document.cookie.match(/csrftoken=([^;]+)/);
+    if (cookieMatch) csrfToken = cookieMatch[1];
+
+    // UI: processando
+    document.getElementById('remover-assinatura-confirmacao').style.display = 'none';
+    document.getElementById('remover-assinatura-processando').style.display = 'block';
+    document.getElementById('btn-confirmar-remocao').style.display = 'none';
+
+    fetch(urlRemocao, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(function (response) { return response.json(); })
+    .then(function (data) {
+      document.getElementById('remover-assinatura-processando').style.display = 'none';
+      if (data.success) {
+        document.getElementById('remover-assinatura-sucesso').style.display = 'block';
+        document.getElementById('btn-cancelar-remocao').textContent = 'Fechar';
+        setTimeout(function () { location.reload(); }, 1500);
+      } else {
+        document.getElementById('remover-assinatura-erro').style.display = 'block';
+        document.getElementById('remover-assinatura-mensagem-erro').textContent = data.error || 'Erro desconhecido.';
+        document.getElementById('btn-cancelar-remocao').textContent = 'Fechar';
+      }
+    })
+    .catch(function (err) {
+      document.getElementById('remover-assinatura-processando').style.display = 'none';
+      document.getElementById('remover-assinatura-erro').style.display = 'block';
+      document.getElementById('remover-assinatura-mensagem-erro').textContent = 'Erro de comunicação: ' + err.message;
+      document.getElementById('btn-cancelar-remocao').textContent = 'Fechar';
+    });
+  });
+}());
+</script>

@@ -1,0 +1,136 @@
+{% extends "crud/detail.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block actions %}
+  <div class="actions btn-group float-right pb-4" role="group">
+    <a href="{% url 'sapl.materia:materias_pendentes_assinatura' %}" class="btn btn-outline-secondary">
+      <i class="fas fa-arrow-left"></i> {% trans "Voltar para Minhas Matérias" %}
+    </a>
+  </div>
+{% endblock %}
+
+{% block detail_content %}
+
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap" style="gap:.75rem;">
+  <div>
+    <h4 class="mb-0">
+      <span class="badge badge-warning text-dark px-3 py-2" style="font-size:1rem;">
+        <i class="fas fa-stamp mr-1"></i> {% trans "Despachos Pendentes de Assinatura" %}
+      </span>
+    </h4>
+    <small class="text-muted mt-1 d-block">
+      <i class="fas fa-user-tie mr-1"></i>
+      {% trans "Acesso exclusivo do" %} <strong>{% trans "Presidente da Mesa Diretora" %}</strong>
+    </small>
+  </div>
+  <div>
+    {% if total == 0 %}
+      <span class="badge badge-success px-3 py-2" style="font-size:.95rem;">
+        <i class="fas fa-check-circle mr-1"></i> {% trans "Nenhum despacho pendente" %}
+      </span>
+    {% elif total == 1 %}
+      <span class="badge badge-warning text-dark px-3 py-2" style="font-size:.95rem;">
+        1 {% trans "despacho pendente" %}
+      </span>
+    {% else %}
+      <span class="badge badge-warning text-dark px-3 py-2" style="font-size:.95rem;">
+        {{ total }} {% trans "despachos pendentes" %}
+      </span>
+    {% endif %}
+  </div>
+</div>
+
+{% if not object_list %}
+  <div class="alert alert-success d-flex align-items-center" role="alert">
+    <i class="fas fa-check-circle fa-2x mr-3"></i>
+    <div>
+      <strong>{% trans "Tudo em dia!" %}</strong><br>
+      {% trans "Não há despachos pendentes de assinatura digital no sistema." %}
+    </div>
+  </div>
+{% else %}
+
+  <div class="alert alert-warning d-flex justify-content-between align-items-center mb-3 flex-wrap"
+       role="alert" style="border-left: 5px solid #f0ad4e; gap:1rem;">
+    <div>
+      <i class="fas fa-exclamation-triangle fa-lg mr-2"></i>
+      {% trans "Os despachos abaixo aguardam assinatura digital. Você pode assiná-los todos em lote com seu certificado digital." %}
+    </div>
+    <button type="button" id="btn-assinar-doc-lote"
+            class="btn btn-warning"
+            title="{% trans 'Assinar digitalmente todos os despachos selecionados em lote' %}">
+      <i class="fa fa-certificate"></i>
+      {% trans "Assinar Despachos em Lote" %}
+      <span class="badge badge-light text-dark ml-1">{{ docs_pendentes_lote|length }}</span>
+    </button>
+  </div>
+
+  <table class="table table-hover table-bordered">
+    <thead class="thead-light">
+      <tr>
+        <th style="width:170px;">{% trans "Matéria" %}</th>
+        <th>{% trans "Nome do Despacho" %}</th>
+        <th style="width:140px;">{% trans "Tipo" %}</th>
+        <th style="width:140px;">{% trans "Autor" %}</th>
+        <th style="width:110px;" class="text-center">{% trans "Data" %}</th>
+        <th style="width:90px;" class="text-center">{% trans "Ações" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in object_list %}
+      <tr>
+        <td>
+          <a href="{% url 'sapl.materia:materialegislativa_detail' d.materia.pk %}"
+             class="font-weight-bold"
+             title="{% trans 'Abrir matéria' %}">
+            {{ d.materia.tipo.sigla }} {{ d.materia.numero }}/{{ d.materia.ano }}
+          </a>
+        </td>
+        <td>
+          <a href="{% url 'sapl.materia:documentoacessorio_detail' d.pk %}"
+             title="{% trans 'Abrir documento' %}">
+            {{ d.nome }}
+          </a>
+        </td>
+        <td>
+          <small class="text-muted">{{ d.tipo }}</small>
+        </td>
+        <td>
+          {% if d.autor %}
+            {{ d.autor }}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-center">
+          {% if d.data %}
+            {{ d.data|date:"d/m/Y" }}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+        <td class="text-center">
+          {% if d.arquivo %}
+            <a href="{{ d.arquivo.url }}" target="_blank"
+               class="btn btn-sm btn-outline-primary"
+               title="{% trans 'Baixar arquivo original' %}">
+              <i class="fas fa-download"></i>
+            </a>
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% include "paginacao.html" %}
+
+  {# Modal de assinatura em lote (partial reusado de documentoacessorio_list.html) #}
+  {% include "materia/assinatura_doc_lote_modal.html" %}
+
+{% endif %}
+
+{% endblock detail_content %}

@@ -15,7 +15,7 @@ from crispy_forms.layout import Div, HTML, Submit
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import permission_required
-from django.contrib.auth.mixins import PermissionRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned, ValidationError
 from django.db.models import Max, Q
@@ -38,7 +38,7 @@ from django.utils.decorators import method_decorator
 
 import sapl
 from sapl.base.email_utils import do_envia_email_confirmacao
-from sapl.base.models import Autor, CasaLegislativa, AppConfig as BaseAppConfig
+from sapl.base.models import Autor, CasaLegislativa, AppConfig as BaseAppConfig, OperadorAutor
 from sapl.comissoes.models import Participacao
 from sapl.compilacao.models import STATUS_TA_IMMUTABLE_RESTRICT, STATUS_TA_PRIVATE
 from sapl.compilacao.views import IntegracaoTaView
@@ -483,7 +483,8 @@ class TipoProposicaoCrud(CrudAux):
 
     class BaseMixin(CrudAux.BaseMixin):
         list_field_names = [
-            "descricao", "content_type", 'tipo_conteudo_related']
+            "descricao", "content_type", 'tipo_conteudo_related',
+            'dispensa_protocolo']
 
     class CreateView(CrudAux.CreateView):
         form_class = TipoProposicaoForm
@@ -638,6 +639,135 @@ class ProposicaoPendenteSetor(PermissionRequiredMixin, ListView):
         context['NO_ENTRIES_MSG'] = 'Nenhuma proposição pendente de revisão pelo setor.'
         qr = self.request.GET.copy()
         context['filter_url'] = ('&o=' + qr['o']) if 'o' in qr.keys() else ''
+        return context
+
+
+class MateriasPendentesAssinaturaView(LoginRequiredMixin, ListView):
+    template_name = 'materia/materias_pendentes_assinatura_list.html'
+    model = MateriaLegislativa
+    paginate_by = 20
+    login_url = '/login/'
+
+    def get_autor(self):
+        try:
+            return OperadorAutor.objects.get(user=self.request.user).autor
+        except OperadorAutor.DoesNotExist:
+            return None
+
+    def get_queryset(self):
+        autor = self.get_autor()
+        qs = MateriaLegislativa.objects.filter(
+            texto_original__isnull=False
+        ).exclude(
+            texto_original=''
+        ).filter(
+            Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
+        )
+        if autor:
+            qs = qs.filter(autoria__autor=autor)
+        return qs.order_by('-data_apresentacao', '-id').distinct()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        autor = self.get_autor()
+        context['autor'] = autor
+        paginator = context['paginator']
+        page_obj = context['page_obj']
+        context['page_range'] = make_pagination(page_obj.number, paginator.num_pages)
+        context['total'] = paginator.count
+        # URL para pesquisar todas filtrando por autor + pendente
+        if autor:
+            context['url_pesquisa_completa'] = (
+                reverse('sapl.materia:pesquisar_materia')
+                + f'?autoria__autor={autor.pk}&status_assinatura=pendente'
+            )
+        else:
+            context['url_pesquisa_completa'] = (
+                reverse('sapl.materia:pesquisar_materia')
+                + '?status_assinatura=pendente'
+            )
+        # Flag pra mostrar atalho "Assinar Despachos em Lote" só pra
+        # Presidente da Mesa Diretora (feature dedicada — assina em lote
+        # todos os DocumentoAcessorio do tipo Despacho ainda pendentes)
+        from sapl.rules import SGVP_GROUP_PRESIDENTE_MESA
+        u = self.request.user
+        context['is_presidente_mesa'] = u.is_authenticated and (
+            u.is_superuser or
+            u.groups.filter(name=SGVP_GROUP_PRESIDENTE_MESA).exists()
+        )
+        return context
+
+
+class DespachosPendentesLoteView(LoginRequiredMixin, ListView):
+    """
+    Lista todos os Documentos Acessórios do tipo "Despacho" que ainda
+    não têm assinatura digital (pdf_assinado vazio), para que o
+    Presidente da Mesa Diretora possa assiná-los em lote.
+
+    Reusa o backend `docacessorio_assinar_lote` (views_assinatura.py),
+    que já aceita PKs de documentos de múltiplas matérias. Reusa também
+    o modal de assinatura em lote já existente em
+    `documentoacessorio_list.html` (copiado no template desta view).
+
+    Acesso restrito ao grupo `Presidente da Mesa Diretora` (ou
+    superuser, para depuração). Demais usuários recebem 403.
+    """
+    template_name = 'materia/despachos_pendentes_lote_list.html'
+    model = DocumentoAcessorio
+    paginate_by = 50
+    login_url = '/login/'
+
+    def _is_presidente(self):
+        from sapl.rules import SGVP_GROUP_PRESIDENTE_MESA
+        u = self.request.user
+        return u.is_superuser or u.groups.filter(
+            name=SGVP_GROUP_PRESIDENTE_MESA
+        ).exists()
+
+    def dispatch(self, request, *args, **kwargs):
+        # LoginRequiredMixin já trata anônimo
+        if request.user.is_authenticated and not self._is_presidente():
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden(
+                'Acesso restrito ao grupo "Presidente da Mesa Diretora".'
+            )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_queryset(self):
+        # Filtro frouxo por nome do tipo — pega "Despacho", "Despacho do
+        # Presidente", "Despacho Inicial", etc. Decisão de produto.
+        return DocumentoAcessorio.objects.filter(
+            tipo__descricao__icontains='despacho'
+        ).filter(
+            Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
+        ).select_related('materia', 'materia__tipo', 'tipo').order_by(
+            '-data', '-id'
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # `docs_pendentes_lote` no MESMO formato que o modal de
+        # documentoacessorio_list.html espera (id + descricao). Aqui a
+        # descrição inclui referência à matéria pra o presidente
+        # conseguir identificar de qual matéria é o despacho.
+        docs = list(context['object_list'])
+        context['docs_pendentes_lote'] = [
+            {
+                'id': d.pk,
+                'descricao': (
+                    f'{d.nome} — {d.materia.tipo.sigla} '
+                    f'{d.materia.numero}/{d.materia.ano} '
+                    f'({d.tipo}) — {d.data}'
+                ),
+            }
+            for d in docs
+        ]
+        paginator = context['paginator']
+        page_obj = context['page_obj']
+        context['page_range'] = make_pagination(
+            page_obj.number, paginator.num_pages
+        )
+        context['total'] = paginator.count
         return context
 
 
@@ -904,6 +1034,13 @@ class UnidadeTramitacaoCrud(CrudAux):
         form_class = UnidadeTramitacaoForm
 
 
+# Tipos de proposição marcados como "Documento de gabinete" não saem do
+# gabinete do autor: não vão ao Protocolo nem ao Setor Legislativo.
+MSG_DISPENSA_PROTOCOLO = _(
+    'Este é um documento de gabinete e não passa pelo Protocolo. '
+    'Ele fica restrito ao seu gabinete.')
+
+
 class ProposicaoCrud(Crud):
     model = Proposicao
     help_topic = 'proposicao'
@@ -989,7 +1126,9 @@ class ProposicaoCrud(Crud):
             msg_error = ''
             if p and p.autor.operadores.filter(id=request.user.id).exists():
                 if action == 'send':
-                    if p.data_envio and p.data_recebimento:
+                    if p.tipo and p.tipo.dispensa_protocolo:
+                        msg_error = MSG_DISPENSA_PROTOCOLO
+                    elif p.data_envio and p.data_recebimento:
                         msg_error = _('Proposição já foi enviada e recebida.')
                     elif p.data_envio:
                         msg_error = _('Proposição já foi enviada.')
@@ -1085,7 +1224,9 @@ class ProposicaoCrud(Crud):
 
                 elif action == 'send_setor':
                     app_config = sapl.base.models.AppConfig.objects.all().last()
-                    if not app_config or not app_config.revisao_setor_legislativo:
+                    if p.tipo and p.tipo.dispensa_protocolo:
+                        msg_error = MSG_DISPENSA_PROTOCOLO
+                    elif not app_config or not app_config.revisao_setor_legislativo:
                         msg_error = _('Revisão pelo Setor Legislativo não está habilitada.')
                     elif p.data_envio:
                         msg_error = _('Proposição já foi enviada ao protocolo.')
@@ -1340,7 +1481,12 @@ class ProposicaoCrud(Crud):
             status_filter = self.request.GET.get('status', '')
 
             if status_filter == 'elaboracao':
-                qs = qs.filter(data_envio__isnull=True, cancelado=False)
+                qs = qs.filter(
+                    data_envio__isnull=True, cancelado=False
+                ).exclude(tipo__dispensa_protocolo=True)
+            elif status_filter == 'gabinete':
+                qs = qs.filter(tipo__dispensa_protocolo=True,
+                               data_envio__isnull=True, cancelado=False)
             elif status_filter == 'aguardando':
                 qs = qs.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False)
             elif status_filter == 'incorporada':
@@ -1357,7 +1503,8 @@ class ProposicaoCrud(Crud):
             qs_base = super().get_queryset()
             stats = {
                 'total': qs_base.count(),
-                'elaboracao': qs_base.filter(data_envio__isnull=True, cancelado=False).count(),
+                'elaboracao': qs_base.filter(data_envio__isnull=True, cancelado=False).exclude(tipo__dispensa_protocolo=True).count(),
+                'gabinete': qs_base.filter(tipo__dispensa_protocolo=True, data_envio__isnull=True, cancelado=False).count(),
                 'aguardando': qs_base.filter(data_envio__isnull=False, data_recebimento__isnull=True, data_devolucao__isnull=True, cancelado=False).count(),
                 'incorporada': qs_base.filter(data_recebimento__isnull=False, cancelado=False).count(),
                 'devolvida': qs_base.filter(data_devolucao__isnull=False, cancelado=False).count(),
@@ -1392,6 +1539,10 @@ class ProposicaoCrud(Crud):
                     status = 'aguardando'
                     status_label = 'Aguardando Recebimento'
                     status_icon = 'fa-clock-o'
+                elif obj.tipo and obj.tipo.dispensa_protocolo:
+                    status = 'gabinete'
+                    status_label = 'Documento de Gabinete'
+                    status_icon = 'fa-briefcase'
                 else:
                     status = 'elaboracao'
                     status_label = 'Em Elaboração'
@@ -1822,6 +1973,12 @@ def montar_helper_documento_acessorio(self):
              ' class="btn btn-dark">Cancelar</a>')]))
 
 
+# Valores pré-preenchidos no Documento Acessório do Procurador Jurídico
+# (customização Franco da Rocha)
+DESCRICAO_PARECER_JURIDICO = 'Parecer Jurídico'
+NOME_PARECER_APROVADO = 'Aprovado'
+
+
 class DocumentoAcessorioCrud(MasterDetailCrud):
     model = DocumentoAcessorio
     parent_field = 'materia'
@@ -1833,10 +1990,28 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
 
     class CreateView(MasterDetailCrud.CreateView):
         form_class = DocumentoAcessorioForm
+        logger = logging.getLogger(__name__)
 
         def get_initial(self):
+            from sapl.rules import is_procurador_juridico
+
             initial = super(CreateView, self).get_initial()
             initial['data'] = timezone.now().date()
+
+            # Procurador Jurídico já abre o formulário preenchido como
+            # Parecer Jurídico aprovado (customização Franco da Rocha).
+            # Os campos continuam editáveis.
+            if is_procurador_juridico(self.request.user):
+                tipo = TipoDocumento.objects.filter(
+                    descricao__iexact=DESCRICAO_PARECER_JURIDICO).first()
+                if tipo:
+                    initial['tipo'] = tipo
+                else:
+                    self.logger.warning(
+                        'Tipo de Documento "%s" não cadastrado: o campo Tipo '
+                        'do Documento Acessório não será pré-preenchido.',
+                        DESCRICAO_PARECER_JURIDICO)
+                initial['nome'] = NOME_PARECER_APROVADO
             return initial
 
         def get_success_url(self):
@@ -1949,13 +2124,16 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
             )
 
             # Normaliza assinatura_info para lista (backward-compatible)
-            from sapl.materia.views_assinatura import _normalizar_assinatura_info
+            from sapl.materia.views_assinatura import _normalizar_assinatura_info, _pode_remover_assinatura
             assinaturas = _normalizar_assinatura_info(self.object.assinatura_info)
             context['assinaturas'] = assinaturas
             context['ja_assinou'] = any(
                 a.get('signed_by') == u.username
                 for a in assinaturas
             ) if u.is_authenticated else False
+            context['pode_remover_assinatura'] = (
+                u.is_authenticated and _pode_remover_assinatura(u)
+            )
 
             return context
 
@@ -1969,6 +2147,29 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
                 u.has_perm('materia.add_documentoacessorio')
             )
             context['tipos_documento'] = TipoDocumento.objects.all()
+
+            # Documentos acessórios pendentes de assinatura para o lote
+            pode_assinar_lote = u.is_authenticated and (
+                u.is_superuser or
+                u.has_perm('materia.change_documentoacessorio')
+            )
+            if not pode_assinar_lote:
+                pode_assinar_lote = u.is_authenticated and OperadorAutor.objects.filter(user=u).exists()
+
+            if pode_assinar_lote:
+                materia_pk = self.kwargs.get('pk') or self.kwargs.get('root_pk')
+                qs_pendentes = DocumentoAcessorio.objects.filter(
+                    materia__pk=materia_pk,
+                    pdf_assinado='',
+                ).order_by('data', 'nome')
+                docs_lote = [
+                    {'id': d.pk, 'descricao': f'{d.nome} ({d.tipo}) — {d.data}'}
+                    for d in qs_pendentes
+                ]
+                context['docs_pendentes_lote'] = docs_lote
+            else:
+                context['docs_pendentes_lote'] = []
+
             return context
 
         def hook_arquivo(self, obj, default, url):
@@ -2482,13 +2683,17 @@ class MateriaLegislativaCrud(Crud):
             )
 
             # Normaliza assinatura_info para lista (backward-compatible)
-            from sapl.materia.views_assinatura import _normalizar_assinatura_info
+            from sapl.materia.views_assinatura import _normalizar_assinatura_info, _pode_remover_assinatura
             assinaturas = _normalizar_assinatura_info(self.object.assinatura_info)
             context['assinaturas'] = assinaturas
             context['ja_assinou'] = any(
                 a.get('signed_by') == self.request.user.username
                 for a in assinaturas
             ) if self.request.user.is_authenticated else False
+            context['pode_remover_assinatura'] = (
+                self.request.user.is_authenticated and
+                _pode_remover_assinatura(self.request.user)
+            )
 
             return context
 
@@ -2742,6 +2947,41 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
 
         context['show_results'] = show_results_filter_set(qr)
 
+        # Matérias pendentes de assinatura para o botão de lote
+        status_assinatura = self.request.GET.get('status_assinatura')
+        if status_assinatura == 'pendente' and context['show_results']:
+            from django.db.models import Q as _Q
+            # object_list já foi filtrado pelo filter_status_assinatura —
+            # precisamos obter os IDs primeiro para evitar problemas com
+            # querysets compostos por union (|) que não suportam .filter() extra
+            try:
+                ids_lote = list(self.object_list.values_list('id', flat=True)[:200])
+                from .models import MateriaLegislativa
+                qs_lote = MateriaLegislativa.objects.filter(
+                    pk__in=ids_lote,
+                    texto_original__isnull=False,
+                ).exclude(texto_original='').filter(
+                    _Q(pdf_assinado__isnull=True) | _Q(pdf_assinado='')
+                ).select_related('tipo').values_list(
+                    'id', 'tipo__sigla', 'numero', 'ano'
+                )
+                context['materias_pendentes_lote'] = [
+                    {'id': pk, 'descricao': f'{sigla} {numero}/{ano}'}
+                    for pk, sigla, numero, ano in qs_lote
+                ]
+            except Exception:
+                context['materias_pendentes_lote'] = []
+        else:
+            context['materias_pendentes_lote'] = []
+
+        # Flag pra mostrar atalho "Assinar Despachos em Lote" só pra
+        # Presidente da Mesa Diretora (vê DespachosPendentesLoteView)
+        from sapl.rules import SGVP_GROUP_PRESIDENTE_MESA
+        u = self.request.user
+        context['is_presidente_mesa'] = u.is_authenticated and (
+            u.is_superuser or
+            u.groups.filter(name=SGVP_GROUP_PRESIDENTE_MESA).exists()
+        )
         return context
 
 
@@ -3810,3 +4050,77 @@ def configEtiquetaMateriaLegislativaCrud(request):
     else:
         form = ConfigEtiquetaMateriaLegislativaForms(instance=config)
     return render(request, 'materia/config_etiqueta_materia.html', {'form': form})
+
+
+def get_pdf_multiplos(request):
+    """
+    Gera PDF unificado com os documentos das matérias informadas via
+    GET ?ids=1,2,3  ou  POST body JSON {"ids": [1,2,3]}.
+    Retorna o PDF inline para impressão direta no browser.
+    Limite: 50 matérias por chamada.
+    """
+    logger_local = logging.getLogger(__name__)
+    username = 'Usuário anônimo' if request.user.is_anonymous else request.user.username
+
+    if request.method == 'POST':
+        import json as _json
+        try:
+            body = _json.loads(request.body)
+            ids_raw = body.get('ids', '')
+        except Exception:
+            ids_raw = request.POST.get('ids', '')
+    else:
+        ids_raw = request.GET.get('ids', '')
+
+    try:
+        import json as _json
+        if isinstance(ids_raw, list):
+            ids = [int(i) for i in ids_raw]
+        elif isinstance(ids_raw, str) and ids_raw.startswith('['):
+            ids = [int(i) for i in _json.loads(ids_raw)]
+        else:
+            ids = [int(i.strip()) for i in str(ids_raw).split(',') if i.strip().isdigit()]
+    except Exception:
+        return JsonResponse({'error': 'IDs invalidos'}, status=400)
+
+    if not ids:
+        return JsonResponse({'error': 'Nenhum ID informado'}, status=400)
+
+    ids = ids[:50]
+
+    MEDIA_ROOT_local = settings.MEDIA_ROOT
+    materias = MateriaLegislativa.objects.filter(pk__in=ids).select_related('tipo')
+
+    pdf_files = []
+    for materia in materias:
+        if materia.pdf_assinado:
+            f = os.path.join(MEDIA_ROOT_local, str(materia.pdf_assinado))
+            if os.path.exists(f) and f.lower().endswith('.pdf'):
+                pdf_files.append(f)
+                continue
+        if materia.texto_original:
+            f = os.path.join(MEDIA_ROOT_local, str(materia.texto_original))
+            if os.path.exists(f) and f.lower().endswith('.pdf'):
+                pdf_files.append(f)
+
+    if not pdf_files:
+        return JsonResponse({'error': 'Nenhum PDF disponivel para as materias selecionadas.'}, status=404)
+
+    try:
+        merger = PdfFileMerger(strict=False)
+        for f in pdf_files:
+            merger.append(fileobj=f)
+        data = BytesIO()
+        merger.write(data)
+        merger.close()
+        pdf_bytes = data.getvalue()
+    except Exception as e:
+        logger_local.error("user={}. Erro ao gerar PDF multiplos: {}".format(username, str(e)))
+        return JsonResponse({'error': 'Erro ao gerar PDF: ' + str(e)}, status=500)
+
+    logger_local.info("user={}. Gerou PDF multiplos ({} materias, {} PDFs)".format(
+        username, len(materias), len(pdf_files)))
+
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = 'inline; filename="materias_selecionadas.pdf"'
+    return response

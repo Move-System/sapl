@@ -1,0 +1,420 @@
+{% comment %}
+Partial reusavel: Modal de Assinatura Digital em Lote de Documentos
+Acessorios. Espera no contexto a variavel `docs_pendentes_lote`
+(lista de dicts com chaves `id` e `descricao`). O caller deve
+envolver com if docs_pendentes_lote include endif e renderizar em
+algum lugar um botao com id="btn-assinar-doc-lote" para disparar o
+modal.
+
+Backend: POST para sapl.materia:docacessorio_assinar_lote
+(views_assinatura.py::docacessorio_assinar_lote).
+
+Usado por:
+  - sapl/templates/materia/documentoacessorio_list.html
+    (assinar docs acessorios pendentes de UMA materia)
+  - sapl/templates/materia/despachos_pendentes_lote_list.html
+    (assinar despachos pendentes de TODAS as materias - Presidente da Mesa)
+{% endcomment %}
+<div class="modal fade" id="assinaturaDocLoteModal" tabindex="-1" role="dialog" aria-labelledby="assinaturaDocLoteModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header bg-warning">
+        <h5 class="modal-title" id="assinaturaDocLoteModalLabel">
+          <i class="fa fa-certificate"></i>
+          Assinar Documentos Acessórios em Lote &mdash;
+          <strong id="doc-lote-titulo-total">{{ docs_pendentes_lote|length }}</strong> pendente(s)
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        {# Passo 0: seleção #}
+        <div id="doc-lote-selecao-step">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="font-weight-bold">
+              <i class="fa fa-list-ul"></i> Selecione os documentos a assinar
+            </span>
+            <div>
+              <button type="button" class="btn btn-sm btn-outline-secondary mr-1" id="doc-lote-btn-todas">
+                <i class="fa fa-check-square-o"></i> Todos
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="doc-lote-btn-nenhuma">
+                <i class="fa fa-square-o"></i> Nenhum
+              </button>
+            </div>
+          </div>
+          <div id="doc-lote-lista-checkboxes" style="max-height:320px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;padding:8px;">
+            {% for d in docs_pendentes_lote %}
+            <div class="form-check py-1" style="border-bottom:1px solid #f0f0f0;">
+              <input class="form-check-input doc-lote-chk" type="checkbox"
+                     id="doc-lote-chk-{{ d.id }}" value="{{ d.id }}" checked>
+              <label class="form-check-label w-100" for="doc-lote-chk-{{ d.id }}" style="cursor:pointer;">
+                {{ d.descricao }}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+          <p class="text-muted small mt-2 mb-0">
+            <span id="doc-lote-selecao-contagem">{{ docs_pendentes_lote|length }}</span> documento(s) selecionado(s)
+          </p>
+        </div>
+
+        {# Passo 1: certificado #}
+        <div id="doc-lote-form-step" style="display:none;">
+          <div class="alert alert-warning">
+            <i class="fa fa-exclamation-triangle"></i>
+            <strong>Atenção:</strong> Esta operação assinará digitalmente
+            <strong><span id="doc-lote-alerta-total">{{ docs_pendentes_lote|length }}</span> documento(s)</strong>
+            com validade jurídica nos termos da MP 2.200-2/2001.
+          </div>
+          <form id="form-assinatura-doc-lote" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="form-group">
+              <label for="doc-lote-certificado">
+                <i class="fa fa-file"></i> Certificado Digital (.pfx / .p12)
+              </label>
+              <div class="custom-file">
+                <input type="file" class="custom-file-input" id="doc-lote-certificado"
+                       name="certificado" accept=".pfx,.p12" required>
+                <label class="custom-file-label" for="doc-lote-certificado">
+                  Selecione o arquivo do certificado...
+                </label>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="doc-lote-senha">
+                <i class="fa fa-lock"></i> Senha do Certificado
+              </label>
+              <input type="password" class="form-control" id="doc-lote-senha"
+                     name="senha" placeholder="Digite a senha do certificado" required>
+            </div>
+          </form>
+        </div>
+
+        {# Passo 1.5: prévia #}
+        <div id="doc-lote-previa-step" style="display:none;">
+          <div class="alert alert-info mb-3">
+            <i class="fa fa-eye"></i>
+            <strong>Revise os documentos antes de assinar.</strong>
+            Clique em cada item para visualizar o PDF em nova aba.
+          </div>
+          <div id="doc-lote-previa-lista" style="max-height:300px;overflow-y:auto;border:1px solid #dee2e6;border-radius:4px;padding:8px;" class="mb-3"></div>
+          <div class="form-check mt-3">
+            <input class="form-check-input" type="checkbox" id="doc-lote-previa-confirmacao">
+            <label class="form-check-label font-weight-bold text-danger" for="doc-lote-previa-confirmacao">
+              <i class="fa fa-check-square-o"></i>
+              Confirmo que revisei os documentos e que estão corretos para assinatura.
+            </label>
+          </div>
+        </div>
+
+        {# Passo 2: progresso #}
+        <div id="doc-lote-progresso-step" style="display:none;">
+          <h6 class="mb-3">
+            <i class="fa fa-spinner fa-spin text-primary"></i>
+            Processando assinaturas&hellip;
+          </h6>
+          <div class="progress mb-3" style="height:22px;">
+            <div id="doc-lote-progress-bar"
+                 class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+                 role="progressbar" style="width:0%">0%</div>
+          </div>
+          <p class="text-muted small" id="doc-lote-status-texto">Iniciando&hellip;</p>
+        </div>
+
+        {# Passo 3: resumo #}
+        <div id="doc-lote-resumo-step" style="display:none;">
+          <div id="doc-lote-resumo-alerta"></div>
+          <div id="doc-lote-resumo-lista" style="max-height:300px;overflow-y:auto;"></div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal" id="doc-lote-btn-fechar">
+          <i class="fa fa-times"></i> Fechar
+        </button>
+        <button type="button" class="btn btn-warning" id="doc-lote-btn-proximo">
+          <i class="fa fa-arrow-right"></i>
+          Continuar &mdash; <span id="doc-lote-btn-proximo-contagem">{{ docs_pendentes_lote|length }}</span> Doc(s)
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="doc-lote-btn-voltar" style="display:none;">
+          <i class="fa fa-arrow-left"></i> Voltar
+        </button>
+        <button type="button" class="btn btn-info" id="doc-lote-btn-previa" style="display:none;">
+          <i class="fa fa-eye"></i> Visualizar Documentos
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="doc-lote-btn-voltar-form" style="display:none;">
+          <i class="fa fa-arrow-left"></i> Voltar
+        </button>
+        <button type="button" class="btn btn-warning" id="doc-lote-btn-assinar" style="display:none;" disabled>
+          <i class="fa fa-certificate"></i>
+          Assinar <span id="doc-lote-btn-assinar-contagem">{{ docs_pendentes_lote|length }}</span> Doc(s)
+        </button>
+        <button type="button" class="btn btn-success" id="doc-lote-btn-recarregar" style="display:none;"
+                onclick="location.reload()">
+          <i class="fa fa-refresh"></i> Atualizar página
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var DOCS_LOTE = {{ docs_pendentes_lote|safe }};
+  var URL_LOTE = "{% url 'sapl.materia:docacessorio_assinar_lote' %}";
+
+  function getCSRF() {
+    var el = document.querySelector('#form-assinatura-doc-lote [name=csrfmiddlewaretoken]');
+    if (el) return el.value;
+    var match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? match[1] : '';
+  }
+
+  function getIdsSelecionados() {
+    return Array.from(document.querySelectorAll('.doc-lote-chk:checked'))
+      .map(function(c){ return parseInt(c.value, 10); });
+  }
+
+  function atualizarContagem() {
+    var n = getIdsSelecionados().length;
+    document.getElementById('doc-lote-selecao-contagem').textContent = n;
+    document.getElementById('doc-lote-btn-proximo-contagem').textContent = n;
+    document.getElementById('doc-lote-btn-assinar-contagem').textContent = n;
+    document.getElementById('doc-lote-alerta-total').textContent = n;
+    document.getElementById('doc-lote-titulo-total').textContent = n;
+    document.getElementById('doc-lote-btn-proximo').disabled = (n === 0);
+  }
+
+  document.getElementById('doc-lote-lista-checkboxes').addEventListener('change', function(e){
+    if (e.target && e.target.classList.contains('doc-lote-chk')) atualizarContagem();
+  });
+
+  document.getElementById('doc-lote-btn-todas').addEventListener('click', function(){
+    document.querySelectorAll('.doc-lote-chk').forEach(function(c){ c.checked = true; });
+    atualizarContagem();
+  });
+  document.getElementById('doc-lote-btn-nenhuma').addEventListener('click', function(){
+    document.querySelectorAll('.doc-lote-chk').forEach(function(c){ c.checked = false; });
+    atualizarContagem();
+  });
+
+  document.getElementById('doc-lote-certificado').addEventListener('change', function(){
+    var label = this.nextElementSibling;
+    label.textContent = this.files[0] ? this.files[0].name : 'Selecione o arquivo do certificado...';
+  });
+
+  function irParaSelecao() {
+    document.getElementById('doc-lote-selecao-step').style.display   = 'block';
+    document.getElementById('doc-lote-form-step').style.display      = 'none';
+    document.getElementById('doc-lote-previa-step').style.display    = 'none';
+    document.getElementById('doc-lote-progresso-step').style.display = 'none';
+    document.getElementById('doc-lote-resumo-step').style.display    = 'none';
+    document.getElementById('doc-lote-btn-proximo').style.display    = 'inline-block';
+    document.getElementById('doc-lote-btn-voltar').style.display     = 'none';
+    document.getElementById('doc-lote-btn-previa').style.display     = 'none';
+    document.getElementById('doc-lote-btn-voltar-form').style.display= 'none';
+    document.getElementById('doc-lote-btn-assinar').style.display    = 'none';
+    document.getElementById('doc-lote-btn-recarregar').style.display = 'none';
+    document.getElementById('doc-lote-btn-fechar').disabled          = false;
+  }
+
+  function irParaForm() {
+    document.getElementById('doc-lote-selecao-step').style.display   = 'none';
+    document.getElementById('doc-lote-form-step').style.display      = 'block';
+    document.getElementById('doc-lote-previa-step').style.display    = 'none';
+    document.getElementById('doc-lote-progresso-step').style.display = 'none';
+    document.getElementById('doc-lote-resumo-step').style.display    = 'none';
+    document.getElementById('doc-lote-btn-proximo').style.display    = 'none';
+    document.getElementById('doc-lote-btn-voltar').style.display     = 'inline-block';
+    document.getElementById('doc-lote-btn-previa').style.display     = 'inline-block';
+    document.getElementById('doc-lote-btn-voltar-form').style.display= 'none';
+    document.getElementById('doc-lote-btn-assinar').style.display    = 'none';
+    document.getElementById('doc-lote-btn-recarregar').style.display = 'none';
+  }
+
+  function irParaPrevia() {
+    var certFile = document.getElementById('doc-lote-certificado').files[0];
+    var senha    = document.getElementById('doc-lote-senha').value;
+    if (!certFile) { alert('Selecione o arquivo do certificado.'); return; }
+    if (!senha)    { alert('Digite a senha do certificado.'); return; }
+
+    var idsSel = getIdsSelecionados();
+    var html = '';
+    DOCS_LOTE.filter(function(d){ return idsSel.indexOf(d.id) !== -1; })
+      .forEach(function(d) {
+        html += '<div class="d-flex align-items-center justify-content-between py-2" ' +
+                'style="border-bottom:1px solid #f0f0f0;">' +
+                '<span><i class="fa fa-file-pdf-o text-danger mr-1"></i>' +
+                '<strong>' + escHtml(d.descricao) + '</strong></span>' +
+                '<a href="/materia/documentoacessorio/' + d.id + '/pdf-previa" target="_blank" ' +
+                'class="btn btn-sm btn-outline-primary ml-2" title="Visualizar PDF">' +
+                '<i class="fa fa-eye"></i> Visualizar</a>' +
+                '</div>';
+      });
+    document.getElementById('doc-lote-previa-lista').innerHTML = html || '<p class="text-muted">Nenhum documento selecionado.</p>';
+
+    var chk = document.getElementById('doc-lote-previa-confirmacao');
+    chk.checked = false;
+    document.getElementById('doc-lote-btn-assinar').disabled = true;
+
+    document.getElementById('doc-lote-selecao-step').style.display   = 'none';
+    document.getElementById('doc-lote-form-step').style.display      = 'none';
+    document.getElementById('doc-lote-previa-step').style.display    = 'block';
+    document.getElementById('doc-lote-progresso-step').style.display = 'none';
+    document.getElementById('doc-lote-resumo-step').style.display    = 'none';
+    document.getElementById('doc-lote-btn-proximo').style.display    = 'none';
+    document.getElementById('doc-lote-btn-voltar').style.display     = 'none';
+    document.getElementById('doc-lote-btn-previa').style.display     = 'none';
+    document.getElementById('doc-lote-btn-voltar-form').style.display= 'inline-block';
+    document.getElementById('doc-lote-btn-assinar').style.display    = 'inline-block';
+    document.getElementById('doc-lote-btn-recarregar').style.display = 'none';
+  }
+
+  document.getElementById('btn-assinar-doc-lote').addEventListener('click', function(){
+    document.querySelectorAll('.doc-lote-chk').forEach(function(c){ c.checked = true; });
+    document.getElementById('form-assinatura-doc-lote').reset();
+    document.querySelector('#form-assinatura-doc-lote .custom-file-label').textContent =
+      'Selecione o arquivo do certificado...';
+    atualizarContagem();
+    irParaSelecao();
+    $('#assinaturaDocLoteModal').modal('show');
+  });
+
+  document.getElementById('doc-lote-btn-proximo').addEventListener('click', function(){
+    if (getIdsSelecionados().length === 0) { alert('Selecione ao menos um documento.'); return; }
+    irParaForm();
+  });
+
+  document.getElementById('doc-lote-btn-voltar').addEventListener('click', irParaSelecao);
+  document.getElementById('doc-lote-btn-previa').addEventListener('click', irParaPrevia);
+  document.getElementById('doc-lote-btn-voltar-form').addEventListener('click', irParaForm);
+
+  document.getElementById('doc-lote-previa-confirmacao').addEventListener('change', function(){
+    document.getElementById('doc-lote-btn-assinar').disabled = !this.checked;
+  });
+
+  document.getElementById('doc-lote-btn-assinar').addEventListener('click', function(){
+    var certFile = document.getElementById('doc-lote-certificado').files[0];
+    var senha    = document.getElementById('doc-lote-senha').value;
+    var idsSel   = getIdsSelecionados();
+
+    if (!certFile)      { alert('Selecione o arquivo do certificado.'); return; }
+    if (!senha)         { alert('Digite a senha do certificado.'); return; }
+    if (!idsSel.length) { alert('Nenhum documento selecionado.'); return; }
+
+    var fd = new FormData();
+    fd.append('certificado', certFile);
+    fd.append('senha', senha);
+    fd.append('ids', JSON.stringify(idsSel));
+
+    document.getElementById('doc-lote-previa-step').style.display    = 'none';
+    document.getElementById('doc-lote-progresso-step').style.display = 'block';
+    document.getElementById('doc-lote-btn-voltar-form').style.display= 'none';
+    document.getElementById('doc-lote-btn-assinar').style.display    = 'none';
+    document.getElementById('doc-lote-btn-fechar').disabled          = true;
+
+    // Animação de progresso proporcional ao número de documentos
+    var nDocs = idsSel.length;
+    var fases = [
+      { ate: 10, label: 'Enviando certificado e iniciando assinatura…',   ms: 700 },
+      { ate: 25, label: 'Validando certificado e gerando PDFs…',           ms: Math.min(600, 200 + nDocs * 30) },
+      { ate: 50, label: 'Preparando ' + nDocs + ' documento(s) para assinatura…', ms: Math.min(800, 200 + nDocs * 50) },
+      { ate: 70, label: 'Enviando ao microserviço de assinatura…',         ms: Math.min(1000, 300 + nDocs * 60) },
+      { ate: 85, label: 'Aguardando resposta do servidor…',               ms: Math.min(800, 300 + nDocs * 40) },
+      { ate: 93, label: 'Salvando documentos assinados…',                 ms: 500 },
+      { ate: 97, label: 'Finalizando…',                                   ms: 300 },
+    ];
+    var faseIdx = 0, progrAtual = 0, progrTimer = null;
+    function avancarProgresso() {
+      if (faseIdx >= fases.length) return;
+      var fase = fases[faseIdx];
+      if (progrAtual < fase.ate) {
+        progrAtual = Math.min(progrAtual + 1, fase.ate);
+        setProgresso(progrAtual, fase.label);
+      } else { faseIdx++; }
+      progrTimer = setTimeout(avancarProgresso, fases[Math.min(faseIdx, fases.length-1)].ms / (fase.ate - (faseIdx > 0 ? fases[faseIdx-1].ate : 0)));
+    }
+    progrTimer = setTimeout(avancarProgresso, 400);
+
+    fetch(URL_LOTE, {
+      method: 'POST',
+      body: fd,
+      headers: { 'X-CSRFToken': getCSRF() }
+    })
+    .then(function(r){
+      clearTimeout(progrTimer);
+      setProgresso(98, 'Processando resposta…');
+      if (!r.ok) return r.json().then(function(d){ throw new Error(d.error || ('HTTP ' + r.status)); });
+      return r.json();
+    })
+    .then(function(data){
+      clearTimeout(progrTimer);
+      setProgresso(100, 'Concluído.');
+      document.getElementById('doc-lote-btn-fechar').disabled = false;
+      mostrarResumo(data);
+    })
+    .catch(function(err){
+      clearTimeout(progrTimer);
+      document.getElementById('doc-lote-btn-fechar').disabled = false;
+      setProgresso(100, 'Erro.');
+      mostrarErroFatal(err.message || String(err));
+    });
+  });
+
+  function setProgresso(pct, texto) {
+    var bar = document.getElementById('doc-lote-progress-bar');
+    bar.style.width = pct + '%';
+    bar.textContent = pct + '%';
+    document.getElementById('doc-lote-status-texto').textContent = texto;
+  }
+
+  function mostrarResumo(data) {
+    document.getElementById('doc-lote-progresso-step').style.display = 'none';
+    document.getElementById('doc-lote-resumo-step').style.display    = 'block';
+    document.getElementById('doc-lote-btn-recarregar').style.display = 'inline-block';
+
+    var temErro   = data.erros > 0;
+    var alertaCls = data.sucesso > 0 ? (temErro ? 'alert-warning' : 'alert-success') : 'alert-danger';
+    var icone     = data.sucesso > 0 ? (temErro ? 'exclamation-triangle' : 'check-circle') : 'times-circle';
+
+    document.getElementById('doc-lote-resumo-alerta').innerHTML =
+      '<div class="alert ' + alertaCls + '">' +
+      '<i class="fa fa-' + icone + '"></i> ' +
+      '<strong>' + data.sucesso + ' assinado(s)</strong> com sucesso' +
+      (temErro ? ', <strong>' + data.erros + '</strong> com erro(s).' : '.') +
+      ' Total: ' + data.total + ' documento(s).</div>';
+
+    var html = '<ul class="list-group">';
+    (data.resultados || []).forEach(function(r){
+      var cls  = r.success ? 'list-group-item-success' : 'list-group-item-danger';
+      var icon = r.success ? 'check text-success' : 'times text-danger';
+      html += '<li class="list-group-item list-group-item-sm ' + cls + '">' +
+              '<i class="fa fa-' + icon + ' mr-1"></i>' +
+              '<strong>' + escHtml(r.descricao) + '</strong>' +
+              (r.error ? ' — <small class="text-muted">' + escHtml(r.error) + '</small>' : '') +
+              '</li>';
+    });
+    html += '</ul>';
+    document.getElementById('doc-lote-resumo-lista').innerHTML = html;
+  }
+
+  function mostrarErroFatal(msg) {
+    document.getElementById('doc-lote-progresso-step').style.display = 'none';
+    document.getElementById('doc-lote-resumo-step').style.display    = 'block';
+    document.getElementById('doc-lote-resumo-alerta').innerHTML =
+      '<div class="alert alert-danger"><i class="fa fa-times-circle"></i> ' +
+      '<strong>Erro:</strong> ' + escHtml(msg) + '</div>';
+    document.getElementById('doc-lote-resumo-lista').innerHTML = '';
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+})();
+</script>
