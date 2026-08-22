@@ -545,7 +545,9 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                     reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
                     name=nome_assinante
                 )
-                hash_doc = ''  # será preenchido pelo chamador se necessário
+                # `hash_doc` vem do chamador (codigo_autenticacao gravado na 1ª
+                # assinatura). Zerá-lo aqui — como se fazia — apagava o "Hash:"
+                # do carimbo justamente na assinatura em que ele já existe.
                 stamp_style = _criar_stamp_style(nome_assinante, cargo, hash_doc)
                 pdf_signer = PdfSigner(meta, signer=signer, stamp_style=stamp_style)
                 pdf_signer.sign_pdf(
@@ -1226,6 +1228,7 @@ def materia_assinar_a1(request, pk):
             senha=senha,
             tipo_cert_input='a1',
             posicao_custom=posicao_custom,
+            hash_doc=materia.codigo_autenticacao or '',
         )
     except ImportError:
         logger.error("pyhanko não está instalado")
@@ -1835,6 +1838,7 @@ def docacessorio_assinar_a1(request, pk):
             senha=senha,
             tipo_cert_input='a1',
             posicao_custom=posicao_custom,
+            hash_doc=docacessorio.codigo_autenticacao or '',
         )
     except ImportError:
         logger.error("pyhanko não está instalado")
@@ -2414,6 +2418,7 @@ def materia_assinar_lote(request):
                     certificado_bytes=cert_bytes,
                     senha=senha,
                     tipo_cert_input='a1',
+                    hash_doc=materia.codigo_autenticacao or '',
                 )
 
                 filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
@@ -2740,6 +2745,7 @@ def docacessorio_assinar_lote(request):
                     certificado_bytes=cert_bytes,
                     senha=senha,
                     tipo_cert_input='a1',
+                    hash_doc=doc.codigo_autenticacao or '',
                 )
 
                 filename = f"docacessorio_{doc.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
