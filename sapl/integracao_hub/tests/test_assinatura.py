@@ -1,7 +1,7 @@
 import hashlib
 import os
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from django.contrib.auth.models import Permission
@@ -200,6 +200,96 @@ def test_concluidas_devolve_documento_assinado_e_autor_resolvido(cliente_hub):
     # Contrato documento-assinado: autor resolvido de signed_by via
     # OperadorAutor — é por ele que o consumidor marca a pendência fechada.
     assert assinatura['autor_id'] == autor.pk
+
+
+# ---------------------------------------------------------------------------
+# Normalização da data do ato (AB#1498)
+#
+# O consumidor parseia `data` como ISO. O acervo grava `data_assinatura` em
+# `%d/%m/%Y` — 1198 de 1207 registros medidos em 22/08/2026 — e era isso que
+# congelava a fonte inteira no hub. A normalização mora na serialização porque
+# `data_assinatura` alimenta a tela de verificação pública e não pode mudar.
+# ---------------------------------------------------------------------------
+
+def _assinatura_de(cliente_hub, materia):
+    resposta = cliente_hub.get(
+        BASE + 'assinaturas-concluidas/',
+        {'desde': (timezone.now() - timedelta(days=1)).isoformat(),
+         'id_gt': 0})
+    assert resposta.status_code == 200
+    item = next(i for i in resposta.data['resultados']
+                if i['materia']['id'] == materia.pk)
+    return item['assinaturas'][0]
+
+
+@pytest.mark.parametrize('gravado,esperado_prefixo', [
+    ('22/08/2026 15:41:30', '2026-08-22T15:41:30'),
+    ('19/08/2026 10:00', '2026-08-19T10:00:00'),
+])
+@pytest.mark.django_db(transaction=False)
+def test_concluidas_converte_data_brasileira_para_iso(
+        cliente_hub, gravado, esperado_prefixo):
+    """Os dois formatos que `views_assinatura` grava saem em ISO."""
+    materia, _ = criar_materia_com_alvo()
+    assinar_localmente(materia)
+    materia.assinatura_info[0]['data_assinatura'] = gravado
+    materia.save()
+
+    data = _assinatura_de(cliente_hub, materia)['data']
+
+    # Parseável como ISO é o que o contrato promete — é o parse que travava.
+    assert datetime.fromisoformat(data) is not None
+    assert data.startswith(esperado_prefixo)
+    # Hora LOCAL preservada: reinterpretar como UTC deslocaria a série inteira.
+    assert datetime.fromisoformat(data).utcoffset() is not None
+
+
+@pytest.mark.django_db(transaction=False)
+def test_concluidas_preserva_data_que_ja_veio_iso(cliente_hub):
+    """Os 9 registros bons (`self_reported_timestamp`) não podem regredir."""
+    materia, _ = criar_materia_com_alvo()
+    assinar_localmente(materia)
+    materia.assinatura_info[0]['data'] = '2026-08-22T17:00:20.885536+00:00'
+    materia.save()
+
+    assert _assinatura_de(cliente_hub, materia)['data'] == \
+        '2026-08-22T17:00:20.885536+00:00'
+
+
+@pytest.mark.parametrize('info_extra', [
+    {'data_assinatura': ''},
+    {'data_assinatura': 'ontem de tarde'},
+    {},
+])
+@pytest.mark.django_db(transaction=False)
+def test_concluidas_sem_data_utilizavel_devolve_nulo(cliente_hub, info_extra):
+    """Data ilegível não estoura: sai `null` e o consumidor usa `assinado_em`.
+
+    É a diferença entre perder a data de UM ato e congelar a fonte inteira.
+    """
+    materia, _ = criar_materia_com_alvo()
+    assinar_localmente(materia)
+    materia.assinatura_info[0].pop('data_assinatura', None)
+    materia.assinatura_info[0].update(info_extra)
+    materia.save()
+
+    assert _assinatura_de(cliente_hub, materia)['data'] is None
+
+
+@pytest.mark.django_db(transaction=False)
+def test_concluidas_normaliza_o_que_o_proprio_receiver_gravou(cliente_hub):
+    """O laço fechado: o receiver da integração grava em `%d/%m/%Y %H:%M:%S`.
+
+    Sem esta normalização, cada assinatura feita PELO APP envenenava a fonte
+    que contaria ao app que ela aconteceu.
+    """
+    materia, _ = criar_materia_com_alvo()
+    assinar_localmente(materia)
+    materia.assinatura_info[0]['data_assinatura'] = \
+        timezone.localtime(timezone.now()).strftime('%d/%m/%Y %H:%M:%S')
+    materia.save()
+
+    assert datetime.fromisoformat(_assinatura_de(cliente_hub, materia)['data'])
 
 
 @pytest.mark.django_db(transaction=False)

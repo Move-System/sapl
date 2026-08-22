@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+from datetime import datetime
 
 from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
@@ -23,6 +24,56 @@ def _iso(valor):
             valor = timezone.localtime(valor)
         return valor.isoformat()
     return valor.isoformat()
+
+
+#: Formatos em que `data_assinatura` é gravado hoje. `views_assinatura` usa os
+#: dois (`%H:%M:%S` na maioria dos pontos, `%H:%M` em 389/599) e ambos chegam
+#: aqui pelo acervo antigo.
+_FORMATOS_DATA_ASSINATURA = ('%d/%m/%Y %H:%M:%S', '%d/%m/%Y %H:%M')
+
+
+def _data_da_assinatura(info):
+    """A data de um ato de assinatura, SEMPRE em ISO-8601 com offset.
+
+    O contrato promete ISO; o acervo entrega duas coisas. `data` já nasce ISO
+    (`views_assinatura:1552/1983`, via `self_reported_timestamp`), mas é a
+    minoria: 1198 dos 1207 registros medidos em 22/08/2026 têm só
+    `data_assinatura`, em `%d/%m/%Y`. O consumidor parseia como ISO e estoura —
+    e um estouro aqui congelava a fonte inteira (ver PollerSapl).
+
+    Normalizar AQUI, e não nos seis pontos de gravação, é deliberado:
+    `data_assinatura` alimenta a tela de verificação pública
+    (`views_assinatura:864/2096/2136`). Mudar o que se grava mudaria o que o
+    cidadão vê e obrigaria a migrar 964 matérias; normalizar na fronteira
+    conserta o acervo inteiro sem tocar em dado nem em exibição.
+
+    Sem data utilizável devolve None — o consumidor recai em `assinado_em`,
+    que é o fallback que ele já tem.
+    """
+    iso = info.get('data')
+    if iso:
+        return iso
+
+    bruta = (info.get('data_assinatura') or '').strip()
+    if not bruta:
+        return None
+
+    for formato in _FORMATOS_DATA_ASSINATURA:
+        try:
+            ingenua = datetime.strptime(bruta, formato)
+        except ValueError:
+            continue
+        # Foi `timezone.localtime` que gravou — então é hora local da casa, e é
+        # como hora local que ela tem que ser reinterpretada. Assumir UTC aqui
+        # deslocaria toda a série pelo offset do fuso.
+        return timezone.make_aware(
+            ingenua, timezone.get_current_timezone()).isoformat()
+
+    logger.warning(
+        'integracao_hub: data_assinatura %r não casa com nenhum formato '
+        'conhecido — assinatura serializada sem data (o consumidor recai em '
+        'assinado_em)', bruta)
+    return None
 
 
 def _materia_da_proposicao(proposicao):
@@ -266,8 +317,10 @@ def serializar_materia_assinada(materia, request):
             'signed_by': username,
             # A sprint grava nome_assinante/data_assinatura; o POST da
             # integração grava nome/data — o contrato enxerga um shape só.
+            # Shape só na CHAVE não basta: o formato também tem que convergir,
+            # e é o que `_data_da_assinatura` garante (sempre ISO ou None).
             'nome': info.get('nome') or info.get('nome_assinante'),
-            'data': info.get('data') or info.get('data_assinatura'),
+            'data': _data_da_assinatura(info),
             'tipo_certificado': info.get('tipo_certificado'),
             'autor_id': _autor_do_signed_by(username, ids_da_autoria),
             # Rastro operacional (quem disparou o ato) — separado da autoria
