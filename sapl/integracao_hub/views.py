@@ -532,13 +532,36 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
                     nome, ContentFile(conteudo), save=False)
 
                 # APPEND no formato da sprint — multiassinatura incremental.
+                #
+                # As chaves aqui têm que ser as MESMAS que a página pública de
+                # verificação lê (materia_verificar_documento →
+                # nome_assinante/cargo/data_assinatura/tipo_certificado_display)
+                # e que a rotina NATIVA do SAPL grava (views_assinatura, dict
+                # `nova_assinatura`). Antes gravávamos `nome`/`data` e omitíamos
+                # `cargo`: a via do app entrava sem nome/cargo/data na tela de
+                # verificação, enquanto a via nativa aparecia. Isto expande a
+                # rotina nativa para o receiver do hub (app → amu → micro → hub).
+                tipo_desc = ''
+                if getattr(autor, 'tipo', None) is not None:
+                    tipo_desc = (autor.tipo.descricao or '')
+                cargo = ('Vereador(a)' if 'parlamentar' in tipo_desc.lower()
+                         else (tipo_desc or 'Vereador(a)'))
+                tipo_cert = (request.data.get('tipo_certificado') or 'A1').upper()
+                tipo_cert_display = (
+                    request.data.get('tipo_certificado_display')
+                    or 'ICP-Brasil – %s' % tipo_cert)
+
                 assinaturas = self._normalizar(materia.assinatura_info)
                 assinaturas.append({
+                    # exibidos na verificação pública (mesmas chaves do fluxo nativo)
+                    'nome_assinante': request.data.get('nome') or autor.nome,
+                    'cargo': cargo,
+                    'data_assinatura':
+                        timezone.localtime(agora).strftime('%d/%m/%Y %H:%M:%S'),
+                    'tipo_certificado': tipo_cert,
+                    'tipo_certificado_display': tipo_cert_display,
+                    # rastro operacional interno (não exibido na verificação)
                     'signed_by': titular.username,
-                    'nome': request.data.get('nome') or autor.nome,
-                    'data': agora.isoformat(),
-                    'tipo_certificado':
-                        request.data.get('tipo_certificado') or '',
                     'operado_por': operado_por,
                 })
                 materia.assinatura_info = assinaturas
