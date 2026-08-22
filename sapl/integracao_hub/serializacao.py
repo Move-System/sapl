@@ -8,6 +8,8 @@ from django.utils import timezone
 
 from sapl.base.models import Autor, OperadorAutor
 from sapl.materia.models import MateriaLegislativa
+from sapl.materia.views_assinatura import (
+    _construir_url_verificacao_base, _obter_nome_casa_legislativa)
 from sapl.parlamentares.models import Parlamentar, Votante
 
 logger = logging.getLogger(__name__)
@@ -203,6 +205,14 @@ def _autores_pendentes(materia):
 def serializar_pendencia(alvo, request):
     """Item de `assinaturas-pendentes` (§3): só existe com o PDF-alvo materializado."""
     materia = alvo.materia
+    # `verification_url_base` e `casa_legislativa` viajam com a pendência porque
+    # SÓ O SAPL sabe a URL pública desta casa e o nome dela. Sem eles o AMU assina
+    # sem a página de autenticação — e o documento sai divergente do assinado aqui,
+    # que é exatamente o que a convergência dos assinadores (AB#1473) elimina.
+    #
+    # Reusamos as funções de `views_assinatura` em vez de remontar a URL aqui: elas
+    # são a forma canônica que o próprio SAPL usa ao chamar o microserviço. Duplicar
+    # a montagem é o caminho conhecido para as duas divergirem na primeira mudança.
     return {
         # Keyset da fonte: o hub le `id` no topo e devolve como `id_gt`, e a
         # view filtra `materia_id__gt` (o alvo e OneToOne com a materia, ver
@@ -220,6 +230,9 @@ def serializar_pendencia(alvo, request):
         'documento': _bloco_documento(
             alvo.arquivo, request, 'integracao_hub_documento_alvo',
             materia.pk, hash_sha256=alvo.hash_sha256),
+        'verification_url_base': _construir_url_verificacao_base(
+            request, 'materia', materia.pk),
+        'casa_legislativa': _obter_nome_casa_legislativa(),
     }
 
 
