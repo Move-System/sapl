@@ -545,7 +545,9 @@ def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                     reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
                     name=nome_assinante
                 )
-                hash_doc = ''  # será preenchido pelo chamador se necessário
+                # `hash_doc` vem do chamador (codigo_autenticacao gravado na 1ª
+                # assinatura). Zerá-lo aqui — como se fazia — apagava o "Hash:"
+                # do carimbo justamente na assinatura em que ele já existe.
                 stamp_style = _criar_stamp_style(nome_assinante, cargo, hash_doc)
                 pdf_signer = PdfSigner(meta, signer=signer, stamp_style=stamp_style)
                 pdf_signer.sign_pdf(
@@ -1226,6 +1228,7 @@ def materia_assinar_a1(request, pk):
             senha=senha,
             tipo_cert_input='a1',
             posicao_custom=posicao_custom,
+            hash_doc=materia.codigo_autenticacao or '',
         )
     except ImportError:
         logger.error("pyhanko não está instalado")
@@ -1257,8 +1260,11 @@ def materia_assinar_a1(request, pk):
     materia.assinado_por = request.user
     materia.save()
 
-    from django.core.cache import cache as _cache
-    _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
+    # Invalida o badge de TODOS os coautores, não só de quem assinou: esta
+    # assinatura muda a contagem deles também (a matéria some da minha lista e
+    # continua na deles) e eles ficariam com o número velho até o TTL.
+    from sapl.materia.pendencias import invalidar_cache_pendencias
+    invalidar_cache_pendencias(materia=materia, user=request.user)
 
     logger.info(
         f"Matéria {materia.pk} assinada por {request.user.username} "
@@ -1835,6 +1841,7 @@ def docacessorio_assinar_a1(request, pk):
             senha=senha,
             tipo_cert_input='a1',
             posicao_custom=posicao_custom,
+            hash_doc=docacessorio.codigo_autenticacao or '',
         )
     except ImportError:
         logger.error("pyhanko não está instalado")
@@ -2414,6 +2421,7 @@ def materia_assinar_lote(request):
                     certificado_bytes=cert_bytes,
                     senha=senha,
                     tipo_cert_input='a1',
+                    hash_doc=materia.codigo_autenticacao or '',
                 )
 
                 filename = f"materia_{materia.pk}_assinado_{int(timezone.now().timestamp())}.pdf"
@@ -2439,10 +2447,14 @@ def materia_assinar_lote(request):
                 resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
                 erro_count += 1
 
-    # Invalida cache de pendências uma vez ao final do lote
+    # Invalida cache de pendências uma vez ao final do lote — de quem assinou
+    # e dos coautores de cada matéria assinada.
     if sucesso_count > 0:
-        from django.core.cache import cache as _cache
-        _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
+        from sapl.materia.pendencias import invalidar_cache_pendencias
+        for r in resultados:
+            if r.get('success'):
+                invalidar_cache_pendencias(materia=materias_map.get(r['pk']))
+        invalidar_cache_pendencias(user=request.user)
 
     return JsonResponse({
         'success': True,
@@ -2740,6 +2752,7 @@ def docacessorio_assinar_lote(request):
                     certificado_bytes=cert_bytes,
                     senha=senha,
                     tipo_cert_input='a1',
+                    hash_doc=doc.codigo_autenticacao or '',
                 )
 
                 filename = f"docacessorio_{doc.pk}_assinado_{int(timezone.now().timestamp())}.pdf"

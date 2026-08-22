@@ -38,45 +38,44 @@ def pendencias_assinatura(request):
         return {'pendencias_assinatura_total': 0, 'pendencias_assinatura_url': ''}
 
     from django.core.cache import cache
-    cache_key = f'pendencias_assinatura_user_{request.user.pk}'
+    from sapl.materia.pendencias import CACHE_KEY, CACHE_TTL
+
+    cache_key = CACHE_KEY.format(request.user.pk)
     cached = cache.get(cache_key)
 
     if cached is None:
         try:
-            from django.db.models import Q
             from django.urls import reverse
             from sapl.materia.models import MateriaLegislativa
-            from sapl.base.models import OperadorAutor
+            from sapl.materia.pendencias import (
+                autores_do_usuario, filtrar_pendentes)
 
-            # Busca o Autor vinculado ao usuário
-            try:
-                autor = OperadorAutor.objects.get(user=request.user).autor
-                autor_pk = autor.pk
-            except OperadorAutor.DoesNotExist:
-                autor_pk = None
+            # Pendência é POR AUTOR: a matéria que um coautor já assinou segue
+            # pendente para os demais. Contar `pdf_assinado` vazio — como se
+            # fazia aqui — zerava o badge do coautor na primeira assinatura.
+            autores = autores_do_usuario(request.user)
 
-            if autor_pk:
-                total = MateriaLegislativa.objects.filter(
-                    autoria__autor_id=autor_pk,
-                    texto_original__isnull=False,
-                ).exclude(
-                    texto_original=''
-                ).filter(
-                    Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
-                ).distinct().count()
+            if autores:
+                total = filtrar_pendentes(
+                    MateriaLegislativa.objects.all(), autores=autores).count()
+                # A URL leva ao mesmo recorte: um autor por vez na pesquisa, o
+                # primeiro deles (o assessor de dois vereadores vê o total no
+                # badge e refina na tela).
                 url = (
                     reverse('sapl.materia:pesquisar_materia')
-                    + f'?autoria__autor={autor_pk}&status_assinatura=pendente'
+                    + f'?autoria__autor={autores[0].pk}&status_assinatura=pendente'
                 )
             else:
                 total = 0
                 url = ''
         except Exception:
+            logging.getLogger(__name__).exception(
+                'Falha ao calcular pendências de assinatura')
             total = 0
             url = ''
 
         cached = {'total': total, 'url': url}
-        cache.set(cache_key, cached, 120)  # cache de 2 minutos
+        cache.set(cache_key, cached, CACHE_TTL)
 
     return {
         'pendencias_assinatura_total': cached['total'],

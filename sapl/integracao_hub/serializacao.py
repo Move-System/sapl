@@ -141,65 +141,15 @@ def _url_absoluta(request, nome_rota, materia_id):
         reverse(nome_rota, kwargs={'materia_id': materia_id}))
 
 
-def _operadores_do_autor(autor):
-    return list(autor.operadorautor_set.select_related('user').order_by('id'))
-
-
-def resolver_titular(autor):
-    """User do VEREADOR TITULAR do autor, ou None se indeterminável.
-
-    Assinatura é ato pessoal e indelegável: o certificado ICP é do vereador, e
-    o assessor NUNCA assina no lugar dele — só opera (rastro operacional à
-    parte). A identidade jurídica do signatário é sempre o titular.
-
-    O vínculo estrutural parlamentar→user é o **Votante** do Parlamentar que o
-    Autor representa (content_type=parlamentar). No dado real de Franco, o autor
-    CESINHA tem operadores {cesinha, Juciana} mas votante {cesinha}: o votante
-    isola o titular da assessora — casar username com o nome do autor seria
-    coincidência frágil, o Votante é o vínculo confiável.
-
-    Regras:
-    - parlamentar com exatamente 1 votante → titular (o caso normal);
-    - parlamentar sem votante cadastrado → cai no operador único; se houver
-      mais de um operador e nenhum votante, o titular é INDETERMINÁVEL (None) —
-      o chamador falha visível, melhor que atribuir a autoria ao assessor;
-    - parlamentar com >1 votante → ambíguo → None;
-    - autor não-parlamentar (órgão, comissão) → sem conceito de votante: só o
-      operador único resolve, senão None.
-    """
-    related = autor.autor_related
-    if isinstance(related, Parlamentar):
-        votantes = {v.user_id: v.user
-                    for v in related.votante_set.select_related('user')}
-        if len(votantes) == 1:
-            return next(iter(votantes.values()))
-        if len(votantes) > 1:
-            return None  # titular ambíguo — não adivinha
-        # sem votante: só resolve se houver um operador único
-    operadores = _operadores_do_autor(autor)
-    if len(operadores) == 1:
-        return operadores[0].user
-    return None
-
-
-def _autores_pendentes(materia):
-    """Pendência é POR AUTOR (refinamento §2), derivada — não é tabela.
-
-    pendente(autor, matéria) = autor ∈ autoria ∧ titular(autor) ∉
-    assinatura_info.signed_by. O titular é o vereador (via Votante), não um
-    operador qualquer: é a assinatura DELE que fecha a pendência. Titular
-    indeterminável conta como pendente (não dá para confirmar que assinou) — a
-    matéria fica visível e o erro aparece no ato de assinar, não some calada.
-    """
-    assinados = {
-        a.get('signed_by')
-        for a in _normalizar_assinatura_info(materia.assinatura_info)}
-    pendentes = []
-    for autoria in materia.autoria_set.select_related('autor'):
-        titular = resolver_titular(autoria.autor)
-        if titular is None or titular.username not in assinados:
-            pendentes.append(autoria.autor_id)
-    return pendentes
+# A regra de pendência mora em `sapl.materia.pendencias` — fonte única, também
+# usada pelo SAPL web (badge, tela de pendentes, filtro da pesquisa, e-mail
+# diário). Ficou duas vezes no repo por um tempo, e as duas divergiram: aqui era
+# por autor (certo), lá era por documento — o app do AMU mostrava a pendência do
+# coautor que a tela do SAPL escondia. Reexportado com os nomes antigos para não
+# mexer em quem já importa daqui.
+from sapl.materia.pendencias import (  # noqa: E402  (reexport)
+    _operadores_do_autor, autores_pendentes as _autores_pendentes,
+    resolver_titular)
 
 
 def serializar_pendencia(alvo, request):
