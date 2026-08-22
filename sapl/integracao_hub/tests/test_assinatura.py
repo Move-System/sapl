@@ -307,7 +307,13 @@ def test_grava_assinatura_no_formato_da_sprint(cliente_hub, materia_pronta):
     assert materia.pdf_assinado.read() == PDF_ASSINADO
     info = materia.assinatura_info[0]
     assert info['signed_by'] == 'ver-a'  # username do OperadorAutor do autor
-    assert info['nome'] == 'Vereador ver-a'
+    # `nome_assinante`/`cargo`/`data_assinatura` sao as chaves da rotina NATIVA
+    # do SAPL, que a verificacao publica le (ADR-0013 §4). O receiver gravava
+    # `nome`/`data` e a via do app entrava sem nome na tela de verificacao —
+    # esta assercao ficou para tras quando isso foi corrigido em 93af2c45.
+    assert info['nome_assinante'] == 'Vereador ver-a'
+    assert info['cargo']
+    assert info['data_assinatura']
     assert info['tipo_certificado'] == 'A1'
     assert materia.assinado_em is not None
     # Primeira assinatura gera o código público, como no fluxo local.
@@ -706,3 +712,132 @@ def test_desde_invalido_e_400(cliente_hub):
                                {'desde': 'ontem', 'id_gt': 0})
 
     assert resposta.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Guarda de encadeamento (ADR-0013 entre sistemas) — nao perder assinatura
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db(transaction=False)
+def test_pdf_que_nao_encadeia_e_recusado_sem_apagar_assinatura(
+        cliente_hub, materia_pronta, monkeypatch):
+    """App assinou o alvo em branco com a materia ja assinada aqui: 409, nada muda.
+
+    E o desfecho da janela em que o `DocumentoAssinado` da assinatura feita no
+    SAPL ainda nao chegou ao app. Antes desta guarda o receiver sobrescrevia o
+    `pdf_assinado` e a assinatura anterior sumia do documento — com o
+    `assinatura_info` continuando a dizer que ela existia.
+    """
+    from sapl.materia import views_assinatura
+
+    materia, autor = materia_pronta
+    materia.assinatura_info = [{'signed_by': 'outro-vereador',
+                                'nome_assinante': 'OUTRO'}]
+    materia.pdf_assinado.save('ja_assinado.pdf', ContentFile(b'%PDF ja assinado'),
+                              save=False)
+    materia.codigo_autenticacao = 'ABCDEF0123456789'
+    materia.save()
+    pdf_anterior = materia.pdf_assinado.name
+
+    # O binario que chega traz UMA assinatura — nao encadeou com a que existe.
+    monkeypatch.setattr(views_assinatura, 'contar_assinaturas_no_pdf',
+                        lambda _b: 1)
+
+    resposta = cliente_hub.post(
+        URL_ASSINATURAS, corpo_assinatura(materia, autor), format='multipart')
+
+    assert resposta.status_code == 409
+    assert resposta.data['assinaturas_registradas'] == 1
+    assert resposta.data['assinaturas_no_pdf'] == 1
+    assert resposta.data['codigo_autenticacao'] == 'ABCDEF0123456789'
+    assert resposta.data['documento_corrente'].endswith('/assinado/')
+
+    materia.refresh_from_db()
+    assert materia.pdf_assinado.name == pdf_anterior      # nao sobrescreveu
+    assert len(materia.assinatura_info) == 1              # nao apendou
+    assert materia.assinatura_info[0]['signed_by'] == 'outro-vereador'
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pdf_encadeado_passa_e_soma_a_assinatura(
+        cliente_hub, materia_pronta, monkeypatch):
+    from sapl.materia import views_assinatura
+
+    materia, autor = materia_pronta
+    materia.assinatura_info = [{'signed_by': 'outro-vereador'}]
+    materia.pdf_assinado.save('ja_assinado.pdf', ContentFile(b'%PDF ja assinado'),
+                              save=False)
+    materia.save()
+
+    # Duas assinaturas no binario para uma registrada: encadeou.
+    monkeypatch.setattr(views_assinatura, 'contar_assinaturas_no_pdf',
+                        lambda _b: 2)
+
+    resposta = cliente_hub.post(
+        URL_ASSINATURAS, corpo_assinatura(materia, autor), format='multipart')
+
+    assert resposta.status_code == 201
+    materia.refresh_from_db()
+    assert [a['signed_by'] for a in materia.assinatura_info] == \
+        ['outro-vereador', 'ver-a']
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pdf_ilegivel_nao_bloqueia_a_assinatura(
+        cliente_hub, materia_pronta, monkeypatch):
+    """Duvida na contagem nao vira recusa: so PDF que PROVA o fork e barrado."""
+    from sapl.materia import views_assinatura
+
+    materia, autor = materia_pronta
+    materia.assinatura_info = [{'signed_by': 'outro-vereador'}]
+    materia.save()
+    monkeypatch.setattr(views_assinatura, 'contar_assinaturas_no_pdf',
+                        lambda _b: None)
+
+    resposta = cliente_hub.post(
+        URL_ASSINATURAS, corpo_assinatura(materia, autor), format='multipart')
+
+    assert resposta.status_code == 201
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pendencia_carrega_o_estado_da_cadeia(cliente_hub):
+    """O app precisa saber o que encadear SEM ter visto o evento anterior."""
+    materia, _ = criar_materia_com_alvo()
+    autor_a = criar_autor_com_operador('assinou')
+    autor_b = criar_autor_com_operador('falta')
+    baker.make(Autoria, materia=materia, autor=autor_a)
+    baker.make(Autoria, materia=materia, autor=autor_b)
+    materia.assinatura_info = [{'signed_by': 'assinou'}]
+    materia.pdf_assinado.save('assinado.pdf', ContentFile(PDF_ASSINADO),
+                              save=False)
+    materia.codigo_autenticacao = 'CAFEBABE12345678'
+    materia.save()
+
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/')
+    item = next(i for i in resposta.data['resultados'] if i['id'] == materia.pk)
+
+    assert item['autores_pendentes'] == [autor_b.pk]
+    assert item['assinaturas_existentes'] == ['assinou']
+    assert item['codigo_autenticacao'] == 'CAFEBABE12345678'
+    # O alvo continua sendo o alvo — a checagem de retificacao depende disso.
+    assert item['documento']['hash_sha256'] == \
+        hashlib.sha256(PDF_ALVO).hexdigest()
+    # E o que assinar agora vem separado, apontando para o PDF ja assinado.
+    assert item['documento_encadeado']['url'].endswith('/assinado/')
+    assert item['documento_encadeado']['hash_sha256'] == \
+        hashlib.sha256(PDF_ASSINADO).hexdigest()
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pendencia_sem_assinatura_nao_tem_documento_encadeado(cliente_hub):
+    materia, _ = criar_materia_com_alvo()
+    autor = criar_autor_com_operador('ninguem-assinou')
+    baker.make(Autoria, materia=materia, autor=autor)
+
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/')
+    item = next(i for i in resposta.data['resultados'] if i['id'] == materia.pk)
+
+    assert item['assinaturas_existentes'] == []
+    assert item['codigo_autenticacao'] is None
+    assert item['documento_encadeado'] is None

@@ -187,6 +187,32 @@ def serializar_pendencia(alvo, request):
         'documento': _bloco_documento(
             alvo.arquivo, request, 'integracao_hub_documento_alvo',
             materia.pk, hash_sha256=alvo.hash_sha256),
+        # ── Estado da cadeia (ADR-0013, extensao entre sistemas) ─────────────
+        #
+        # `documento` acima e sempre o ALVO BASE — e tem que continuar sendo:
+        # e contra ele que o receiver confere `hash_alvo_esperado` na checagem
+        # de retificacao (§5.1). Mas quando a materia JA TEM assinatura, o alvo
+        # nao e o que se deve assinar agora: assinar o alvo em branco produz um
+        # PDF que substitui as assinaturas anteriores em vez de somar.
+        #
+        # O encadeamento do amu-backend resolve isso olhando a pendencia irma
+        # ASSINADA no banco DELE — o que so funciona se a assinatura anterior
+        # tambem tiver sido feita pelo app, ou se o `DocumentoAssinado` da
+        # assinatura feita AQUI ja tiver chegado la. Assinatura feita no SAPL
+        # com o poll atrasado cai fora das duas hipoteses.
+        #
+        # Por isso a pendencia passa a se descrever inteira: quantas assinaturas
+        # ja existem, qual documento encadear e com que codigo. O consumidor
+        # nao precisa ter visto o evento anterior para acertar — e um consumidor
+        # antigo ignora os campos novos e segue como antes.
+        'assinaturas_existentes': [
+            a.get('signed_by')
+            for a in _normalizar_assinatura_info(materia.assinatura_info)],
+        'codigo_autenticacao': materia.codigo_autenticacao or None,
+        'documento_encadeado': _bloco_documento(
+            materia.pdf_assinado, request,
+            'integracao_hub_documento_assinado', materia.pk
+        ) if materia.pdf_assinado else None,
         'verification_url_base': _construir_url_verificacao_base(
             request, 'materia', materia.pk),
         'casa_legislativa': _obter_nome_casa_legislativa(),
