@@ -120,3 +120,70 @@ def test_falha_de_conversao_de_uma_materia_nao_trava_as_demais(
     assert not DocumentoParaAssinatura.objects.filter(
         materia=quebrada).exists()
     assert DocumentoParaAssinatura.objects.filter(materia=boa).exists()
+
+
+# ---------------------------------------------------------------------------
+# Modo laço (--intervalo): a rotina sobe junto do serviço, não é passo manual
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db(transaction=False)
+def test_sem_intervalo_roda_uma_passada_e_sai(db):
+    """O padrão continua sendo a invocação manual de uma passada só."""
+    materia = criar_materia(protocolo=700)
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    assert DocumentoParaAssinatura.objects.filter(materia=materia).exists()
+
+
+@pytest.mark.django_db(transaction=False)
+def test_com_intervalo_fica_em_laco_e_dorme_entre_passadas(db, monkeypatch):
+    """Com --intervalo o comando NÃO retorna: é o modo que o start.sh usa.
+
+    Sem esse laço a materialização vira passo manual de implantação, e matéria
+    protocolada nunca vira pendência no app — falha muda, sem erro nenhum.
+    Aqui o sleep corta o laço na terceira chamada para o teste terminar.
+    """
+    criar_materia(protocolo=701)
+    dormidas = []
+
+    def sleep_que_interrompe(segundos):
+        dormidas.append(segundos)
+        if len(dormidas) == 3:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(
+        'sapl.integracao_hub.management.commands'
+        '.materializar_pdfs_para_assinatura.time.sleep',
+        sleep_que_interrompe)
+
+    with pytest.raises(KeyboardInterrupt):
+        call_command('materializar_pdfs_para_assinatura', intervalo=30)
+
+    assert dormidas == [30, 30, 30]
+
+
+@pytest.mark.django_db(transaction=False)
+def test_laco_sobrevive_a_passada_que_estoura(db, monkeypatch):
+    """Se o laço morrer, a materialização para de vez e ninguém percebe."""
+    from sapl.integracao_hub.management.commands import (
+        materializar_pdfs_para_assinatura as cmd)
+
+    passadas = []
+
+    def passada_que_explode(self):
+        passadas.append(1)
+        raise RuntimeError('banco caiu no meio da varredura')
+
+    monkeypatch.setattr(cmd.Command, '_passada', passada_que_explode)
+
+    def sleep_que_interrompe(segundos):
+        if len(passadas) == 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(cmd.time, 'sleep', sleep_que_interrompe)
+
+    with pytest.raises(KeyboardInterrupt):
+        call_command('materializar_pdfs_para_assinatura', intervalo=5)
+
+    assert len(passadas) == 2, 'o laço deve seguir apos a passada que estourou'

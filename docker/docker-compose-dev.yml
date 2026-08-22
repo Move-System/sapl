@@ -15,7 +15,12 @@ services:
     build:
       context: ../
       dockerfile: ./docker/Dockerfile.dev
-    command: python3 manage.py runserver 0:8000
+    # A materializacao sobe junto do runserver (mesmo racional do start.sh de
+    # producao): sem ela, materia protocolada nunca vira pendencia no app.
+    command: >
+      sh -c "python3 manage.py materializar_pdfs_para_assinatura
+      --intervalo ${MATERIALIZACAO_INTERVALO_SEGUNDOS:-300} &
+      exec python3 manage.py runserver 0:8000"
     volumes:
       - ..:/sapl-dev
     ports:
