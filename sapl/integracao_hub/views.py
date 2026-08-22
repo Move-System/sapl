@@ -25,7 +25,8 @@ from sapl.utils import get_client_ip
 
 from .models import (AnexoProposicao, AssinaturaRecebida,
                      DocumentoParaAssinatura, EventoRecebido)
-from .serializacao import (resolver_titular,
+from .serializacao import (_url_absoluta,
+                           resolver_titular,
                            serializar_materia_assinada,
                            serializar_pendencia,
                            serializar_proposicao,
@@ -517,6 +518,47 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
         hash_assinado = hashlib.sha256(conteudo).hexdigest()
         agora = timezone.now()
 
+        # ── Guarda de encadeamento (ADR-0013) ────────────────────────────────
+        #
+        # O receiver SOBRESCREVE `pdf_assinado`. Se o app assinou o alvo em
+        # branco enquanto a matéria já tinha assinatura aqui, o PDF que chega
+        # traz UMA assinatura e apaga as anteriores — o `assinatura_info` fica
+        # dizendo duas, o documento tendo uma. Dado e artefato divergentes, sem
+        # nenhum erro na tela.
+        #
+        # Isso acontece na janela em que o `DocumentoAssinado` da assinatura
+        # feita no SAPL ainda não chegou ao app: sem ele, o encadeamento do
+        # amu-backend não acha a irmã ASSINADA e recai no alvo. A janela é real
+        # — hub parado, poll atrasado, cursor ainda atrás.
+        #
+        # A conta que decide não é a do banco, é a do binário: um PDF que
+        # substitui N assinaturas precisa trazer pelo menos N+1. Menos que isso
+        # é fork, não encadeamento. 409 e nada é gravado — a pendência continua
+        # de pé e o app reassina em cima do documento certo, que é o desfecho
+        # correto. Perder assinatura em silêncio não é.
+        from sapl.materia.views_assinatura import contar_assinaturas_no_pdf
+
+        ja_registradas = len(self._normalizar(materia.assinatura_info))
+        if ja_registradas:
+            no_binario = contar_assinaturas_no_pdf(conteudo)
+            if no_binario is not None and no_binario <= ja_registradas:
+                self.logger.error(
+                    'materia %s: PDF assinado recebido do app tem %s assinatura(s) '
+                    'e a materia ja registra %s — nao encadeou, gravar apagaria '
+                    'assinatura. Recusado com 409.',
+                    materia.pk, no_binario, ja_registradas)
+                return Response(
+                    {'detalhe': 'PDF assinado nao encadeia as assinaturas ja '
+                                'existentes — assine sobre o documento assinado '
+                                'corrente, nao sobre o alvo',
+                     'assinaturas_registradas': ja_registradas,
+                     'assinaturas_no_pdf': no_binario,
+                     'codigo_autenticacao': materia.codigo_autenticacao,
+                     'documento_corrente': _url_absoluta(
+                         request, 'integracao_hub_documento_assinado',
+                         materia.pk) if materia.pdf_assinado else None},
+                    status=status.HTTP_409_CONFLICT)
+
         # Rastro operacional: quem DISPAROU o ato (o vereador ou um assessor
         # agindo por ele). Registro interno, NÃO altera a autoria. O evento do
         # app ainda não carrega a identidade do assessor logado; até lá recai
@@ -594,6 +636,9 @@ class RecepcaoAssinaturaView(IntegracaoHubView):
                 {'materia_id': recebida.materia_id,
                  'hash_assinado': recebida.hash_assinado},
                 status=status.HTTP_200_OK)
+
+        from sapl.materia.pendencias import invalidar_cache_pendencias
+        invalidar_cache_pendencias(materia=materia, user=titular)
 
         self.logger.info(
             'integracao_hub: assinatura %s gravada na matéria %s '

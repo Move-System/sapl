@@ -279,6 +279,35 @@ def _compor_pagina_auth_localmente(pdf_bytes, request, tipo_doc, pk_doc, blocos)
     return buf.getvalue(), codigo
 
 
+def contar_assinaturas_no_pdf(pdf_bytes):
+    """Quantas assinaturas digitais o PDF carrega, lendo o proprio binario.
+
+    Existe porque `assinatura_info` e o que o SAPL ACHA que o documento tem, e
+    o PDF e o que ele TEM de fato. Quando as duas contas divergem, alguem
+    assinou um binario que nao era o corrente — e o unico jeito de saber e
+    contar no artefato.
+
+    Conta campos /Sig preenchidos no AcroForm. Retorna None quando o PDF nao
+    da para ler: quem chama decide o que fazer com a duvida, em vez de receber
+    um zero que parece certeza.
+    """
+    from PyPDF4 import PdfFileReader
+
+    try:
+        leitor = PdfFileReader(io.BytesIO(pdf_bytes))
+        acroform = leitor.trailer['/Root'].get('/AcroForm')
+        if acroform is None:
+            return 0
+        if hasattr(acroform, 'getObject'):
+            acroform = acroform.getObject()
+        campos = [c.getObject() for c in (acroform.get('/Fields') or [])]
+        return len([c for c in campos
+                    if c.get('/FT') == '/Sig' and c.get('/V') is not None])
+    except Exception as exc:
+        logger.warning(f'Nao foi possivel contar assinaturas do PDF: {exc}')
+        return None
+
+
 def _assinar_pdf_com_pagina_auth(pdf_bytes, *, request, tipo_doc, pk_doc,
                                  assinaturas_existentes,
                                  certificado_bytes=None, senha=None,
