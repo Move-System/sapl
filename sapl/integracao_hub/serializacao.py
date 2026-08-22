@@ -214,12 +214,19 @@ def serializar_pendencia(alvo, request):
     # são a forma canônica que o próprio SAPL usa ao chamar o microserviço. Duplicar
     # a montagem é o caminho conhecido para as duas divergirem na primeira mudança.
     return {
-        # Keyset da fonte: o hub le `id` no topo e devolve como `id_gt`, e a
-        # view filtra `materia_id__gt` (o alvo e OneToOne com a materia, ver
-        # AssinaturasPendentesPollView). Aqui vai o id da MATERIA, nao o do
-        # registro de pendencia — emitir alvo.pk faria o hub pedir uma pagina
-        # que a view nunca entende, relendo a mesma primeira pagina para sempre.
+        # Keyset da fonte: cursor composto `(gerado_em, id)`, o mesmo de
+        # assinaturas-concluidas. O `id` e o da MATERIA, nao o do registro de
+        # pendencia — emitir alvo.pk faria o hub pedir uma pagina que a view
+        # nunca entende, relendo a mesma primeira pagina para sempre.
         'id': materia.pk,
+        # A DATA e o que salva materia que materializa TARDE. Com keyset so por
+        # id, alvo criado depois com id abaixo do cursor era pulado para
+        # sempre, calado: em 22/08/2026 as 861 materias DOCX de Franco (todas
+        # com id < 1076, cursor em 1078) iam sumir inteiras no dia em que a
+        # conversao voltasse a funcionar. `gerado_em` e auto_now, entao a
+        # retificacao tambem reapresenta a materia sozinha — que e o
+        # comportamento desejado de qualquer forma (§5.1).
+        'gerado_em': _iso(alvo.gerado_em),
         'materia': {
             'id': materia.pk,
             'numero': materia.numero,

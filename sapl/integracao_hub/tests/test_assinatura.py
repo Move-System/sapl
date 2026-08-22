@@ -611,3 +611,98 @@ def test_pendentes_traz_id_da_materia_no_topo(cliente_hub):
     item = next(i for i in resposta.data['resultados']
                 if i['materia']['id'] == materia.pk)
     assert item['id'] == materia.pk
+
+
+# ---------------------------------------------------------------------------
+# Cursor composto (gerado_em, id) — a matéria que materializa TARDE
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db(transaction=False)
+def test_pendentes_traz_gerado_em_para_o_cursor(cliente_hub):
+    """Sem o campo o hub não tem como montar `CursorPorData` e a fonte trava."""
+    materia, alvo = criar_materia_com_alvo()
+
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/',
+                               {'desde': '1970-01-01T00:00:00+00:00',
+                                'id_gt': 0})
+
+    item = next(i for i in resposta.data['resultados']
+                if i['materia']['id'] == materia.pk)
+    assert item['gerado_em']
+
+
+@pytest.mark.django_db(transaction=False)
+def test_alvo_materializado_depois_com_id_menor_ainda_e_lido(cliente_hub):
+    """O modo de falha que ia engolir as 861 matérias de Franco.
+
+    Matéria ANTIGA (id baixo) que só materializa hoje: com keyset por id ela
+    nasce abaixo do cursor e nunca mais é lida — sem erro e sem WARN. Pela
+    data, ela entra normalmente.
+    """
+    antiga = baker.make(MateriaLegislativa, numero_protocolo=201)
+    recente, alvo_recente = criar_materia_com_alvo()
+    assert antiga.pk < recente.pk
+
+    # o hub já andou até depois da matéria recente
+    cursor_desde = alvo_recente.gerado_em
+    cursor_id = recente.pk
+
+    # ...e SÓ AGORA a antiga materializa (conversão DOCX voltou a funcionar)
+    antiga.texto_original.save('texto.pdf', ContentFile(PDF_ALVO), save=True)
+    alvo_antigo = DocumentoParaAssinatura(
+        materia=antiga,
+        hash_sha256=hashlib.sha256(PDF_ALVO).hexdigest(),
+        hash_origem=hashlib.sha256(PDF_ALVO).hexdigest())
+    alvo_antigo.arquivo.save('materia_%s_alvo.pdf' % antiga.pk,
+                             ContentFile(PDF_ALVO), save=True)
+
+    resposta = cliente_hub.get(
+        BASE + 'assinaturas-pendentes/',
+        {'desde': cursor_desde.isoformat(), 'id_gt': cursor_id})
+
+    ids = [i['materia']['id'] for i in resposta.data['resultados']]
+    assert antiga.pk in ids
+
+
+@pytest.mark.django_db(transaction=False)
+def test_empate_de_gerado_em_nao_trava_o_cursor(cliente_hub):
+    """Passada de recuperação materializa em lote — timestamps empatam.
+
+    Sem o desempate por id, uma página inteira no mesmo instante devolveria
+    sempre a mesma primeira página, para sempre (mesmo racional do §1.1).
+    """
+    primeira, alvo_a = criar_materia_com_alvo()
+    segunda, alvo_b = criar_materia_com_alvo()
+    instante = alvo_a.gerado_em
+    DocumentoParaAssinatura.objects.filter(
+        pk__in=[alvo_a.pk, alvo_b.pk]).update(gerado_em=instante)
+
+    resposta = cliente_hub.get(
+        BASE + 'assinaturas-pendentes/',
+        {'desde': instante.isoformat(), 'id_gt': primeira.pk})
+
+    ids = [i['materia']['id'] for i in resposta.data['resultados']]
+    assert primeira.pk not in ids
+    assert segunda.pk in ids
+
+
+@pytest.mark.django_db(transaction=False)
+def test_sem_desde_mantem_o_keyset_antigo_por_id(cliente_hub):
+    """Compatibilidade de subida: hub da versão anterior só manda `id_gt`."""
+    primeira, _ = criar_materia_com_alvo()
+    segunda, _ = criar_materia_com_alvo()
+
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/',
+                               {'id_gt': primeira.pk})
+
+    ids = [i['materia']['id'] for i in resposta.data['resultados']]
+    assert primeira.pk not in ids
+    assert segunda.pk in ids
+
+
+@pytest.mark.django_db(transaction=False)
+def test_desde_invalido_e_400(cliente_hub):
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/',
+                               {'desde': 'ontem', 'id_gt': 0})
+
+    assert resposta.status_code == 400

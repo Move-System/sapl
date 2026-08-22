@@ -319,13 +319,31 @@ class InventarioView(PollView):
 
 
 class AssinaturasPendentesPollView(PollView):
-    """Fonte de poll da pendência de assinatura (refinamento §3, keyset por id).
+    """Fonte de poll da pendência de assinatura — cursor composto `(gerado_em, id)`.
 
     SÓ devolve matéria com o PDF-alvo já materializado (§5.1): DOCX ainda não
-    convertido não sai do SAPL — segue visível apenas na tela local. O cursor
-    anda sobre o id da MATÉRIA (o alvo é OneToOne), então página sem pendência
-    por autor ainda avança o cursor — item com `autores_pendentes` vazio é
-    ruído inofensivo, nunca loop.
+    convertido não sai do SAPL — segue visível apenas na tela local. Item com
+    `autores_pendentes` vazio é ruído inofensivo, nunca loop: o cursor avança
+    igual.
+
+    **Por que a data entrou no cursor (22/08/2026).** Esta fonte era keyset puro
+    por `materia_id`, e a materialização é justamente o passo que pode acontecer
+    MUITO depois do protocolo. Alvo criado hoje para uma matéria antiga nasce com
+    id abaixo do cursor e nunca mais é lido — sem erro, sem WARN, e a
+    reconciliação não cobre assinatura. No acervo de Franco isso valia o acervo
+    inteiro: 861 matérias DOCX paradas por conversão quebrada, TODAS com id <
+    1076, contra um cursor em 1078. No dia em que a conversão voltasse a
+    funcionar, as 861 materializariam de uma vez e sumiriam todas.
+
+    Ordenar por `gerado_em` mata isso na raiz: quem materializa tarde entra pela
+    data, não pelo id. E como `gerado_em` é `auto_now`, a retificação
+    reapresenta a matéria sozinha — o app precisa saber que o alvo mudou (§5.1),
+    e o dedupe do hub (marcador = hash do documento) mata a releitura do mesmo
+    estado.
+
+    `desde` ausente mantém o keyset antigo por id, para o hub de versão anterior
+    continuar funcionando durante a subida. Some quando as duas pontas estiverem
+    na nova versão.
     """
 
     def get(self, request, *args, **kwargs):
@@ -333,12 +351,26 @@ class AssinaturasPendentesPollView(PollView):
         if id_gt is None:
             return Response({'detalhe': 'id_gt deve ser inteiro'},
                             status=status.HTTP_400_BAD_REQUEST)
+
         alvos = (DocumentoParaAssinatura.objects
-                 .filter(materia_id__gt=id_gt)
                  .select_related('materia')
                  .prefetch_related(
-                     'materia__autoria_set__autor__operadorautor_set__user')
-                 .order_by('materia_id')[:self._limite(request)])
+                     'materia__autoria_set__autor__operadorautor_set__user'))
+
+        if 'desde' in request.query_params:
+            desde = self._desde(request)
+            if desde is None:
+                return Response(
+                    {'detalhe': 'desde deve ser um datetime ISO-8601'},
+                    status=status.HTTP_400_BAD_REQUEST)
+            depois_do_instante = Q(gerado_em__gt=desde)
+            no_mesmo_instante = Q(gerado_em=desde) & Q(materia_id__gt=id_gt)
+            alvos = (alvos.filter(depois_do_instante | no_mesmo_instante)
+                     .order_by('gerado_em', 'materia_id'))
+        else:
+            alvos = alvos.filter(materia_id__gt=id_gt).order_by('materia_id')
+
+        alvos = alvos[:self._limite(request)]
         return Response({'resultados': [
             serializar_pendencia(alvo, request) for alvo in alvos]})
 
