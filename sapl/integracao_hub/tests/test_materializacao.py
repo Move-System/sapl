@@ -3,6 +3,7 @@ import hashlib
 import pytest
 from django.core.files.base import ContentFile
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.utils import timezone
 from model_bakery import baker
 
@@ -11,6 +12,17 @@ from sapl.integracao_hub.models import DocumentoParaAssinatura
 from sapl.materia.models import MateriaLegislativa
 
 PDF = b'%PDF-1.4 conteudo-original'
+
+
+@pytest.fixture(autouse=True)
+def base_url_configurada(settings):
+    """Toda materializacao pressupoe uma base URL — o comando recusa rodar sem.
+
+    Fica em autouse porque a ausencia dela nao e um caso de borda a exercitar em
+    cada teste: e erro de ambiente, e tem os seus proprios dois testes abaixo.
+    """
+    settings.SAPL_INTERNAL_URL = 'http://sapl-interno:8000'
+    settings.SITE_URL = ''
 
 
 def criar_materia(protocolo=100, conteudo=PDF, nome='texto.pdf'):
@@ -187,3 +199,61 @@ def test_laco_sobrevive_a_passada_que_estoura(db, monkeypatch):
         call_command('materializar_pdfs_para_assinatura', intervalo=5)
 
     assert len(passadas) == 2, 'o laço deve seguir apos a passada que estourou'
+
+
+# ---------------------------------------------------------------------------
+# Guarda de configuração: sem base URL o OnlyOffice não baixa nada
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db(transaction=False)
+def test_recusa_rodar_sem_nenhuma_base_url(db, settings):
+    """O modo de falha que custou o acervo de Franco (22/08/2026).
+
+    Sem SAPL_INTERNAL_URL nem SITE_URL a URL de download sai sem host, o
+    OnlyOffice responde erro e TODA matéria DOCX falha na conversão — 861 delas,
+    cada uma como um `logger.error` que ninguém lê, enquanto os poucos PDF
+    passavam e davam a impressão de rotina viva. Erro de ambiente morre no
+    começo, não em 861 falhas por documento.
+    """
+    settings.SAPL_INTERNAL_URL = ''
+    settings.SITE_URL = ''
+    materia = criar_materia()
+
+    with pytest.raises(CommandError) as erro:
+        call_command('materializar_pdfs_para_assinatura')
+
+    assert 'SAPL_INTERNAL_URL' in str(erro.value)
+    assert not DocumentoParaAssinatura.objects.filter(materia=materia).exists()
+
+
+@pytest.mark.django_db(transaction=False)
+def test_site_url_sozinha_basta(db, settings):
+    """SITE_URL é o fallback legítimo — a guarda pega ausência das DUAS."""
+    settings.SAPL_INTERNAL_URL = ''
+    settings.SITE_URL = 'https://sapl.exemplo.gov.br'
+    materia = criar_materia()
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    assert DocumentoParaAssinatura.objects.filter(materia=materia).exists()
+
+
+@pytest.mark.django_db(transaction=False)
+def test_passada_sem_nenhum_avanco_grita_no_stderr(db, monkeypatch, capsys):
+    """Falha sem nenhum gerado é ambiente parado, não documento podre avulso.
+
+    É o resumo que passava por linha de rotina: `0 gerados, 873 falhas` não se
+    distingue de um dia normal no meio do log.
+    """
+    criar_materia(protocolo=201, nome='a.docx', conteudo=b'docx')
+    criar_materia(protocolo=202, nome='b.docx', conteudo=b'docx')
+
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia',
+        lambda materia, request: (None, 'OnlyOffice: codigo -8'))
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    erro = capsys.readouterr().err
+    assert 'NENHUM PDF-alvo gerado' in erro
+    assert 'e ambiente, nao documento' in erro
