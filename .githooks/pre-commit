@@ -1,0 +1,11 @@
+#!/bin/sh
+# STUB — a logica vive em knowledge/scripts/hooks/ (repositorio docs-ia-projects).
+# Editar aqui nao adianta: o proximo instalar-hooks.sh sobrescreve. Edite la, por PR.
+nome=$(basename "$0")
+real="$(git rev-parse --show-toplevel)/knowledge/scripts/hooks/$nome"
+if [ ! -x "$real" ]; then
+  echo "! knowledge/ ausente ou desatualizado — hook '$nome' nao executado." >&2
+  echo "  Rode: git submodule update --init --remote knowledge" >&2
+  exit 0
+fi
+exec "$real" "$@"
