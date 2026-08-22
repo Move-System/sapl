@@ -5,7 +5,7 @@ import time
 
 from django.conf import settings
 from django.core.files.base import ContentFile
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from sapl.integracao_hub.models import DocumentoParaAssinatura
@@ -34,6 +34,21 @@ class _RequisicaoDeSistema:
         return base.rstrip('/') + caminho
 
 
+def _base_url_de_sistema():
+    """URL que o OnlyOffice usa para BAIXAR o documento de origem, no caminho cron.
+
+    `build_onlyoffice_url` prefere `SAPL_INTERNAL_URL` e so cai no request sem
+    ela — e no cron o "request" e o `_RequisicaoDeSistema`, que monta a partir de
+    `SITE_URL`. Sem nenhuma das duas, a URL sai SEM HOST, o OnlyOffice nao
+    consegue baixar e TODA materia DOCX falha na conversao. Descoberto em
+    22/08/2026 num acervo real: 0 de 861 DOCX materializaram, cada uma virando um
+    logger.error que ninguem le, enquanto os 7 PDF passavam (PDF nao converte, so
+    copia bytes) e davam a impressao de que a rotina estava viva.
+    """
+    return (getattr(settings, 'SAPL_INTERNAL_URL', '')
+            or getattr(settings, 'SITE_URL', '') or '')
+
+
 class Command(BaseCommand):
     help = ('Materializa o PDF-alvo da assinatura (refinamento §5/§5.1): varre '
             'matérias protocoladas com texto_original, gera o PDF uma única '
@@ -54,6 +69,18 @@ class Command(BaseCommand):
                   'vira pendencia no app, em silencio.'))
 
     def handle(self, *args, **options):
+        # Erro de CONFIGURACAO morre aqui, alto e cedo — nao vira 861 falhas por
+        # materia num log que ninguem le. Vale para a passada unica e para o laco:
+        # o container que sobe sem isso nunca materializa nada.
+        if not _base_url_de_sistema():
+            raise CommandError(
+                'materializar_pdfs: nem SAPL_INTERNAL_URL nem SITE_URL estao '
+                'configuradas. A conversao DOCX->PDF passa pelo OnlyOffice, que '
+                'BAIXA o documento de origem por URL absoluta — sem host ele '
+                'responde erro e NENHUMA materia DOCX vira pendencia de '
+                'assinatura. Configure SAPL_INTERNAL_URL com uma URL deste SAPL '
+                'que o servidor do OnlyOffice alcance.')
+
         intervalo = options['intervalo']
         if intervalo <= 0:
             self._passada()
@@ -98,6 +125,21 @@ class Command(BaseCommand):
         self.stdout.write(
             'materializar_pdfs: %s gerados, %s retificados, %s em dia, '
             '%s falhas' % (gerados, retificados, pulados, falhas))
+
+        # Falha sem NENHUM avanco nao e materia podre avulsa: e o ambiente
+        # inteiro parado (OnlyOffice fora do ar, URL que ele nao alcanca, MEDIA
+        # sem os binarios). Some do log comum porque cada materia falha
+        # individualmente e o resumo parece so mais uma linha de rotina.
+        if falhas and not gerados and not retificados:
+            aviso = (
+                'materializar_pdfs: %s falhas e NENHUM PDF-alvo gerado — isso e '
+                'ambiente, nao documento. Confira o OnlyOffice em %s e se ele '
+                'alcanca %s; enquanto isso nenhuma materia DOCX vira pendencia '
+                'de assinatura no app.' % (
+                    falhas, getattr(settings, 'ONLYOFFICE_URL', '<ausente>'),
+                    _base_url_de_sistema()))
+            self.stderr.write(aviso)
+            logger.error(aviso)
 
     def _materializar(self, materia):
         materia.texto_original.open('rb')
