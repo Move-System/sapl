@@ -1,4 +1,5 @@
 import hashlib
+import os
 import uuid
 from datetime import timedelta
 
@@ -496,3 +497,117 @@ def test_pendencia_do_titular_some_apos_assinatura_do_titular(cliente_hub):
     item = next(i for i in resposta.data['resultados']
                 if i['materia']['id'] == materia.pk)
     assert autor.pk not in item['autores_pendentes']
+
+
+# ---------------------------------------------------------------------------
+# Arquivo referenciado no banco mas ausente do MEDIA (969 matérias em Franco)
+# ---------------------------------------------------------------------------
+
+def apagar_do_disco(campo):
+    """Deixa a referência no banco e some com o binário — o estado real do dump
+    restaurado sem a media. `.size`/`.read()` passam a levantar FileNotFoundError
+    (subclasse de OSError)."""
+    os.remove(campo.path)
+
+
+@pytest.mark.django_db(transaction=False)
+def test_concluidas_com_pdf_sumido_do_media_nao_derruba_o_lote(cliente_hub):
+    """O bug que travava a fonte inteira: uma matéria podre respondia 500.
+
+    Com 500 o hub segurava o cursor e NENHUMA matéria passava — uma referência
+    órfã bloqueava todas as outras, para sempre. O contrato agora é: 200, o item
+    aparece com `documento_assinado` nulo (o leitor avança o cursor) e as sadias
+    do mesmo lote continuam completas.
+    """
+    podre, _ = criar_materia_com_alvo()
+    sadia, _ = criar_materia_com_alvo()
+    autor = criar_autor_com_operador('ver-a')
+    baker.make(Autoria, materia=podre, autor=autor)
+    baker.make(Autoria, materia=sadia, autor=autor)
+    assinar_localmente(podre)
+    assinar_localmente(sadia)
+    apagar_do_disco(podre.pdf_assinado)
+
+    resposta = cliente_hub.get(
+        BASE + 'assinaturas-concluidas/',
+        {'desde': (timezone.now() - timedelta(days=1)).isoformat(),
+         'id_gt': 0})
+
+    assert resposta.status_code == 200
+    por_materia = {i['materia']['id']: i for i in resposta.data['resultados']}
+    assert podre.pk in por_materia and sadia.pk in por_materia
+
+    item_podre = por_materia[podre.pk]
+    assert item_podre['documento_assinado'] is None
+    # O resto do item continua íntegro: só o binário faltou, não a assinatura.
+    assert item_podre['codigo_autenticacao'] == 'ABCD1234ABCD1234'
+    assert item_podre['assinaturas'][0]['signed_by'] == 'ver-a'
+
+    documento_sadio = por_materia[sadia.pk]['documento_assinado']
+    assert documento_sadio['hash_sha256'] == \
+        hashlib.sha256(PDF_ASSINADO).hexdigest()
+    assert documento_sadio['tamanho_bytes'] == len(PDF_ASSINADO)
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pendentes_com_alvo_sumido_do_media_da_documento_nulo(cliente_hub):
+    """Mesma regra na outra fonte: sem o PDF-alvo em disco, `documento` é nulo —
+    a pendência não vira evento no hub, mas o cursor não trava."""
+    materia, _ = criar_materia_com_alvo()
+    alvo = DocumentoParaAssinatura.objects.get(materia=materia)
+    apagar_do_disco(alvo.arquivo)
+
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/', {'id_gt': 0})
+
+    assert resposta.status_code == 200
+    item = next(i for i in resposta.data['resultados']
+                if i['materia']['id'] == materia.pk)
+    assert item['documento'] is None
+    # Hash gravado no banco existe, mas sem o binário o bloco inteiro cai fora:
+    # entregar hash sem tamanho/URL utilizável seria mentir para o consumidor.
+    assert item['materia']['numero'] == materia.numero
+
+
+# ---------------------------------------------------------------------------
+# `id` no topo do item — o keyset que o hub usa para avançar o cursor
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db(transaction=False)
+def test_concluidas_traz_id_da_materia_no_topo(cliente_hub):
+    """`PollerSapl.pollAssinaturasConcluidas` lê `item.path("id")` para o
+    desempate do cursor composto (assinado_em|id). Sem o campo o cursor gravava
+    id 0 e o instante relia a mesma página."""
+    materia, _ = criar_materia_com_alvo()
+    assinar_localmente(materia)
+
+    resposta = cliente_hub.get(
+        BASE + 'assinaturas-concluidas/',
+        {'desde': (timezone.now() - timedelta(days=1)).isoformat(),
+         'id_gt': 0})
+
+    item = next(i for i in resposta.data['resultados']
+                if i['materia']['id'] == materia.pk)
+    assert item['id'] == materia.pk
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pendentes_traz_id_da_materia_no_topo(cliente_hub):
+    """`PollerSapl.pollAssinaturasPendentes` lê `item.path("id")`. Sem o campo o
+    cursor virava string vazia e o ciclo seguinte estourava em
+    `Long.parseLong("")`.
+
+    E o valor tem que ser o id da MATÉRIA: o hub devolve esse número como
+    `id_gt` e a view filtra `materia_id__gt`. Mandar o pk do alvo faria o hub
+    pedir uma página que a view não entende — releitura eterna da primeira.
+    A matéria descartada antes desalinha as sequências de propósito: com
+    `alvo.pk == materia.pk` o teste passaria por coincidência.
+    """
+    baker.make(MateriaLegislativa, numero_protocolo=300)  # desalinha os ids
+    materia, alvo = criar_materia_com_alvo()
+    assert alvo.pk != materia.pk
+
+    resposta = cliente_hub.get(BASE + 'assinaturas-pendentes/', {'id_gt': 0})
+
+    item = next(i for i in resposta.data['resultados']
+                if i['materia']['id'] == materia.pk)
+    assert item['id'] == materia.pk

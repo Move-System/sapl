@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 
 from django.contrib.contenttypes.models import ContentType
@@ -8,6 +9,8 @@ from django.utils import timezone
 from sapl.base.models import Autor, OperadorAutor
 from sapl.materia.models import MateriaLegislativa
 from sapl.parlamentares.models import Parlamentar, Votante
+
+logger = logging.getLogger(__name__)
 
 
 def _iso(valor):
@@ -95,6 +98,33 @@ def _sha256_do_arquivo(campo):
     return hashlib.sha256(conteudo).hexdigest()
 
 
+def _bloco_documento(campo, request, nome_rota, materia_pk, hash_sha256=None):
+    """Bloco do documento, ou `None` quando o binario nao esta no MEDIA.
+
+    Referencia no banco sem arquivo em disco (dump restaurado sem a media,
+    volume trocado) fazia `.size`/`.read()` levantar OSError e derrubar a
+    resposta INTEIRA do poll com 500. O cursor ficava parado no mesmo item e a
+    fonte travava para sempre — uma materia podre bloqueando todas as outras.
+    Aqui o item continua na lista (o leitor avanca o cursor) e so o documento
+    vem nulo, com o buraco gritando no log.
+    """
+    try:
+        tamanho = campo.size
+        digest = hash_sha256 if hash_sha256 is not None else _sha256_do_arquivo(campo)
+    except OSError:
+        logger.warning(
+            'materia %s: pdf ausente no MEDIA (%s) — item entregue sem '
+            'documento para o cursor nao travar', materia_pk, campo.name)
+        return None
+    return {
+        'nome': os.path.basename(campo.name),
+        'mime': 'application/pdf',
+        'tamanho_bytes': tamanho,
+        'url': _url_absoluta(request, nome_rota, materia_pk),
+        'hash_sha256': digest,
+    }
+
+
 def _normalizar_assinatura_info(info):
     # Mesma normalização da sprint (views_assinatura): dict legado vira lista.
     if info is None:
@@ -174,6 +204,12 @@ def serializar_pendencia(alvo, request):
     """Item de `assinaturas-pendentes` (§3): só existe com o PDF-alvo materializado."""
     materia = alvo.materia
     return {
+        # Keyset da fonte: o hub le `id` no topo e devolve como `id_gt`, e a
+        # view filtra `materia_id__gt` (o alvo e OneToOne com a materia, ver
+        # AssinaturasPendentesPollView). Aqui vai o id da MATERIA, nao o do
+        # registro de pendencia — emitir alvo.pk faria o hub pedir uma pagina
+        # que a view nunca entende, relendo a mesma primeira pagina para sempre.
+        'id': materia.pk,
         'materia': {
             'id': materia.pk,
             'numero': materia.numero,
@@ -181,14 +217,9 @@ def serializar_pendencia(alvo, request):
             'ementa': materia.ementa,
         },
         'autores_pendentes': _autores_pendentes(materia),
-        'documento': {
-            'nome': os.path.basename(alvo.arquivo.name),
-            'mime': 'application/pdf',
-            'tamanho_bytes': alvo.arquivo.size,
-            'url': _url_absoluta(
-                request, 'integracao_hub_documento_alvo', materia.pk),
-            'hash_sha256': alvo.hash_sha256,
-        },
+        'documento': _bloco_documento(
+            alvo.arquivo, request, 'integracao_hub_documento_alvo',
+            materia.pk, hash_sha256=alvo.hash_sha256),
     }
 
 
@@ -249,19 +280,17 @@ def serializar_materia_assinada(materia, request):
         })
 
     return {
+        # Keyset da fonte: o hub le `id` no topo para o desempate do cursor
+        # composto (assinado_em, id).
+        'id': materia.pk,
         'materia': {
             'id': materia.pk,
             'numero': materia.numero,
             'ano': materia.ano,
         },
-        'documento_assinado': {
-            'nome': os.path.basename(materia.pdf_assinado.name),
-            'mime': 'application/pdf',
-            'tamanho_bytes': materia.pdf_assinado.size,
-            'url': _url_absoluta(
-                request, 'integracao_hub_documento_assinado', materia.pk),
-            'hash_sha256': _sha256_do_arquivo(materia.pdf_assinado),
-        },
+        'documento_assinado': _bloco_documento(
+            materia.pdf_assinado, request,
+            'integracao_hub_documento_assinado', materia.pk),
         'codigo_autenticacao': materia.codigo_autenticacao,
         'assinado_em': _iso(materia.assinado_em),
         'assinaturas': assinaturas,
