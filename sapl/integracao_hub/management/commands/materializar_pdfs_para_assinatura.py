@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import time
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -40,7 +41,35 @@ class Command(BaseCommand):
             'de assinatura (decisão do arquiteto, 19/08/2026). Idempotente — '
             'feito para cron.')
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--intervalo',
+            type=int,
+            default=0,
+            metavar='SEGUNDOS',
+            help=('Segundos entre passadas. 0 (padrao) roda uma vez e sai — '
+                  'o modo para invocacao manual. Maior que zero fica em laco, '
+                  'que e como o container sobe a rotina (start.sh): sem isso a '
+                  'materializacao vira passo manual e materia protocolada NUNCA '
+                  'vira pendencia no app, em silencio.'))
+
     def handle(self, *args, **options):
+        intervalo = options['intervalo']
+        if intervalo <= 0:
+            self._passada()
+            return
+        self.stdout.write(
+            'materializar_pdfs: laco a cada %ss (Ctrl-C para sair)' % intervalo)
+        while True:
+            try:
+                self._passada()
+            except Exception as exc:  # noqa — o laco NUNCA morre: se morrer,
+                # a materializacao para de vez e ninguem percebe ate a materia
+                # nao aparecer para assinar.
+                logger.exception('materializar_pdfs: passada falhou: %s', exc)
+            time.sleep(intervalo)
+
+    def _passada(self):
         materias = (MateriaLegislativa.objects
                     .filter(numero_protocolo__isnull=False,
                             texto_original__isnull=False)
