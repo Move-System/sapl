@@ -183,7 +183,7 @@ def test_laco_sobrevive_a_passada_que_estoura(db, monkeypatch):
 
     passadas = []
 
-    def passada_que_explode(self):
+    def passada_que_explode(self, somente_novos=False):
         passadas.append(1)
         raise RuntimeError('banco caiu no meio da varredura')
 
@@ -402,3 +402,101 @@ def test_pdf_nao_passa_pela_conferencia_de_url(db, monkeypatch):
     call_command('materializar_pdfs_para_assinatura')
 
     assert DocumentoParaAssinatura.objects.filter(materia=materia).exists()
+
+
+# ---------------------------------------------------------------------------
+# --somente-novos: a passada de recuperação não pode apagar assinatura
+# ---------------------------------------------------------------------------
+
+@pytest.mark.django_db(transaction=False)
+def test_somente_novos_gera_o_alvo_ausente(db):
+    """É para isso que o modo existe: o acervo que nunca materializou.
+
+    O dia em que a conversão DOCX voltar a funcionar, 861 matérias (Franco,
+    22/08/2026) materializam de uma vez. Gerar o que falta é exatamente o que
+    se quer dessa passada.
+    """
+    materia = criar_materia(protocolo=300)
+
+    call_command('materializar_pdfs_para_assinatura', somente_novos=True)
+
+    assert DocumentoParaAssinatura.objects.filter(materia=materia).exists()
+
+
+@pytest.mark.django_db(transaction=False)
+def test_somente_novos_adia_retificacao_e_preserva_assinatura(db):
+    """A varredura não pode zerar assinatura por efeito colateral.
+
+    Zerar em retificação (§5.1) foi decidido para o ato isolado de retificar um
+    texto — quem retifica sabe o que está desfazendo. Numa passada sobre o
+    acervo inteiro ninguém pediu isso, e apagar assinatura é irreversível.
+    """
+    materia = criar_materia(protocolo=301)
+    call_command('materializar_pdfs_para_assinatura')
+    alvo_antes = DocumentoParaAssinatura.objects.get(materia=materia)
+
+    usuario = baker.make('auth.User', username='ver-b')
+    materia.refresh_from_db()
+    materia.pdf_assinado.save(
+        'materia_%s_assinado_1.pdf' % materia.pk,
+        ContentFile(b'%PDF-assinado'), save=False)
+    materia.assinatura_info = [{'signed_by': 'ver-b', 'nome': 'Ver. B'}]
+    materia.assinado_em = timezone.now()
+    materia.assinado_por = usuario
+    materia.codigo_autenticacao = 'EFGH5678EFGH5678'
+    materia.save()
+
+    materia.texto_original.save(
+        'texto.pdf', ContentFile(b'%PDF-1.4 retificado'), save=True)
+
+    call_command('materializar_pdfs_para_assinatura', somente_novos=True)
+
+    alvo = DocumentoParaAssinatura.objects.get(materia=materia)
+    assert alvo.hash_origem == alvo_antes.hash_origem  # alvo intocado
+    materia.refresh_from_db()
+    assert materia.pdf_assinado
+    assert materia.assinatura_info == [{'signed_by': 'ver-b', 'nome': 'Ver. B'}]
+    assert materia.codigo_autenticacao == 'EFGH5678EFGH5678'
+
+
+@pytest.mark.django_db(transaction=False)
+def test_somente_novos_decide_antes_de_gastar_a_conversao(db, monkeypatch):
+    """Adiar depois de converter seria pagar o OnlyOffice para jogar fora.
+
+    Numa passada de recuperação sobre um acervo grande isso é a diferença entre
+    minutos e horas de conversão desperdiçada.
+    """
+    materia = criar_materia(protocolo=302, nome='a.docx', conteudo=b'docx-v1')
+    monkeypatch.setattr(
+        MOD + '.http_requests.get',
+        lambda url, timeout: _RespostaFalsa(b'docx-v1'))
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia',
+        lambda m, r: (PDF, None))
+    call_command('materializar_pdfs_para_assinatura')
+
+    materia.texto_original.save('a.docx', ContentFile(b'docx-v2'), save=True)
+
+    def nao_deveria_converter(*args, **kwargs):
+        raise AssertionError('conversão gasta em matéria que seria adiada')
+
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia',
+        nao_deveria_converter)
+    monkeypatch.setattr(MOD + '.http_requests.get', nao_deveria_converter)
+
+    call_command('materializar_pdfs_para_assinatura', somente_novos=True)
+
+
+@pytest.mark.django_db(transaction=False)
+def test_adiada_aparece_no_resumo(db, capsys):
+    """Adiada não é "em dia" — trabalho pendente calado vira surpresa depois."""
+    materia = criar_materia(protocolo=303)
+    call_command('materializar_pdfs_para_assinatura')
+    materia.texto_original.save(
+        'texto.pdf', ContentFile(b'%PDF-1.4 outro'), save=True)
+    capsys.readouterr()
+
+    call_command('materializar_pdfs_para_assinatura', somente_novos=True)
+
+    assert 'ADIADA(S) por --somente-novos' in capsys.readouterr().out

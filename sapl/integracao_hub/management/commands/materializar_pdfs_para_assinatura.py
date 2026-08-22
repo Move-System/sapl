@@ -106,6 +106,17 @@ class Command(BaseCommand):
                   'que e como o container sobe a rotina (start.sh): sem isso a '
                   'materializacao vira passo manual e materia protocolada NUNCA '
                   'vira pendencia no app, em silencio.'))
+        parser.add_argument(
+            '--somente-novos',
+            action='store_true',
+            help=('Gera apenas o PDF-alvo AUSENTE; nunca entra na retificacao. '
+                  'E o modo da passada de recuperacao: quando um acervo inteiro '
+                  'materializa de uma vez (o dia em que a conversao DOCX volta '
+                  'a funcionar), retificar em lote apagaria assinatura ja feita '
+                  '— e a decisao de zerar assinatura (§5.1) foi tomada para o '
+                  'ato isolado de retificar um texto, nao para uma varredura. '
+                  'A retificacao adiada aparece no resumo e roda no ciclo '
+                  'normal, uma a uma.'))
 
     def handle(self, *args, **options):
         # Erro de CONFIGURACAO morre aqui, alto e cedo — nao vira 861 falhas por
@@ -121,32 +132,33 @@ class Command(BaseCommand):
                 'que o servidor do OnlyOffice alcance.')
 
         intervalo = options['intervalo']
+        somente_novos = options['somente_novos']
         if intervalo <= 0:
-            self._passada()
+            self._passada(somente_novos)
             return
         self.stdout.write(
             'materializar_pdfs: laco a cada %ss (Ctrl-C para sair)' % intervalo)
         while True:
             try:
-                self._passada()
+                self._passada(somente_novos)
             except Exception as exc:  # noqa — o laco NUNCA morre: se morrer,
                 # a materializacao para de vez e ninguem percebe ate a materia
                 # nao aparecer para assinar.
                 logger.exception('materializar_pdfs: passada falhou: %s', exc)
             time.sleep(intervalo)
 
-    def _passada(self):
+    def _passada(self, somente_novos=False):
         materias = (MateriaLegislativa.objects
                     .filter(numero_protocolo__isnull=False,
                             texto_original__isnull=False)
                     .exclude(texto_original='')
                     .order_by('id'))
 
-        gerados = retificados = pulados = falhas = 0
+        gerados = retificados = pulados = falhas = adiados = 0
         motivos = {}
         for materia in materias.iterator():
             try:
-                resultado, motivo = self._materializar(materia)
+                resultado, motivo = self._materializar(materia, somente_novos)
             except Exception as exc:  # noqa — uma matéria não trava as demais (§5.1)
                 logger.exception(
                     'materializar_pdfs: falha inesperada na matéria %s: %s',
@@ -162,12 +174,24 @@ class Command(BaseCommand):
             elif resultado == 'falha':
                 falhas += 1
                 motivos[motivo] = motivos.get(motivo, 0) + 1
+            elif resultado == 'adiado':
+                adiados += 1
             else:
                 pulados += 1
 
         self.stdout.write(
             'materializar_pdfs: %s gerados, %s retificados, %s em dia, '
             '%s falhas' % (gerados, retificados, pulados, falhas))
+
+        # Adiada nao e "em dia": e trabalho pendente que este modo se recusou a
+        # fazer. Some do resumo comum e vira surpresa quando alguem estranhar
+        # que o alvo nao acompanhou o texto.
+        if adiados:
+            self.stdout.write(
+                'materializar_pdfs: %s retificacao(oes) ADIADA(S) por '
+                '--somente-novos — o texto mudou e o PDF-alvo segue defasado. '
+                'Rodar sem a flag para regenerar (zera a assinatura da materia, '
+                '§5.1).' % adiados)
 
         # Falha em MASSA por um motivo so nao e materia podre avulsa: e o
         # ambiente parado. O contador sozinho nao dizia isso — `2 gerados, 873
@@ -200,7 +224,7 @@ class Command(BaseCommand):
         self.stderr.write(aviso)
         logger.error(aviso)
 
-    def _materializar(self, materia):
+    def _materializar(self, materia, somente_novos=False):
         materia.texto_original.open('rb')
         try:
             conteudo_origem = materia.texto_original.read()
@@ -211,6 +235,17 @@ class Command(BaseCommand):
         alvo = DocumentoParaAssinatura.objects.filter(materia=materia).first()
         if alvo is not None and alvo.hash_origem == hash_origem:
             return 'em dia', None  # idempotência: nada mudou desde a geração
+
+        # A passada de recuperação não retifica — e decide isso ANTES de gastar
+        # a conversão, não depois. Alvo defasado é um problema; apagar
+        # assinatura já feita, em lote e sem ninguém pedir, é um problema pior e
+        # irreversível. A decisão de zerar (§5.1) foi tomada para o ato isolado
+        # de retificar um texto, não para uma varredura de acervo inteiro.
+        if alvo is not None and somente_novos:
+            logger.info(
+                'materializar_pdfs: matéria %s precisa de retificação — ADIADA '
+                'por --somente-novos (sem conversão)', materia.pk)
+            return 'adiado', None
 
         # Reuso da rotina da sprint: PDF copia os bytes, DOCX converte no
         # OnlyOffice — a conversão acontece UMA vez, aqui, fora do caminho
