@@ -1260,8 +1260,11 @@ def materia_assinar_a1(request, pk):
     materia.assinado_por = request.user
     materia.save()
 
-    from django.core.cache import cache as _cache
-    _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
+    # Invalida o badge de TODOS os coautores, não só de quem assinou: esta
+    # assinatura muda a contagem deles também (a matéria some da minha lista e
+    # continua na deles) e eles ficariam com o número velho até o TTL.
+    from sapl.materia.pendencias import invalidar_cache_pendencias
+    invalidar_cache_pendencias(materia=materia, user=request.user)
 
     logger.info(
         f"Matéria {materia.pk} assinada por {request.user.username} "
@@ -2444,10 +2447,14 @@ def materia_assinar_lote(request):
                 resultados.append({'pk': pk, 'success': False, 'descricao': descricao, 'error': str(e)})
                 erro_count += 1
 
-    # Invalida cache de pendências uma vez ao final do lote
+    # Invalida cache de pendências uma vez ao final do lote — de quem assinou
+    # e dos coautores de cada matéria assinada.
     if sucesso_count > 0:
-        from django.core.cache import cache as _cache
-        _cache.delete(f'pendencias_assinatura_user_{request.user.pk}')
+        from sapl.materia.pendencias import invalidar_cache_pendencias
+        for r in resultados:
+            if r.get('success'):
+                invalidar_cache_pendencias(materia=materias_map.get(r['pk']))
+        invalidar_cache_pendencias(user=request.user)
 
     return JsonResponse({
         'success': True,

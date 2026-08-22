@@ -648,24 +648,25 @@ class MateriasPendentesAssinaturaView(LoginRequiredMixin, ListView):
     paginate_by = 20
     login_url = '/login/'
 
+    def get_autores(self):
+        from sapl.materia.pendencias import autores_do_usuario
+        return autores_do_usuario(self.request.user)
+
     def get_autor(self):
-        try:
-            return OperadorAutor.objects.get(user=self.request.user).autor
-        except OperadorAutor.DoesNotExist:
-            return None
+        # Um só autor no contexto da tela (título, link de pesquisa). O
+        # assessor de mais de um vereador vê a lista somada e refina no filtro.
+        autores = self.get_autores()
+        return autores[0] if autores else None
 
     def get_queryset(self):
-        autor = self.get_autor()
-        qs = MateriaLegislativa.objects.filter(
-            texto_original__isnull=False
-        ).exclude(
-            texto_original=''
-        ).filter(
-            Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
-        )
-        if autor:
-            qs = qs.filter(autoria__autor=autor)
-        return qs.order_by('-data_apresentacao', '-id').distinct()
+        from sapl.materia.pendencias import filtrar_pendentes
+        # Pendência é POR AUTOR (`sapl.materia.pendencias`): a matéria que um
+        # coautor já assinou continua pendente para os outros. O filtro antigo
+        # era por documento (`pdf_assinado` vazio) e a fazia sumir da lista de
+        # todo mundo assim que a primeira assinatura entrava.
+        qs = filtrar_pendentes(
+            MateriaLegislativa.objects.all(), autores=self.get_autores())
+        return qs.order_by('-data_apresentacao', '-id')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -2158,9 +2159,13 @@ class DocumentoAcessorioCrud(MasterDetailCrud):
 
             if pode_assinar_lote:
                 materia_pk = self.kwargs.get('pk') or self.kwargs.get('root_pk')
+                # Doc acessório não tem autoria, então a pendência dele é por
+                # documento mesmo. Só o `pdf_assinado=''` deixava passar os
+                # registros com NULL (todos os anteriores ao campo existir).
                 qs_pendentes = DocumentoAcessorio.objects.filter(
                     materia__pk=materia_pk,
-                    pdf_assinado='',
+                ).filter(
+                    Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
                 ).order_by('data', 'nome')
                 docs_lote = [
                     {'id': d.pk, 'descricao': f'{d.nome} ({d.tipo}) — {d.data}'}
@@ -2950,18 +2955,20 @@ class MateriaLegislativaPesquisaView(MultiFormatOutputMixin, FilterView):
         # Matérias pendentes de assinatura para o botão de lote
         status_assinatura = self.request.GET.get('status_assinatura')
         if status_assinatura == 'pendente' and context['show_results']:
-            from django.db.models import Q as _Q
             # object_list já foi filtrado pelo filter_status_assinatura —
             # precisamos obter os IDs primeiro para evitar problemas com
             # querysets compostos por union (|) que não suportam .filter() extra
             try:
                 ids_lote = list(self.object_list.values_list('id', flat=True)[:200])
                 from .models import MateriaLegislativa
-                qs_lote = MateriaLegislativa.objects.filter(
-                    pk__in=ids_lote,
-                    texto_original__isnull=False,
-                ).exclude(texto_original='').filter(
-                    _Q(pdf_assinado__isnull=True) | _Q(pdf_assinado='')
+                from .pendencias import autores_do_usuario, filtrar_pendentes
+                # O lote oferece o que FALTA ASSINAR PARA QUEM ESTÁ NA TELA:
+                # com autor conhecido, a regra por autor; sem ele, a agregada.
+                # Filtrar por `pdf_assinado` vazio escondia do coautor exatamente
+                # as matérias que ele ainda precisa assinar.
+                qs_lote = filtrar_pendentes(
+                    MateriaLegislativa.objects.filter(pk__in=ids_lote),
+                    autores=autores_do_usuario(self.request.user),
                 ).select_related('tipo').values_list(
                     'id', 'tipo__sigla', 'numero', 'ano'
                 )

@@ -2,7 +2,8 @@
 Management command: notificar_pendentes_assinatura
 
 Envia e-mail diario a cada autor que possui materias com assinatura digital
-pendente (texto_original preenchido, pdf_assinado vazio).
+pendente. Pendencia e POR AUTOR (sapl.materia.pendencias): a materia que um
+coautor ja assinou continua pendente para os demais.
 
 Uso:
     python manage.py notificar_pendentes_assinatura
@@ -43,12 +44,12 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         # Imports aqui dentro para evitar problemas no bootstrap do Django
         from django.core.mail import EmailMultiAlternatives, get_connection
-        from django.db.models import Q
         from django.template import loader
         from django.urls import reverse
 
         from sapl.base.models import CasaLegislativa, OperadorAutor
         from sapl.materia.models import MateriaLegislativa
+        from sapl.materia.pendencias import filtrar_pendentes
         from sapl.settings import EMAIL_SEND_USER
         from sapl.utils import mail_service_configured
 
@@ -70,14 +71,9 @@ class Command(BaseCommand):
         casa_nome = '{} de {} - {}'.format(casa.nome, casa.municipio, casa.uf)
         base_url = 'https://{}'.format(casa.endereco_web) if getattr(casa, 'endereco_web', None) else ''
 
-        # Base queryset: materias pendentes de assinatura
-        qs_pendentes = MateriaLegislativa.objects.filter(
-            texto_original__isnull=False,
-        ).exclude(
-            texto_original=''
-        ).filter(
-            Q(pdf_assinado__isnull=True) | Q(pdf_assinado='')
-        ).select_related('tipo').order_by('-data_apresentacao', '-id')
+        # Base: todas as materias. O recorte de pendencia e feito por autor,
+        # dentro do laco — cobrar do vereador so o que falta a assinatura DELE.
+        qs_base = MateriaLegislativa.objects.select_related('tipo')
 
         # Apenas OperadorAutores com e-mail cadastrado
         operadores = (
@@ -110,8 +106,10 @@ class Command(BaseCommand):
                 if not email:
                     continue
 
-                # Materias pendentes deste autor
-                materias_qs = qs_pendentes.filter(autoria__autor=autor).distinct()
+                # Materias pendentes deste autor (regra canonica por autor)
+                materias_qs = filtrar_pendentes(
+                    qs_base, autores=[autor]
+                ).order_by('-data_apresentacao', '-id')
                 total = materias_qs.count()
 
                 if total == 0:
