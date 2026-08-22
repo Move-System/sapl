@@ -238,22 +238,167 @@ def test_site_url_sozinha_basta(db, settings):
     assert DocumentoParaAssinatura.objects.filter(materia=materia).exists()
 
 
-@pytest.mark.django_db(transaction=False)
-def test_passada_sem_nenhum_avanco_grita_no_stderr(db, monkeypatch, capsys):
-    """Falha sem nenhum gerado é ambiente parado, não documento podre avulso.
+MOD = ('sapl.integracao_hub.management.commands.'
+       'materializar_pdfs_para_assinatura')
 
-    É o resumo que passava por linha de rotina: `0 gerados, 873 falhas` não se
-    distingue de um dia normal no meio do log.
+
+@pytest.fixture
+def origem_confere(monkeypatch):
+    """Neutraliza a conferência de integridade — ela tem os seus próprios testes."""
+    monkeypatch.setattr(MOD + '._origem_servida_confere',
+                        lambda materia, hash_origem: (True, None))
+
+
+@pytest.mark.django_db(transaction=False)
+def test_falha_em_massa_pelo_mesmo_motivo_grita_no_stderr(
+        db, monkeypatch, capsys, origem_confere):
+    """873 `logger.error` dispersos não se leem; uma linha agregada, sim.
+
+    O contador sozinho não denunciava nada: `2 gerados, 873 falhas` passava por
+    linha de rotina, e as 873 eram todas o MESMO erro (22/08/2026).
     """
     criar_materia(protocolo=201, nome='a.docx', conteudo=b'docx')
     criar_materia(protocolo=202, nome='b.docx', conteudo=b'docx')
 
     monkeypatch.setattr(
         'sapl.materia.views_assinatura._gerar_pdf_da_materia',
-        lambda materia, request: (None, 'OnlyOffice: codigo -8'))
+        lambda materia, request: (None, 'Erro na conversao: codigo -7'))
 
     call_command('materializar_pdfs_para_assinatura')
 
     erro = capsys.readouterr().err
-    assert 'NENHUM PDF-alvo gerado' in erro
-    assert 'e ambiente, nao documento' in erro
+    assert '2 de 2 falhas pelo MESMO motivo' in erro
+    assert 'codigo -7' in erro
+
+
+@pytest.mark.django_db(transaction=False)
+def test_falha_isolada_nao_grita(db, monkeypatch, capsys, origem_confere):
+    """Uma matéria podre é ruído esperado (§5.1) — só o lote inteiro grita."""
+    criar_materia(protocolo=203, nome='a.docx', conteudo=b'docx')
+    criar_materia(protocolo=204)  # PDF: passa
+
+    def gerar(materia, request):
+        if materia.numero_protocolo == 203:
+            return None, 'OnlyOffice fora do ar'
+        return PDF, None
+
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia', gerar)
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    assert 'MESMO motivo' not in capsys.readouterr().err
+
+
+@pytest.mark.django_db(transaction=False)
+def test_codigo_8_aponta_jwt_e_nao_url(
+        db, monkeypatch, capsys, settings, origem_confere):
+    """O `-8` do OnlyOffice manda consertar a variável errada se lido ao pé da letra.
+
+    A leitura natural é "URL ruim". É token: JWT desligado AQUI é exatamente o
+    que produz -8 quando o SERVIDOR do OnlyOffice exige assinatura. Provado em
+    22/08/2026 com POST direto ao ConvertService, URL pública respondendo 200.
+    """
+    settings.ONLYOFFICE_JWT_ENABLED = False
+    settings.ONLYOFFICE_URL = 'https://onlyoffice.exemplo'
+    criar_materia(protocolo=205, nome='a.docx', conteudo=b'docx')
+    criar_materia(protocolo=206, nome='b.docx', conteudo=b'docx')
+
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia',
+        lambda materia, request: (
+            None, 'Erro na conversao do documento: codigo -8'))
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    erro = capsys.readouterr().err
+    assert 'erro de TOKEN, nao de URL' in erro
+    assert 'ONLYOFFICE_JWT_ENABLED=True' in erro
+    assert 'https://onlyoffice.exemplo' in erro
+
+
+@pytest.mark.django_db(transaction=False)
+def test_jwt_ligado_nao_repete_a_dica(
+        db, monkeypatch, capsys, settings, origem_confere):
+    """Com JWT já ligado o -8 é outra coisa — a dica viraria pista falsa."""
+    settings.ONLYOFFICE_JWT_ENABLED = True
+    criar_materia(protocolo=207, nome='a.docx', conteudo=b'docx')
+    criar_materia(protocolo=208, nome='b.docx', conteudo=b'docx')
+
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia',
+        lambda materia, request: (
+            None, 'Erro na conversao do documento: codigo -8'))
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    erro = capsys.readouterr().err
+    assert 'MESMO motivo' in erro
+    assert 'erro de TOKEN' not in erro
+
+
+# ---------------------------------------------------------------------------
+# Integridade da origem: a URL entregue ao OnlyOffice serve ESTE documento?
+# ---------------------------------------------------------------------------
+
+class _RespostaFalsa:
+    def __init__(self, conteudo, status_code=200):
+        self.content = conteudo
+        self.status_code = status_code
+
+
+@pytest.mark.django_db(transaction=False)
+def test_url_que_serve_outro_documento_nao_converte(db, monkeypatch, caplog):
+    """O acidente que isso impede: SAPL_INTERNAL_URL apontando para outra instância.
+
+    O `hash_origem` sairia do arquivo local e o PDF-alvo do arquivo do outro
+    SAPL. Como é esse hash que dispara a retificação (§5.1), o alvo defasado
+    nunca mais seria regenerado — assinaria-se um PDF que não corresponde ao
+    texto da matéria. Falha em vez de converter.
+    """
+    materia = criar_materia(protocolo=209, nome='a.docx', conteudo=b'docx-local')
+    monkeypatch.setattr(
+        MOD + '.http_requests.get',
+        lambda url, timeout: _RespostaFalsa(b'docx-de-outra-instancia'))
+    converteu = []
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia',
+        lambda m, r: converteu.append(m) or (PDF, None))
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    assert not converteu, 'não pode nem tentar converter'
+    assert not DocumentoParaAssinatura.objects.filter(materia=materia).exists()
+    # Uma matéria só não aciona o grito agregado (isso é ruído esperado) —
+    # o motivo tem que estar no log, nomeando a variável a consertar.
+    assert 'serve OUTRO documento' in caplog.text
+    assert 'SAPL_INTERNAL_URL' in caplog.text
+
+
+@pytest.mark.django_db(transaction=False)
+def test_url_que_serve_o_documento_certo_converte(db, monkeypatch):
+    materia = criar_materia(protocolo=210, nome='a.docx', conteudo=b'docx-local')
+    monkeypatch.setattr(
+        MOD + '.http_requests.get',
+        lambda url, timeout: _RespostaFalsa(b'docx-local'))
+    monkeypatch.setattr(
+        'sapl.materia.views_assinatura._gerar_pdf_da_materia',
+        lambda m, r: (PDF, None))
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    assert DocumentoParaAssinatura.objects.filter(materia=materia).exists()
+
+
+@pytest.mark.django_db(transaction=False)
+def test_pdf_nao_passa_pela_conferencia_de_url(db, monkeypatch):
+    """PDF copia bytes e não toca o OnlyOffice — não faz sentido exigir URL boa."""
+    def explode(*args, **kwargs):
+        raise AssertionError('PDF não deveria conferir URL')
+
+    monkeypatch.setattr(MOD + '.http_requests.get', explode)
+    materia = criar_materia(protocolo=211)
+
+    call_command('materializar_pdfs_para_assinatura')
+
+    assert DocumentoParaAssinatura.objects.filter(materia=materia).exists()

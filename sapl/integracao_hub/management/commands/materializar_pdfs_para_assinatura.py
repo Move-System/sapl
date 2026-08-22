@@ -3,6 +3,7 @@ import logging
 import os
 import time
 
+import requests as http_requests
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
@@ -32,6 +33,44 @@ class _RequisicaoDeSistema:
     def build_absolute_uri(self, caminho):
         base = getattr(settings, 'SITE_URL', '') or ''
         return base.rstrip('/') + caminho
+
+
+def _origem_servida_confere(materia, hash_origem):
+    """A URL entregue ao OnlyOffice serve MESMO o documento que acabamos de ler?
+
+    `SAPL_INTERNAL_URL` e configuracao de operador e nao ha de onde deduzi-la: so
+    quem opera sabe qual URL o servidor do OnlyOffice alcanca. O risco nao e ela
+    ser fixa — e ela apontar para OUTRA instancia sem ninguem perceber. Ai o
+    `hash_origem` sai do arquivo local e o PDF-alvo sai do arquivo do outro SAPL,
+    e como e justamente esse hash que dispara a retificacao (§5.1), o alvo
+    defasado nunca mais e regenerado: assina-se um PDF que nao corresponde ao
+    texto da materia.
+
+    Baixar a propria URL e comparar o sha256 fecha isso sem exigir adivinhacao:
+    seja qual for o valor configurado, ele so passa se servir este documento.
+    Retorna (ok, motivo).
+    """
+    from django.urls import reverse
+    from sapl.utils import build_onlyoffice_url
+    url = build_onlyoffice_url(
+        _RequisicaoDeSistema(),
+        reverse('sapl.materia:materia_onlyoffice_download',
+                kwargs={'pk': materia.pk}))
+    try:
+        resposta = http_requests.get(url, timeout=60)
+    except Exception as exc:  # noqa — rede e diagnostico, nao excecao de dominio
+        return False, ('a URL entregue ao OnlyOffice nao respondeu (%s) — '
+                       'confira SAPL_INTERNAL_URL' % type(exc).__name__)
+    if resposta.status_code != 200:
+        return False, ('a URL entregue ao OnlyOffice respondeu %s — o servidor '
+                       'dele tambem nao vai conseguir baixar'
+                       % resposta.status_code)
+    if hashlib.sha256(resposta.content).hexdigest() != hash_origem:
+        return False, ('a URL entregue ao OnlyOffice serve OUTRO documento — '
+                       'SAPL_INTERNAL_URL aponta para outra instancia do SAPL. '
+                       'Converter assim gera um PDF-alvo que nao corresponde ao '
+                       'texto desta materia')
+    return True, None
 
 
 def _base_url_de_sistema():
@@ -104,14 +143,17 @@ class Command(BaseCommand):
                     .order_by('id'))
 
         gerados = retificados = pulados = falhas = 0
+        motivos = {}
         for materia in materias.iterator():
             try:
-                resultado = self._materializar(materia)
+                resultado, motivo = self._materializar(materia)
             except Exception as exc:  # noqa — uma matéria não trava as demais (§5.1)
                 logger.exception(
                     'materializar_pdfs: falha inesperada na matéria %s: %s',
                     materia.pk, exc)
                 falhas += 1
+                motivos[type(exc).__name__] = motivos.get(
+                    type(exc).__name__, 0) + 1
                 continue
             if resultado == 'gerado':
                 gerados += 1
@@ -119,6 +161,7 @@ class Command(BaseCommand):
                 retificados += 1
             elif resultado == 'falha':
                 falhas += 1
+                motivos[motivo] = motivos.get(motivo, 0) + 1
             else:
                 pulados += 1
 
@@ -126,20 +169,36 @@ class Command(BaseCommand):
             'materializar_pdfs: %s gerados, %s retificados, %s em dia, '
             '%s falhas' % (gerados, retificados, pulados, falhas))
 
-        # Falha sem NENHUM avanco nao e materia podre avulsa: e o ambiente
-        # inteiro parado (OnlyOffice fora do ar, URL que ele nao alcanca, MEDIA
-        # sem os binarios). Some do log comum porque cada materia falha
-        # individualmente e o resumo parece so mais uma linha de rotina.
-        if falhas and not gerados and not retificados:
-            aviso = (
-                'materializar_pdfs: %s falhas e NENHUM PDF-alvo gerado — isso e '
-                'ambiente, nao documento. Confira o OnlyOffice em %s e se ele '
-                'alcanca %s; enquanto isso nenhuma materia DOCX vira pendencia '
-                'de assinatura no app.' % (
-                    falhas, getattr(settings, 'ONLYOFFICE_URL', '<ausente>'),
-                    _base_url_de_sistema()))
-            self.stderr.write(aviso)
-            logger.error(aviso)
+        # Falha em MASSA por um motivo so nao e materia podre avulsa: e o
+        # ambiente parado. O contador sozinho nao dizia isso — `2 gerados, 873
+        # falhas` passava por linha de rotina, e as 873 eram todas o MESMO erro.
+        # Agrupar por motivo transforma 873 logger.error dispersos em uma linha
+        # que se le e se age. Em 22/08/2026 essas 873 eram um unico `codigo -8`.
+        self._relatar_motivos(motivos, falhas)
+
+    def _relatar_motivos(self, motivos, falhas):
+        if not motivos:
+            return
+        motivo, quantas = max(motivos.items(), key=lambda par: par[1])
+        # Uma falha isolada e ruido esperado (§5.1); o que precisa gritar e o
+        # motivo unico que derruba um lote inteiro.
+        if quantas < 2:
+            return
+        aviso = ('materializar_pdfs: %s de %s falhas pelo MESMO motivo: %s'
+                 % (quantas, falhas, motivo))
+        # O -8 do OnlyOffice e "token invalido", e a leitura natural (URL ruim)
+        # manda consertar a variavel errada: JWT desligado AQUI e exatamente o
+        # que produz -8 quando o SERVIDOR do OnlyOffice exige token.
+        if 'codigo -8' in motivo or 'código -8' in motivo:
+            if not getattr(settings, 'ONLYOFFICE_JWT_ENABLED', False):
+                aviso += (
+                    ' | -8 e erro de TOKEN, nao de URL: o servidor em %s exige '
+                    'JWT e ONLYOFFICE_JWT_ENABLED esta False. Configure '
+                    'ONLYOFFICE_JWT_ENABLED=True e ONLYOFFICE_JWT_SECRET com o '
+                    'mesmo segredo do servidor do OnlyOffice.'
+                    % getattr(settings, 'ONLYOFFICE_URL', '<ausente>'))
+        self.stderr.write(aviso)
+        logger.error(aviso)
 
     def _materializar(self, materia):
         materia.texto_original.open('rb')
@@ -151,11 +210,20 @@ class Command(BaseCommand):
 
         alvo = DocumentoParaAssinatura.objects.filter(materia=materia).first()
         if alvo is not None and alvo.hash_origem == hash_origem:
-            return 'em dia'  # idempotência: nada mudou desde a geração
+            return 'em dia', None  # idempotência: nada mudou desde a geração
 
         # Reuso da rotina da sprint: PDF copia os bytes, DOCX converte no
         # OnlyOffice — a conversão acontece UMA vez, aqui, fora do caminho
         # quente das requisições (§5.1).
+        # Só o caminho DOCX passa pelo OnlyOffice; PDF copia bytes e não depende
+        # de URL nenhuma. Conferir a origem servida antes de gastar a conversão.
+        if not materia.texto_original.name.lower().endswith('.pdf'):
+            ok, motivo = _origem_servida_confere(materia, hash_origem)
+            if not ok:
+                logger.error(
+                    'materializar_pdfs: matéria %s — %s', materia.pk, motivo)
+                return 'falha', motivo
+
         from sapl.materia.views_assinatura import _gerar_pdf_da_materia
         pdf_bytes, erro = _gerar_pdf_da_materia(
             materia, _RequisicaoDeSistema())
@@ -164,7 +232,7 @@ class Command(BaseCommand):
                 'materializar_pdfs: matéria %s não convertida (%s) — segue '
                 'visível só na tela do SAPL até o próximo ciclo', materia.pk,
                 erro)
-            return 'falha'
+            return 'falha', erro
 
         nome = 'materia_%s_alvo.pdf' % materia.pk
         hash_alvo = hashlib.sha256(pdf_bytes).hexdigest()
@@ -178,7 +246,7 @@ class Command(BaseCommand):
                 logger.info(
                     'materializar_pdfs: PDF-alvo da matéria %s gerado (%s)',
                     materia.pk, hash_alvo)
-                return 'gerado'
+                return 'gerado', None
 
             # RETIFICAÇÃO (§5.1, decisão do arquiteto 19/08): texto_original
             # mudou depois da conversão → o alvo está defasado. Regenera E zera
@@ -202,4 +270,4 @@ class Command(BaseCommand):
         logger.info(
             'materializar_pdfs: matéria %s RETIFICADA — alvo regenerado (%s) '
             'e assinaturas zeradas', materia.pk, hash_alvo)
-        return 'retificado'
+        return 'retificado', None
