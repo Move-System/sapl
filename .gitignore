@@ -127,3 +127,5 @@ start.sh
 dump_*.sql
 
 DADOS
+# Backups de .env criados por script de deploy — carregam SECRET_KEY e chaves de API
+.env.bak*

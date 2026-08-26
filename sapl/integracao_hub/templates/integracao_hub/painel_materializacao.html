@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block base_content %}
+
+<h1>Materialização do PDF-alvo para assinatura</h1>
+
+<p class="text-muted">
+  Esta rotina converte o texto original de cada matéria protocolada no PDF que o
+  vereador assina no aplicativo. <strong>Enquanto ela não roda, a matéria não
+  existe para o app</strong> — e a falha é silenciosa: nada quebra, a pendência
+  simplesmente não aparece.
+</p>
+
+{# ---------------------------------------------------------------------- #}
+{# Estado atual: a primeira pergunta é sempre "está rodando?"              #}
+{# ---------------------------------------------------------------------- #}
+<h2>Situação</h2>
+<div class="row">
+  <div class="col-md-12">
+    {% if nunca_rodou %}
+      <div class="alert alert-danger">
+        <strong>A rotina nunca rodou neste servidor.</strong>
+        Nenhuma passada foi registrada. Enquanto isso, nenhuma matéria vira
+        pendência de assinatura no aplicativo. Use o botão abaixo para rodar
+        agora, e verifique se a rotina automática está ativa no servidor.
+      </div>
+    {% elif em_andamento %}
+      <div class="alert alert-info">
+        <strong>Passada em andamento</strong> desde {{ em_andamento.iniciada_em }}
+        ({% if em_andamento.disparo == 'manual' %}disparada por
+        {{ em_andamento.disparada_por|default:"—" }}{% else %}laço automático{% endif %}).
+        A varredura do acervo pode levar cerca de uma hora. Atualize a página
+        para acompanhar.
+      </div>
+    {% elif ultima_concluida %}
+      <div class="alert {% if ultima_concluida.falhas %}alert-warning{% else %}alert-success{% endif %}">
+        <strong>Última passada concluída em {{ ultima_concluida.terminada_em }}.</strong>
+        {{ ultima_concluida.gerados }} gerado(s),
+        {{ ultima_concluida.retificados }} retificado(s),
+        {{ ultima_concluida.em_dia }} em dia,
+        {{ ultima_concluida.falhas }} falha(s).
+      </div>
+    {% endif %}
+
+    <p>
+      <strong>{{ alvos_materializados }}</strong> documento(s) já materializado(s)
+      e disponível(is) para assinatura.
+      {% if total_falhas %}
+        <span class="text-danger">
+          <strong>{{ total_falhas }}</strong> matéria(s) travada(s) agora.
+        </span>
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------------- #}
+{# Disparo manual. Sempre --somente-novos: ver docstring da view.          #}
+{# ---------------------------------------------------------------------- #}
+<hr />
+<h2>Rodar agora</h2>
+<div class="row">
+  <div class="col-md-12">
+    <form method="post"
+          action="{% url 'integracao_hub_disparar_materializacao' %}">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary"
+              {% if em_andamento %}disabled{% endif %}>
+        Materializar documentos pendentes
+      </button>
+      {% if em_andamento %}
+        <span class="text-muted">Aguarde a passada em andamento terminar.</span>
+      {% endif %}
+    </form>
+    <p class="text-muted" style="margin-top: .5em;">
+      Roda em segundo plano, no modo que <strong>apenas gera o documento
+      ausente</strong>. Matéria cujo texto mudou depois da conversão não é
+      regenerada por aqui: regenerar apagaria a assinatura já feita, e essa é
+      uma decisão que se toma matéria a matéria, nunca em lote.
+    </p>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------------- #}
+{# Configuração — foi exatamente ela a causa do incidente de 25/08/2026.   #}
+{# ---------------------------------------------------------------------- #}
+<hr />
+<h2>Configuração da conversão</h2>
+<div class="row">
+  <div class="col-md-12">
+    <table class="table table-striped">
+      <tbody>
+        <tr>
+          <th style="width: 30%;">Endereço deste SAPL para o conversor</th>
+          <td>
+            {% if sapl_internal_url %}
+              <code>{{ sapl_internal_url }}</code>
+            {% elif site_url %}
+              <code>{{ site_url }}</code> <span class="text-muted">(SITE_URL)</span>
+            {% else %}
+              <span class="text-danger">não configurado</span>
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Servidor de conversão (OnlyOffice)</th>
+          <td><code>{{ onlyoffice_url|default:"não configurado" }}</code></td>
+        </tr>
+        <tr>
+          <th>Token de conversão (JWT)</th>
+          <td>{% if onlyoffice_jwt %}habilitado{% else %}desabilitado{% endif %}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="text-muted">
+      O endereço acima é o que o servidor de conversão usa para
+      <strong>baixar</strong> o documento — precisa ser alcançável a partir
+      <em>dele</em>, não deste servidor. Endereço interno (<code>localhost</code>,
+      <code>127.0.0.1</code>, IP privado) funciona aqui e falha lá.
+    </p>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------------- #}
+{# O que está travado AGORA — a segunda pergunta do operador.             #}
+{# ---------------------------------------------------------------------- #}
+{% if falhas %}
+<hr />
+<h2>Matérias travadas</h2>
+<div class="row">
+  <div class="col-md-12">
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th style="width: 12%;">Matéria</th>
+          <th>Motivo</th>
+          <th style="width: 20%;">Última ocorrência</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for falha in falhas %}
+        <tr>
+          <td>
+            <a href="{% url 'sapl.materia:materialegislativa_detail' falha.materia_id %}">
+              {{ falha.materia }}
+            </a>
+          </td>
+          <td>{{ falha.motivo }}</td>
+          <td>{{ falha.ocorrido_em }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if falhas_ocultas %}
+      <p class="text-muted">
+        … e mais {{ falhas_ocultas }} matéria(s) com falha, não listada(s) aqui.
+        Quando o número é alto, quase sempre é uma causa única de ambiente —
+        confira o motivo predominante na tabela de passadas abaixo.
+      </p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ---------------------------------------------------------------------- #}
+{# Histórico. Existir uma linha aqui já responde "a rotina está viva?".    #}
+{# ---------------------------------------------------------------------- #}
+<hr />
+<h2>Últimas passadas</h2>
+<div class="row">
+  <div class="col-md-12">
+    {% if passadas %}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Início</th>
+          <th>Duração</th>
+          <th>Origem</th>
+          <th>Gerados</th>
+          <th>Retificados</th>
+          <th>Em dia</th>
+          <th>Falhas</th>
+          <th>Motivo predominante</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for passada in passadas %}
+        <tr>
+          <td>{{ passada.iniciada_em }}</td>
+          <td>
+            {% if passada.abandonada %}
+              <span class="text-danger" title="O processo morreu sem fechar a passada; os números desta linha estão incompletos.">interrompida</span>
+            {% elif passada.terminada_em %}
+              {{ passada.duracao }}
+            {% else %}
+              <em>em andamento</em>
+            {% endif %}
+          </td>
+          <td>
+            {% if passada.disparo == 'manual' %}
+              {{ passada.disparada_por|default:"manual" }}
+            {% else %}
+              laço
+            {% endif %}
+          </td>
+          <td>{{ passada.gerados }}</td>
+          <td>{{ passada.retificados }}</td>
+          <td>{{ passada.em_dia }}</td>
+          <td>
+            {% if passada.falhas %}
+              <span class="text-danger">{{ passada.falhas }}</span>
+            {% else %}
+              0
+            {% endif %}
+          </td>
+          <td>
+            {% with predominante=passada.motivo_predominante %}
+              {% if predominante.0 %}
+                {{ predominante.0 }} <span class="text-muted">({{ predominante.1 }}×)</span>
+              {% else %}
+                —
+              {% endif %}
+            {% endwith %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="text-muted">Nenhuma passada registrada.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% endblock base_content %}

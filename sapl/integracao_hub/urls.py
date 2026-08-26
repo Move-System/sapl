@@ -1,5 +1,6 @@
 from django.conf.urls import url
 
+from .painel import DispararMaterializacaoView, PainelMaterializacaoView
 from .views import (AssinaturasConcluidasPollView,
                     AssinaturasPendentesPollView,
                     DocumentoAlvoView,
@@ -61,4 +62,16 @@ urlpatterns = [
     url(r'^api/integracao/reconciliacao/$',
         InventarioView.as_view(),
         name='integracao_hub_reconciliacao'),
+
+    # Painel de operação (HTML, sessão + pode_integrar) — fora do prefixo
+    # `api/integracao/` de propósito: aquilo é a superfície que o hub consome
+    # com token; isto é tela de gente, e mora sob `sistema/` como as demais
+    # ferramentas administrativas do SAPL.
+    url(r'^sistema/integracao/materializacao/$',
+        PainelMaterializacaoView.as_view(),
+        name='integracao_hub_painel_materializacao'),
+
+    url(r'^sistema/integracao/materializacao/disparar/$',
+        DispararMaterializacaoView.as_view(),
+        name='integracao_hub_disparar_materializacao'),
 ]
