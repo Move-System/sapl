@@ -7,12 +7,22 @@ import requests as http_requests
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import IntegrityError, transaction
+from django.utils import timezone
 
-from sapl.integracao_hub.models import DocumentoParaAssinatura
+from sapl.integracao_hub.models import (DocumentoParaAssinatura,
+                                        MateriaComFalhaMaterializacao,
+                                        PassadaMaterializacao)
 from sapl.materia.models import MateriaLegislativa
 
 logger = logging.getLogger(__name__)
+
+# Depois de quanto tempo uma passada `em_andamento` é considerada órfã e tem o
+# lock liberado. Precisa folgar sobre a passada mais longa plausível: um acervo
+# de ~900 matérias a ~4s de conversão cada roda em torno de 1h. Abaixo disso o
+# destravamento automático arriscaria derrubar uma passada viva; muito acima,
+# um `kill -9` deixaria a rotina travada por um turno inteiro.
+HORAS_ATE_CONSIDERAR_ORFA = 6
 
 
 class _RequisicaoDeSistema:
@@ -117,6 +127,13 @@ class Command(BaseCommand):
                   'ato isolado de retificar um texto, nao para uma varredura. '
                   'A retificacao adiada aparece no resumo e roda no ciclo '
                   'normal, uma a uma.'))
+        parser.add_argument(
+            '--disparada-por',
+            default='',
+            metavar='USUARIO',
+            help=('Quem pediu esta passada. Preenchido pelo botao "Rodar '
+                  'agora" do painel; vazio no laco. E rastro operacional, nao '
+                  'controle de acesso — a tela ja gateia por pode_integrar.'))
 
     def handle(self, *args, **options):
         # Erro de CONFIGURACAO morre aqui, alto e cedo — nao vira 861 falhas por
@@ -133,21 +150,80 @@ class Command(BaseCommand):
 
         intervalo = options['intervalo']
         somente_novos = options['somente_novos']
+        disparada_por = options['disparada_por']
         if intervalo <= 0:
-            self._passada(somente_novos)
+            self._passada_registrada(somente_novos, disparada_por)
             return
         self.stdout.write(
             'materializar_pdfs: laco a cada %ss (Ctrl-C para sair)' % intervalo)
         while True:
             try:
-                self._passada(somente_novos)
+                self._passada_registrada(somente_novos, disparada_por)
             except Exception as exc:  # noqa — o laco NUNCA morre: se morrer,
                 # a materializacao para de vez e ninguem percebe ate a materia
                 # nao aparecer para assinar.
                 logger.exception('materializar_pdfs: passada falhou: %s', exc)
             time.sleep(intervalo)
 
-    def _passada(self, somente_novos=False):
+    def _fechar_orfas(self):
+        """Libera o lock de passada cujo processo morreu sem fechar a linha.
+
+        `kill`, reboot ou OOM deixam `em_andamento=True` para sempre, e como
+        esse campo é o índice único que serializa as passadas, a rotina inteira
+        ficaria travada — a MESMA falha muda que este painel existe para acabar.
+        Fecha marcando `abandonada`, para os contadores incompletos não passarem
+        por resultado real na tela.
+        """
+        limite = timezone.now() - timezone.timedelta(
+            hours=HORAS_ATE_CONSIDERAR_ORFA)
+        orfas = PassadaMaterializacao.objects.filter(
+            em_andamento=True, iniciada_em__lt=limite)
+        for orfa in orfas:
+            orfa.em_andamento = None
+            orfa.terminada_em = timezone.now()
+            orfa.abandonada = True
+            orfa.save(update_fields=['em_andamento', 'terminada_em',
+                                     'abandonada'])
+            logger.warning(
+                'materializar_pdfs: passada %s abandonada (aberta desde %s) — '
+                'lock liberado', orfa.pk, orfa.iniciada_em)
+
+    def _passada_registrada(self, somente_novos=False, disparada_por=''):
+        """Envelope da passada: abre a linha, roda, fecha — sempre fecha.
+
+        A linha existe para a tela responder "quando rodou, o que fez, e por que
+        falhou" sem ninguém abrir shell. E o `em_andamento` único garante que
+        laço e botão nunca convertam o mesmo documento ao mesmo tempo.
+        """
+        self._fechar_orfas()
+
+        disparo = (PassadaMaterializacao.DISPARO_MANUAL if disparada_por
+                   else PassadaMaterializacao.DISPARO_LACO)
+        try:
+            # `atomic` aqui não é transação de negócio: sem ele a IntegrityError
+            # do índice único envenena a transação corrente e o rollback leva
+            # junto o que vier depois.
+            with transaction.atomic():
+                passada = PassadaMaterializacao.objects.create(
+                    disparo=disparo,
+                    disparada_por=disparada_por,
+                    somente_novos=somente_novos)
+        except IntegrityError:
+            self.stdout.write(
+                'materializar_pdfs: ja ha uma passada em andamento — esta '
+                'foi dispensada')
+            logger.info('materializar_pdfs: passada dispensada (lock ocupado)')
+            return None
+
+        try:
+            self._passada(somente_novos, passada)
+        finally:
+            passada.em_andamento = None
+            passada.terminada_em = timezone.now()
+            passada.save()
+        return passada
+
+    def _passada(self, somente_novos=False, passada=None):
         materias = (MateriaLegislativa.objects
                     .filter(numero_protocolo__isnull=False,
                             texto_original__isnull=False)
@@ -166,18 +242,35 @@ class Command(BaseCommand):
                 falhas += 1
                 motivos[type(exc).__name__] = motivos.get(
                     type(exc).__name__, 0) + 1
+                self._registrar_falha(materia, type(exc).__name__)
                 continue
             if resultado == 'gerado':
                 gerados += 1
+                self._limpar_falha(materia)
             elif resultado == 'retificado':
                 retificados += 1
+                self._limpar_falha(materia)
             elif resultado == 'falha':
                 falhas += 1
                 motivos[motivo] = motivos.get(motivo, 0) + 1
+                self._registrar_falha(materia, motivo)
             elif resultado == 'adiado':
+                # Adiada não é falha: o alvo existe e funciona, só está
+                # defasado. Não mexe na linha de falha — nem cria, nem apaga.
                 adiados += 1
             else:
                 pulados += 1
+                self._limpar_falha(materia)
+
+        if passada is not None:
+            passada.gerados = gerados
+            passada.retificados = retificados
+            passada.em_dia = pulados
+            passada.falhas = falhas
+            passada.adiados = adiados
+            passada.motivos = motivos
+            passada.save(update_fields=['gerados', 'retificados', 'em_dia',
+                                        'falhas', 'adiados', 'motivos'])
 
         self.stdout.write(
             'materializar_pdfs: %s gerados, %s retificados, %s em dia, '
@@ -200,6 +293,20 @@ class Command(BaseCommand):
         # que se le e se age. Em 22/08/2026 essas 873 eram um unico `codigo -8`.
         self._relatar_motivos(motivos, falhas)
 
+    def _registrar_falha(self, materia, motivo):
+        """Grava a matéria travada AGORA — a segunda pergunta do operador.
+
+        `update_or_create` de propósito: o painel mostra o estado atual, não um
+        histórico de tentativas. Com um acervo inteiro falhando a cada ciclo,
+        histórico cresceria sozinho e afogaria justamente o que importa.
+        """
+        MateriaComFalhaMaterializacao.objects.update_or_create(
+            materia=materia, defaults={'motivo': motivo or 'motivo não informado'})
+
+    def _limpar_falha(self, materia):
+        """Sucesso apaga a marca: a lista da tela é 'travadas agora'."""
+        MateriaComFalhaMaterializacao.objects.filter(materia=materia).delete()
+
     def _relatar_motivos(self, motivos, falhas):
         if not motivos:
             return
@@ -221,6 +328,23 @@ class Command(BaseCommand):
                     'ONLYOFFICE_JWT_ENABLED=True e ONLYOFFICE_JWT_SECRET com o '
                     'mesmo segredo do servidor do OnlyOffice.'
                     % getattr(settings, 'ONLYOFFICE_URL', '<ausente>'))
+        # O -4 e o OPOSTO do -8: nao e token, e DOWNLOAD. E a leitura natural
+        # ("a URL deve estar errada") manda conferir a variavel do jeito errado,
+        # porque a URL costuma funcionar — de dentro. `_origem_servida_confere`
+        # baixa a URL do PROPRIO SAPL e por isso passa limpo; ela nunca teve
+        # como provar que o servidor do OnlyOffice, que e outra maquina, alcanca
+        # o mesmo endereco. Em 25/08/2026 eram 861 falhas com SAPL_INTERNAL_URL
+        # apontando para um endereco que so existia dentro da VPS.
+        elif 'codigo -4' in motivo or 'código -4' in motivo:
+            aviso += (
+                ' | -4 e erro de DOWNLOAD, nao de token: o servidor do '
+                'OnlyOffice em %s nao conseguiu BAIXAR o documento de origem. '
+                'SAPL_INTERNAL_URL (hoje %r) precisa ser uma URL que AQUELE '
+                'servidor alcance — endereco interno (localhost, 127.0.0.1, IP '
+                'privado) funciona daqui e nao de la. Use https: em http o '
+                'nginx responde 301 e redirect nao seguido tambem vira -4.'
+                % (getattr(settings, 'ONLYOFFICE_URL', '<ausente>'),
+                   _base_url_de_sistema() or '<ausente>'))
         self.stderr.write(aviso)
         logger.error(aviso)
 
