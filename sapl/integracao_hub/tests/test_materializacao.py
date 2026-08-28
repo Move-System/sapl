@@ -154,7 +154,9 @@ def test_com_intervalo_fica_em_laco_e_dorme_entre_passadas(db, monkeypatch):
 
     Sem esse laço a materialização vira passo manual de implantação, e matéria
     protocolada nunca vira pendência no app — falha muda, sem erro nenhum.
-    Aqui o sleep corta o laço na terceira chamada para o teste terminar.
+    Desde o ADR 0014 o laço dorme o TICK (fila de prioridade), não o intervalo
+    — a varredura completa é agendada por relógio, entre os ticks. Aqui o sleep
+    corta o laço na terceira chamada para o teste terminar.
     """
     criar_materia(protocolo=701)
     dormidas = []
@@ -170,9 +172,10 @@ def test_com_intervalo_fica_em_laco_e_dorme_entre_passadas(db, monkeypatch):
         sleep_que_interrompe)
 
     with pytest.raises(KeyboardInterrupt):
-        call_command('materializar_pdfs_para_assinatura', intervalo=30)
+        call_command('materializar_pdfs_para_assinatura', intervalo=30,
+                     tick=10)
 
-    assert dormidas == [30, 30, 30]
+    assert dormidas == [10, 10, 10]
 
 
 @pytest.mark.django_db(transaction=False)
@@ -181,9 +184,12 @@ def test_laco_sobrevive_a_passada_que_estoura(db, monkeypatch):
     from sapl.integracao_hub.management.commands import (
         materializar_pdfs_para_assinatura as cmd)
 
+    # Matéria marcada mantém a fila de prioridade ocupada: a segunda passada do
+    # teste é um tick, e ele também não pode derrubar o laço.
+    criar_materia(protocolo=702)
     passadas = []
 
-    def passada_que_explode(self, somente_novos=False):
+    def passada_que_explode(self, *args, **kwargs):
         passadas.append(1)
         raise RuntimeError('banco caiu no meio da varredura')
 

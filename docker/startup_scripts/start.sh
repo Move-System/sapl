@@ -267,8 +267,9 @@ setup_cache_dir() {
 # seguinte recupera sozinha o DOCX que o OnlyOffice ainda nao converteu.
 start_materializacao_assinatura() {
   local intervalo="${MATERIALIZACAO_INTERVALO_SEGUNDOS:-300}"
-  log "Starting materializacao do PDF-alvo (a cada ${intervalo}s)..."
-  python manage.py materializar_pdfs_para_assinatura --intervalo "$intervalo" &
+  local tick="${MATERIALIZACAO_TICK_SEGUNDOS:-15}"
+  log "Starting materializacao do PDF-alvo (varredura a cada ${intervalo}s, fila de prioridade a cada ${tick}s)..."
+  python manage.py materializar_pdfs_para_assinatura --intervalo "$intervalo" --tick "$tick" &
 }
 
 start_services() {

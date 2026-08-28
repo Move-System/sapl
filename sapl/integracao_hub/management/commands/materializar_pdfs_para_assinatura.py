@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from sapl.integracao_hub.models import (DocumentoParaAssinatura,
                                         MateriaComFalhaMaterializacao,
+                                        MateriaParaMaterializar,
                                         PassadaMaterializacao)
 from sapl.materia.models import MateriaLegislativa
 
@@ -111,11 +112,29 @@ class Command(BaseCommand):
             type=int,
             default=0,
             metavar='SEGUNDOS',
-            help=('Segundos entre passadas. 0 (padrao) roda uma vez e sai — '
-                  'o modo para invocacao manual. Maior que zero fica em laco, '
-                  'que e como o container sobe a rotina (start.sh): sem isso a '
-                  'materializacao vira passo manual e materia protocolada NUNCA '
-                  'vira pendencia no app, em silencio.'))
+            help=('Segundos entre VARREDURAS COMPLETAS do acervo. 0 (padrao) '
+                  'roda uma varredura e sai — o modo para invocacao manual. '
+                  'Maior que zero fica em laco, que e como o container sobe a '
+                  'rotina (start.sh): sem isso a materializacao vira passo '
+                  'manual e materia protocolada NUNCA vira pendencia no app, '
+                  'em silencio. No laco, entre uma varredura e outra, o tick '
+                  'curto (--tick) processa a fila de prioridade (ADR 0014).'))
+        parser.add_argument(
+            '--tick',
+            type=int,
+            default=15,
+            metavar='SEGUNDOS',
+            help=('Cadencia do laco entre varreduras: a cada tick a fila de '
+                  'prioridade (materias marcadas pelo post_save no momento do '
+                  'protocolo/retificacao) e processada — e o que faz a materia '
+                  'recem-protocolada virar pendencia em segundos, nao em '
+                  'minutos. Tick vazio nao grava passada nem toca o banco alem '
+                  'de um SELECT na fila.'))
+        parser.add_argument(
+            '--fila',
+            action='store_true',
+            help=('Processa a fila de prioridade UMA vez e sai, sem varredura. '
+                  'Modo de teste/diagnostico do tick.'))
         parser.add_argument(
             '--somente-novos',
             action='store_true',
@@ -149,21 +168,39 @@ class Command(BaseCommand):
                 'que o servidor do OnlyOffice alcance.')
 
         intervalo = options['intervalo']
+        tick = max(1, options['tick'])
         somente_novos = options['somente_novos']
         disparada_por = options['disparada_por']
+        if options['fila']:
+            self._passada_prioritaria(somente_novos, disparada_por)
+            return
         if intervalo <= 0:
             self._passada_registrada(somente_novos, disparada_por)
             return
         self.stdout.write(
-            'materializar_pdfs: laco a cada %ss (Ctrl-C para sair)' % intervalo)
+            'materializar_pdfs: laco — varredura completa a cada %ss, fila de '
+            'prioridade a cada %ss (Ctrl-C para sair)' % (intervalo, tick))
+        # A proxima varredura conta a partir do FIM da anterior: uma varredura
+        # que leva uma hora num acervo grande nao pode emendar na seguinte com
+        # so um tick de folga.
+        proxima_varredura = 0.0
         while True:
             try:
-                self._passada_registrada(somente_novos, disparada_por)
+                if time.monotonic() >= proxima_varredura:
+                    try:
+                        self._passada_registrada(somente_novos, disparada_por)
+                    finally:
+                        # Reagenda mesmo quando a varredura estoura: sem isso a
+                        # varredura quebrada re-rodaria a cada tick, martelando
+                        # o acervo inteiro a cada 15s em vez de a cada 300s.
+                        proxima_varredura = time.monotonic() + intervalo
+                else:
+                    self._passada_prioritaria(somente_novos)
             except Exception as exc:  # noqa — o laco NUNCA morre: se morrer,
                 # a materializacao para de vez e ninguem percebe ate a materia
                 # nao aparecer para assinar.
                 logger.exception('materializar_pdfs: passada falhou: %s', exc)
-            time.sleep(intervalo)
+            time.sleep(tick)
 
     def _fechar_orfas(self):
         """Libera o lock de passada cujo processo morreu sem fechar a linha.
@@ -188,17 +225,40 @@ class Command(BaseCommand):
                 'materializar_pdfs: passada %s abandonada (aberta desde %s) — '
                 'lock liberado', orfa.pk, orfa.iniciada_em)
 
-    def _passada_registrada(self, somente_novos=False, disparada_por=''):
+    def _passada_prioritaria(self, somente_novos=False, disparada_por=''):
+        """Só as matérias marcadas pelo evento — o caminho dos segundos (ADR 0014).
+
+        Fila vazia é o caso de quase todo tick: sai sem gravar passada nem
+        disputar o lock. Com fila, roda como passada normal (mesmo lock, mesma
+        linha na tela) restrita às marcadas — se a varredura completa estiver no
+        meio, o lock dispensa esta passada e as marcas ficam para o próximo
+        tick.
+        """
+        marcas = list(MateriaParaMaterializar.objects
+                      .select_related('materia')
+                      .order_by('marcada_em', 'materia_id'))
+        if not marcas:
+            return None
+        return self._passada_registrada(somente_novos, disparada_por,
+                                        marcas=marcas)
+
+    def _passada_registrada(self, somente_novos=False, disparada_por='',
+                            marcas=None):
         """Envelope da passada: abre a linha, roda, fecha — sempre fecha.
 
         A linha existe para a tela responder "quando rodou, o que fez, e por que
         falhou" sem ninguém abrir shell. E o `em_andamento` único garante que
-        laço e botão nunca convertam o mesmo documento ao mesmo tempo.
+        laço, tick de prioridade e botão nunca convertam o mesmo documento ao
+        mesmo tempo.
         """
         self._fechar_orfas()
 
-        disparo = (PassadaMaterializacao.DISPARO_MANUAL if disparada_por
-                   else PassadaMaterializacao.DISPARO_LACO)
+        if marcas is not None:
+            disparo = PassadaMaterializacao.DISPARO_PRIORIDADE
+        elif disparada_por:
+            disparo = PassadaMaterializacao.DISPARO_MANUAL
+        else:
+            disparo = PassadaMaterializacao.DISPARO_LACO
         try:
             # `atomic` aqui não é transação de negócio: sem ele a IntegrityError
             # do índice único envenena a transação corrente e o rollback leva
@@ -216,23 +276,53 @@ class Command(BaseCommand):
             return None
 
         try:
-            self._passada(somente_novos, passada)
+            self._passada(somente_novos, passada, marcas)
         finally:
             passada.em_andamento = None
             passada.terminada_em = timezone.now()
             passada.save()
         return passada
 
-    def _passada(self, somente_novos=False, passada=None):
-        materias = (MateriaLegislativa.objects
-                    .filter(numero_protocolo__isnull=False,
-                            texto_original__isnull=False)
-                    .exclude(texto_original='')
-                    .order_by('id'))
+    def _pares_da_fila(self, marcas):
+        """(matéria, marca) das marcadas ainda elegíveis; as demais desmarcam.
+
+        A matéria pode ter saído do filtro entre o evento e o tick (protocolo
+        anulado pelo protocoloadm, texto removido) — processá-la seria erro,
+        deixar a marca seria fila que nunca esvazia.
+        """
+        pares = []
+        for marca in marcas:
+            materia = marca.materia
+            if not materia.numero_protocolo or not materia.texto_original:
+                self._desmarcar(marca)
+                continue
+            pares.append((materia, marca))
+        return pares
+
+    def _desmarcar(self, marca):
+        """Tira da fila SÓ se a marca não avançou depois da leitura.
+
+        Retificação que chega no meio da conversão remarca com `marcada_em`
+        novo — o filtro deixa essa marca viva e o próximo tick regenera sobre
+        o texto novo. Sem o filtro, o evento se perderia até a varredura.
+        """
+        MateriaParaMaterializar.objects.filter(
+            pk=marca.pk, marcada_em__lte=marca.marcada_em).delete()
+
+    def _passada(self, somente_novos=False, passada=None, marcas=None):
+        if marcas is None:
+            materias = (MateriaLegislativa.objects
+                        .filter(numero_protocolo__isnull=False,
+                                texto_original__isnull=False)
+                        .exclude(texto_original='')
+                        .order_by('id'))
+            pares = ((materia, None) for materia in materias.iterator())
+        else:
+            pares = self._pares_da_fila(marcas)
 
         gerados = retificados = pulados = falhas = adiados = 0
         motivos = {}
-        for materia in materias.iterator():
+        for materia, marca in pares:
             try:
                 resultado, motivo = self._materializar(materia, somente_novos)
             except Exception as exc:  # noqa — uma matéria não trava as demais (§5.1)
@@ -243,7 +333,14 @@ class Command(BaseCommand):
                 motivos[type(exc).__name__] = motivos.get(
                     type(exc).__name__, 0) + 1
                 self._registrar_falha(materia, type(exc).__name__)
+                # Falha também desmarca: a falha já está registrada para a tela
+                # e a varredura completa retenta — manter a marca faria o tick
+                # martelar o OnlyOffice a cada 15s com o ambiente quebrado.
+                if marca is not None:
+                    self._desmarcar(marca)
                 continue
+            if marca is not None:
+                self._desmarcar(marca)
             if resultado == 'gerado':
                 gerados += 1
                 self._limpar_falha(materia)
@@ -424,7 +521,14 @@ class Command(BaseCommand):
             materia.assinado_em = None
             materia.assinado_por = None
             materia.codigo_autenticacao = None
-            materia.save()
+            # O post_save de MateriaLegislativa alimenta a fila de prioridade
+            # (ADR 0014); este save é a PRÓPRIA materialização zerando a
+            # assinatura — remarcar aqui criaria um ciclo fila→passada→fila.
+            materia._materializacao_em_curso = True
+            try:
+                materia.save()
+            finally:
+                materia._materializacao_em_curso = False
 
         logger.info(
             'materializar_pdfs: matéria %s RETIFICADA — alvo regenerado (%s) '
