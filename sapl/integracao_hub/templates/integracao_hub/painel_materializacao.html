@@ -46,6 +46,12 @@
     <p>
       <strong>{{ alvos_materializados }}</strong> documento(s) já materializado(s)
       e disponível(is) para assinatura.
+      {% if na_fila %}
+        <span class="text-info">
+          <strong>{{ na_fila }}</strong> matéria(s) na fila de prioridade,
+          aguardando o próximo tick da rotina.
+        </span>
+      {% endif %}
       {% if total_falhas %}
         <span class="text-danger">
           <strong>{{ total_falhas }}</strong> matéria(s) travada(s) agora.
@@ -200,6 +206,8 @@
           <td>
             {% if passada.disparo == 'manual' %}
               {{ passada.disparada_por|default:"manual" }}
+            {% elif passada.disparo == 'prioridade' %}
+              fila
             {% else %}
               laço
             {% endif %}

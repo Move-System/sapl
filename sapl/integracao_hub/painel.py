@@ -42,7 +42,7 @@ from django.urls import reverse
 from django.views.generic import TemplateView, View
 
 from .models import (DocumentoParaAssinatura, MateriaComFalhaMaterializacao,
-                     PassadaMaterializacao)
+                     MateriaParaMaterializar, PassadaMaterializacao)
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +105,9 @@ class PainelMaterializacaoView(PermissionRequiredMixin, TemplateView):
             'total_falhas': total_falhas,
             'falhas_ocultas': max(0, total_falhas - len(falhas)),
             'alvos_materializados': DocumentoParaAssinatura.objects.count(),
+            # Fila de prioridade (ADR 0014): matérias marcadas pelo evento
+            # aguardando o tick. Cresce e não esvazia = o laço não está de pé.
+            'na_fila': MateriaParaMaterializar.objects.count(),
             # A configuração que decide o sucesso da conversão fica na tela
             # porque foi exatamente ela a causa do incidente de 25/08 — e lê-la
             # exigia shell.

@@ -19,7 +19,8 @@ services:
     # producao): sem ela, materia protocolada nunca vira pendencia no app.
     command: >
       sh -c "python3 manage.py materializar_pdfs_para_assinatura
-      --intervalo ${MATERIALIZACAO_INTERVALO_SEGUNDOS:-300} &
+      --intervalo ${MATERIALIZACAO_INTERVALO_SEGUNDOS:-300}
+      --tick ${MATERIALIZACAO_TICK_SEGUNDOS:-15} &
       exec python3 manage.py runserver 0:8000"
     volumes:
       - ..:/sapl-dev

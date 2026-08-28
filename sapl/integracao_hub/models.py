@@ -210,9 +210,11 @@ class PassadaMaterializacao(models.Model):
 
     DISPARO_LACO = 'laco'
     DISPARO_MANUAL = 'manual'
+    DISPARO_PRIORIDADE = 'prioridade'
     DISPARO_CHOICES = (
         (DISPARO_LACO, _('Laço automático')),
         (DISPARO_MANUAL, _('Disparo manual pela tela')),
+        (DISPARO_PRIORIDADE, _('Fila de prioridade')),
     )
 
     iniciada_em = models.DateTimeField(
@@ -321,3 +323,43 @@ class MateriaComFalhaMaterializacao(models.Model):
 
     def __str__(self):
         return 'Matéria %s: %s' % (self.materia_id, self.motivo)
+
+
+class MateriaParaMaterializar(models.Model):
+    """Fila de prioridade da materialização (ADR 0014): a marca, não o trabalho.
+
+    Fecha o gap entre o evento (matéria protocolada com texto, texto
+    retificado) e a varredura do laço, que rodava a cada 5 minutos sobre o
+    acervo inteiro. O receiver de `post_save` de `MateriaLegislativa` grava
+    UMA linha aqui — custo de um upsert dentro do request — e quem converte
+    continua sendo só o processo do laço, no tick curto de prioridade. É isso
+    que preserva o dono único da conversão OnlyOffice (§5.1): o caminho quente
+    das requisições nunca converte, só aponta.
+
+    Uma linha por matéria, não por evento: dois saves seguidos da mesma
+    matéria são um único trabalho pendente. `marcada_em` avança a cada
+    remarcação — é ela que protege a marca de ser apagada por um tick que
+    processou a versão anterior do texto (o tick só apaga marca com
+    `marcada_em` menor ou igual à que ele leu).
+    """
+
+    materia = models.OneToOneField(
+        'materia.MateriaLegislativa',
+        on_delete=models.CASCADE,
+        related_name='+',
+        verbose_name=_('Matéria Legislativa'))
+
+    marcada_em = models.DateTimeField(
+        verbose_name=_('Marcada em'),
+        help_text=_('Avança a cada remarcação. O tick de prioridade só '
+                    'remove a marca se ela não avançou depois da leitura — '
+                    'retificação no meio da conversão não se perde.'))
+
+    class Meta:
+        verbose_name = _('Matéria na Fila de Materialização')
+        verbose_name_plural = _('Matérias na Fila de Materialização')
+        ordering = ('marcada_em', 'materia_id')
+
+    def __str__(self):
+        return 'Matéria %s na fila desde %s' % (self.materia_id,
+                                                self.marcada_em)
