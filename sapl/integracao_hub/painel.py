@@ -41,8 +41,9 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.views.generic import TemplateView, View
 
-from .models import (DocumentoParaAssinatura, MateriaComFalhaMaterializacao,
-                     MateriaParaMaterializar, PassadaMaterializacao)
+from .models import (BatimentoLaco, DocumentoParaAssinatura,
+                     MateriaComFalhaMaterializacao, MateriaParaMaterializar,
+                     PassadaMaterializacao)
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,10 @@ class PainelMaterializacaoView(PermissionRequiredMixin, TemplateView):
             # Fila de prioridade (ADR 0014): matérias marcadas pelo evento
             # aguardando o tick. Cresce e não esvazia = o laço não está de pé.
             'na_fila': MateriaParaMaterializar.objects.count(),
+            # Batimento do laço (ADR 0015): a resposta de "está rodando?" sem
+            # shell. Morto aqui + fila crescendo = autossupervisão também
+            # falhou (aí sim é caso de shell).
+            'batimento': BatimentoLaco.objects.first(),
             # A configuração que decide o sucesso da conversão fica na tela
             # porque foi exatamente ela a causa do incidente de 25/08 — e lê-la
             # exigia shell.

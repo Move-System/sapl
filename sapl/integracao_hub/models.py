@@ -363,3 +363,47 @@ class MateriaParaMaterializar(models.Model):
     def __str__(self):
         return 'Matéria %s na fila desde %s' % (self.materia_id,
                                                 self.marcada_em)
+
+
+class BatimentoLaco(models.Model):
+    """Batimento do laço de materialização — singleton (pk=1), ADR 0015.
+
+    O laço grava aqui a cada tick (e durante varreduras longas, a cada poucos
+    segundos). É o que permite a autossupervisão: o middleware do processo web
+    — o único processo cuja existência é garantida, porque o hub bate na API o
+    tempo todo — lê este batimento e, se ele envelhecer, ressuscita o laço.
+    Ninguém precisa lembrar de subir nada: nem supervisor, nem cron, nem Léo.
+
+    Também é o guarda de instância única: um laço que sobe e encontra
+    batimento fresco de OUTRO processo sai imediatamente — o lock de passada
+    já impedia conversão dupla; este impede dois laços vivos disputando.
+    """
+
+    visto_em = models.DateTimeField(
+        verbose_name=_('Último batimento'))
+
+    iniciado_em = models.DateTimeField(
+        verbose_name=_('Laço iniciado em'))
+
+    pid = models.IntegerField(
+        verbose_name=_('PID do processo do laço'))
+
+    tick_segundos = models.IntegerField(
+        default=15,
+        verbose_name=_('Tick configurado (s)'),
+        help_text=_('Gravado pelo próprio laço: é a referência para decidir '
+                    'se o batimento envelheceu.'))
+
+    class Meta:
+        verbose_name = _('Batimento do Laço de Materialização')
+        verbose_name_plural = _('Batimentos do Laço de Materialização')
+
+    def __str__(self):
+        return 'Laço pid %s, batimento %s' % (self.pid, self.visto_em)
+
+    @property
+    def fresco(self):
+        """Vivo = bateu há menos de 3 ticks (piso de 60s para folga de carga)."""
+        from django.utils import timezone
+        janela = max(3 * (self.tick_segundos or 15), 60)
+        return (timezone.now() - self.visto_em).total_seconds() < janela

@@ -44,6 +44,28 @@
     {% endif %}
 
     <p>
+      {% if batimento %}
+        {% if batimento.fresco %}
+          <span class="text-success">
+            <strong>Laço automático vivo</strong> (pid {{ batimento.pid }},
+            último batimento {{ batimento.visto_em }}).
+          </span>
+        {% else %}
+          <span class="text-danger">
+            <strong>Laço automático SEM batimento</strong> desde
+            {{ batimento.visto_em }} — a autossupervisão vai ressuscitá-lo no
+            próximo acesso ao sistema; se esta mensagem persistir, o respawn
+            está falhando (ver sapl.log).
+          </span>
+        {% endif %}
+      {% else %}
+        <span class="text-warning">
+          <strong>Laço automático nunca bateu</strong> — sobe sozinho no
+          primeiro acesso após o deploy desta versão.
+        </span>
+      {% endif %}
+    </p>
+    <p>
       <strong>{{ alvos_materializados }}</strong> documento(s) já materializado(s)
       e disponível(is) para assinatura.
       {% if na_fila %}

@@ -10,7 +10,8 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from sapl.integracao_hub.models import (DocumentoParaAssinatura,
+from sapl.integracao_hub.models import (BatimentoLaco,
+                                        DocumentoParaAssinatura,
                                         MateriaComFalhaMaterializacao,
                                         MateriaParaMaterializar,
                                         PassadaMaterializacao)
@@ -177,6 +178,31 @@ class Command(BaseCommand):
         if intervalo <= 0:
             self._passada_registrada(somente_novos, disparada_por)
             return
+
+        # Instância única do LAÇO (ADR 0015): batimento fresco de outro
+        # processo = já existe laço vivo, este sai. O lock de passada impedia
+        # conversão dupla; isto impede dois laços residentes disputando — o
+        # cenário que a autossupervisão cria quando dois workers do gunicorn
+        # decidem ressuscitar o laço no mesmo segundo.
+        batimento = BatimentoLaco.objects.first()
+        if batimento and batimento.fresco and batimento.pid != os.getpid():
+            self.stdout.write(
+                'materializar_pdfs: ja existe laco vivo (pid %s, batimento '
+                '%s) — este processo sai' % (batimento.pid, batimento.visto_em))
+            return
+
+        self._batendo = True
+        self._tick = tick
+        self._iniciado_em = timezone.now()
+        # A versao do codigo em disco no momento da subida. Quando um deploy
+        # troca o arquivo, o laco RESIDENTE continuaria rodando o codigo velho
+        # para sempre — entao ele se encerra e deixa a autossupervisao (ou o
+        # supervisor) ressuscita-lo ja atualizado.
+        try:
+            self._versao_codigo = os.path.getmtime(__file__)
+        except OSError:
+            self._versao_codigo = None
+
         self.stdout.write(
             'materializar_pdfs: laco — varredura completa a cada %ss, fila de '
             'prioridade a cada %ss (Ctrl-C para sair)' % (intervalo, tick))
@@ -185,6 +211,15 @@ class Command(BaseCommand):
         # so um tick de folga.
         proxima_varredura = 0.0
         while True:
+            self._bater()
+            if self._codigo_mudou_no_disco():
+                self.stdout.write(
+                    'materializar_pdfs: codigo novo no disco — laco sai para '
+                    'renascer atualizado (autossupervisao/supervisor sobem '
+                    'outro)')
+                logger.info(
+                    'materializar_pdfs: laco encerrado por deploy detectado')
+                return
             try:
                 if time.monotonic() >= proxima_varredura:
                     try:
@@ -201,6 +236,50 @@ class Command(BaseCommand):
                 # nao aparecer para assinar.
                 logger.exception('materializar_pdfs: passada falhou: %s', exc)
             time.sleep(tick)
+
+    # Estado do modo laço (ADR 0015). Fora do laço (passada manual, botão da
+    # tela, --fila) nada disso é tocado: `_batendo` False faz `_bater` ser um
+    # no-op e o batimento continua contando só a vida do laço residente.
+    _batendo = False
+    _tick = 15
+    _iniciado_em = None
+    _versao_codigo = None
+    _ultimo_batimento_monotonic = 0.0
+
+    def _bater(self):
+        """Grava o batimento (singleton pk=1), no máximo a cada 10s.
+
+        Chamado a cada iteração do laço E a cada matéria da varredura: uma
+        varredura de uma hora sem batimento pareceria laço morto e faria a
+        autossupervisão subir um segundo processo.
+        """
+        if not self._batendo:
+            return
+        agora = time.monotonic()
+        if (self._ultimo_batimento_monotonic
+                and agora - self._ultimo_batimento_monotonic < 10):
+            return
+        self._ultimo_batimento_monotonic = agora
+        try:
+            BatimentoLaco.objects.update_or_create(pk=1, defaults={
+                'visto_em': timezone.now(),
+                'iniciado_em': self._iniciado_em,
+                'pid': os.getpid(),
+                'tick_segundos': self._tick})
+        except Exception as exc:  # noqa — batimento é sinal vital, não trabalho:
+            # falhar em gravá-lo não pode derrubar a materialização em si.
+            logger.warning('materializar_pdfs: falha ao gravar batimento: %s',
+                           exc)
+
+    def _codigo_mudou_no_disco(self):
+        """Deploy trocou o arquivo do comando? Então este laço está defasado."""
+        if self._versao_codigo is None:
+            return False
+        try:
+            return os.path.getmtime(__file__) != self._versao_codigo
+        except OSError:
+            # Arquivo sumiu do caminho = deploy em curso: melhor renascer.
+            return True
 
     def _fechar_orfas(self):
         """Libera o lock de passada cujo processo morreu sem fechar a linha.
@@ -323,6 +402,7 @@ class Command(BaseCommand):
         gerados = retificados = pulados = falhas = adiados = 0
         motivos = {}
         for materia, marca in pares:
+            self._bater()  # varredura longa não pode parecer laço morto
             try:
                 resultado, motivo = self._materializar(materia, somente_novos)
             except Exception as exc:  # noqa — uma matéria não trava as demais (§5.1)
