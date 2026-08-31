@@ -156,6 +156,10 @@ MIDDLEWARE = [
     'waffle.middleware.WaffleMiddleware',
     'sapl.middleware.CheckWeakPasswordMiddleware',
     'django_prometheus.middleware.PrometheusAfterMiddleware',
+    # Autossupervisão da materialização (ADR 0015): cada request confere (no
+    # máximo 1x/min) se o laço do PDF-alvo está vivo e o ressuscita se não —
+    # o SAPL de produção roda fora de docker e nada mais garante esse processo.
+    'sapl.integracao_hub.middleware.AutossupervisaoMaterializacao',
 ]
 if DEBUG and 'runserver' in sys.argv:
     INSTALLED_APPS += ('debug_toolbar',)
@@ -164,6 +168,12 @@ if DEBUG and 'runserver' in sys.argv:
 
 
 SITE_URL = config('SITE_URL', cast=str, default='')
+
+# Desligue APENAS onde o laço de materialização é gerido por fora (supervisor/
+# systemd) e o respawn automático atrapalharia. O padrão ligado é o que
+# garante a materialização sem depender de memória de operador (ADR 0015).
+MATERIALIZACAO_AUTOSSUPERVISAO = config(
+    'MATERIALIZACAO_AUTOSSUPERVISAO', cast=bool, default=True)
 
 REST_FRAMEWORK = {
     "UNICODE_JSON": False,
