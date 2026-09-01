@@ -226,3 +226,16 @@
   - title: {% trans 'Publicador' %}
     url: sapl.lexml:lexmlpublicador_list
     css_class: btn btn-link
+- title: {% trans 'Integração com o Aplicativo' %}
+  css_class: head_title
+  children:
+  # Caminho literal, não nome de rota: o resolvedor deste menu (templatetags/
+  # menus.py) prefixa nome sem ':' com o app da PÁGINA, que aqui é `sapl.base`,
+  # e levantaria exceção derrubando a tela inteira de Tabelas Auxiliares. O ramo
+  # de caminho literal é suportado e passa direto. O teste
+  # `test_painel.py::test_menu_aponta_para_a_rota_do_painel` trava este caminho
+  # contra a rota, para os dois não divergirem em silêncio.
+  - title: {% trans 'Materialização de documentos para assinatura' %}
+    url: /sistema/integracao/materializacao/
+    css_class: btn btn-link
+    check_permission: integracao_hub.pode_integrar

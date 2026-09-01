@@ -260,6 +260,18 @@ setup_cache_dir() {
   umask 0007
 }
 
+# A materializacao do PDF-alvo da assinatura (refinamento §5) roda AQUI, junto do
+# servico — nao e passo opcional de implantacao. Sem ela, materia protocolada nunca
+# vira pendencia no app e a falha e MUDA: nenhum erro, a materia so nao aparece para
+# assinar. O comando e idempotente (§5.1) e engole falha por materia, entao a passada
+# seguinte recupera sozinha o DOCX que o OnlyOffice ainda nao converteu.
+start_materializacao_assinatura() {
+  local intervalo="${MATERIALIZACAO_INTERVALO_SEGUNDOS:-300}"
+  local tick="${MATERIALIZACAO_TICK_SEGUNDOS:-15}"
+  log "Starting materializacao do PDF-alvo (varredura a cada ${intervalo}s, fila de prioridade a cada ${tick}s)..."
+  python manage.py materializar_pdfs_para_assinatura --intervalo "$intervalo" --tick "$tick" &
+}
+
 start_services() {
   log "Starting gunicorn..."
   gunicorn -c gunicorn.conf.py &
@@ -278,6 +290,7 @@ main() {
   create_admin
   setup_cache_dir
   fix_logging_and_socket_perms
+  start_materializacao_assinatura
 
   cat <<'BANNER'
 -------------------------------------

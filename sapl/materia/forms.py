@@ -1184,28 +1184,35 @@ class MateriaLegislativaFilterSet(django_filters.FilterSet):
             )
          )
 
+    def _autores_do_filtro(self):
+        """Autor do próprio filtro (`?autoria__autor=`), quando houver.
+
+        É o que torna o "pendente" da pesquisa igual ao do badge do menu: os
+        dois links que o SAPL gera trazem o autor junto, e é dele a pendência.
+        Sem autor no querystring não há a quem atribuí-la, e vale a forma
+        agregada de `sapl.materia.pendencias`.
+        """
+        from sapl.base.models import Autor
+
+        autor_pk = (self.data or {}).get('autoria__autor')
+        if not autor_pk:
+            return []
+        try:
+            return list(Autor.objects.filter(pk=int(autor_pk)))
+        except (TypeError, ValueError):
+            return []
+
     def filter_status_assinatura(self, queryset, name, value):
+        # Pendência é POR AUTOR (`sapl.materia.pendencias`). A versão anterior
+        # olhava só `pdf_assinado`: a matéria que um coautor já tinha assinado
+        # sumia de "pendente" para o outro, que ainda precisava assinar.
+        from sapl.materia.pendencias import filtrar_assinadas, filtrar_pendentes
+
+        autores = self._autores_do_filtro()
         if value == 'pendente':
-            # Tem texto original mas não tem PDF assinado
-            return queryset.filter(
-                texto_original__isnull=False
-            ).exclude(
-                texto_original=''
-            ).filter(
-                pdf_assinado__isnull=True
-            ) | queryset.filter(
-                texto_original__isnull=False
-            ).exclude(
-                texto_original=''
-            ).filter(
-                pdf_assinado=''
-            )
+            return filtrar_pendentes(queryset, autores=autores)
         elif value == 'assinada':
-            return queryset.exclude(
-                pdf_assinado__isnull=True
-            ).exclude(
-                pdf_assinado=''
-            )
+            return filtrar_assinadas(queryset, autores=autores)
         return queryset
 
     @property
