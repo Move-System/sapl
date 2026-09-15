@@ -32,14 +32,17 @@ Quem **compõe** a página de autenticação (código, URL de verificação, QR,
 da grade) decide qual função chamar:
 
 - **Composição no microserviço** — `assinar_pdf_com_pagina_autenticacao()`, um
-  documento por vez. É o caminho da C3 e o padrão para assinatura individual de
-  matéria e de documento acessório: o SAPL manda os dados da casa legislativa e
+  documento por vez, e `assinar_lote_com_pagina_autenticacao()`, que é essa mesma
+  chamada em série. É o caminho da C3 e o padrão para matéria e documento
+  acessório, individual ou em lote: o SAPL manda os dados da casa legislativa e
   recebe o PDF já composto, o código no `X-Codigo-Autenticacao` e os metadados do
-  certificado via `/validate-pfx`.
-- **Composição no SAPL** — `assinar_pdf_lote_via_api()`, para as telas "Assinar
-  Despachos em Lote". O `/sign/batch` **não compõe**: seus parâmetros valem para
-  o lote inteiro, e a composição é por documento. Então o chamador compõe cada
-  PDF localmente e manda coordenadas explícitas; o batch só carimba.
+  certificado via `/validate-pfx`. **Nenhum `signature_*` é enviado** — quem conta
+  as assinaturas do PDF e escolhe página e bloco é o microserviço.
+- **Composição no SAPL** — `assinar_pdf_via_api()` e `assinar_pdf_lote_via_api()`,
+  que mandam coordenada explícita e exigem que o chamador já tenha composto a
+  página. Não há mais chamador delas no SAPL: o lote migrou para a composição
+  delegada em 2026-09-15, e o caminho de posição explícita (`posicao_custom`) não
+  tem mais quem o alimente. Ficam pela compatibilidade de contrato.
 
 As duas produzem o mesmo artefato — a grade e o algoritmo do código são os
 mesmos dos dois lados (sha256[:16].upper(), congelado). O que muda é onde o
@@ -49,9 +52,12 @@ Mandar para `assinar_pdf_lote_via_api()` um PDF **não composto** produz documen
 sem página de autenticação e sem código verificável — é o erro que a condição de
 validade no docstring daquela função existe para evitar.
 
-Antes de mudar esse desenho (por exemplo, fazer o lote delegar), fale com o
-arquiteto: a decisão da C3 (AB#1473) é que o microserviço é o centro evolutivo
-das assinaturas, e um lote delegado exige `auth_page` por item, do lado de lá.
+Por que o lote migrou: o `/sign/batch` obrigava o SAPL a compor a página e a mandar
+a coordenada do bloco junto com o número da página. Bastou esse número estar errado
+uma vez para o autógrafo 77/2026 da Câmara de Franco da Rocha ser publicado com o
+carimbo no corpo do documento, por cima do Art. 14. A condição que o desenho
+anterior pedia para mudar isso — `auth_page` por item, do lado do microserviço —
+já estava satisfeita desde a C2.
 """
 
 import json
@@ -260,6 +266,96 @@ def assinar_pdf_com_pagina_autenticacao(
         f'pagina_anexada={resultado.auth_page_aplicada}).'
     )
     return resultado
+
+
+def assinar_lote_com_pagina_autenticacao(
+        itens, *, certificado_bytes, senha,
+        casa_legislativa=None, signer_name=None, signer_role=None,
+        brasao_bytes=None, brasao_filename='brasao.png',
+        reason=None, location=None):
+    """
+    O lote da composição delegada: um `/sign` por documento, em série.
+
+    O `/sign/batch` **não** compõe a página de autenticação, e não é descuido: os
+    parâmetros da composição dependem de cada documento (URL de verificação, código
+    já emitido, bloco a ocupar), e o batch tem um campo só para o lote inteiro.
+    Usá-lo aqui obrigava o SAPL a compor a página por conta própria e a mandar a
+    coordenada do bloco junto com o número da página — e bastou esse número estar
+    errado uma vez para o autógrafo 77/2026 da Câmara de Franco da Rocha sair
+    publicado com o carimbo por cima do Art. 14, no corpo do documento.
+
+    Aqui ninguém manda posição. O microserviço conta as assinaturas do próprio PDF e
+    escolhe página e bloco — a mesma rota do caminho individual, que nunca errou a
+    página porque nunca a escolheu.
+
+    Parâmetros
+    ----------
+    itens : list[dict] — cada item deve ter:
+        'id'                    : identificador (preservado no resultado)
+        'pdf_bytes'             : bytes do PDF a assinar
+        'verification_url_base' : URL pública de verificação, sem o `?codigo=`
+        'assinaturas'           : blocos a desenhar ([{nome_assinante, cargo,
+                                  data_assinatura}])
+        'codigo_autenticacao'   : código já emitido — obrigatório da 2ª assinatura
+                                  em diante, vazio na primeira
+
+    Retorna: list[dict] na ordem de `itens`, com 'id', 'ok', e então 'pdf_bytes' +
+    'codigo_autenticacao' (ok=True) ou 'error' (ok=False). Um documento que falha
+    não derruba os outros — o lote é de conveniência, não uma transação.
+    """
+    if not _api_configurada():
+        raise AssinaturaAPIError(
+            'Microserviço de assinatura não configurado (ASSINATURA_API_URL vazio).'
+        )
+
+    resultados = []
+    for item in itens:
+        try:
+            resultado = assinar_pdf_com_pagina_autenticacao(
+                item['pdf_bytes'],
+                certificado_bytes=certificado_bytes,
+                senha=senha,
+                verification_url_base=item['verification_url_base'],
+                assinaturas=item.get('assinaturas') or [],
+                casa_legislativa=casa_legislativa,
+                signer_name=signer_name,
+                signer_role=signer_role,
+                codigo_autenticacao=item.get('codigo_autenticacao') or None,
+                brasao_bytes=brasao_bytes,
+                brasao_filename=brasao_filename,
+                reason=reason,
+                location=location,
+            )
+        except AssinaturaAPIError as exc:
+            logger.error(f"[assinatura-api/lote] Documento {item['id']} falhou: {exc}")
+            resultados.append({'id': item['id'], 'ok': False, 'error': str(exc)})
+            continue
+
+        if not resultado.auth_page_suportado:
+            # Mesma recusa do caminho individual: sem os cabeçalhos do auth_page o
+            # microserviço ignorou a composição, e o PDF sairia sem página de
+            # autenticação e sem código verificável. Gravar isso é pior que falhar.
+            resultados.append({
+                'id': item['id'],
+                'ok': False,
+                'error': (
+                    'O microserviço de assinatura não compôs a página de '
+                    'autenticação (resposta sem X-Auth-Page-Applied). Atualize o '
+                    'microserviço para a versão com suporte a auth_page.'
+                ),
+            })
+            continue
+
+        resultados.append({
+            'id': item['id'],
+            'ok': True,
+            'pdf_bytes': resultado.pdf,
+            'codigo_autenticacao': (
+                resultado.codigo_autenticacao if resultado.auth_page_aplicada else None
+            ),
+        })
+
+    return resultados
 
 
 def assinar_pdf_via_api(pdf_bytes, *, certificado_bytes, senha,
