@@ -2304,92 +2304,61 @@ def materia_assinar_lote(request):
         meta_map[pk] = {'descricao': descricao, 'assinaturas_existentes': assinaturas_existentes}
         itens_para_assinar.append({'pk': pk, 'pdf_bytes': pdf_bytes})
 
-    # ── Assinatura: paralela (API externa) ou sequencial (pyhanko) ────────────
+    # ── Assinatura: API externa (um /sign por documento) ou local (pyhanko) ───
     if _usar_api_externa() and itens_para_assinar:
-        from sapl.materia.assinatura_api_client import assinar_pdf_lote_via_api, AssinaturaAPIError as _APIError
+        from sapl.materia.assinatura_api_client import (
+            assinar_lote_com_pagina_autenticacao,
+        )
 
-        # Preparar itens com página de autenticação e coordenadas
-        from PyPDF4 import PdfFileReader, PdfFileWriter
-        import base64 as _base64
-
-        nome_assinante = request.user.get_full_name() or request.user.username
-        cargo = 'Usuário do Sistema'
-        try:
-            from sapl.base.models import Autor
-            from sapl.parlamentares.models import Parlamentar
-            autor = Autor.objects.filter(operadores=request.user).first()
-            if autor:
-                tipo_desc = autor.tipo.descricao if autor.tipo else ''
-                if tipo_desc == 'Parlamentar':
-                    cargo = 'Vereador(a)'
-                elif tipo_desc:
-                    cargo = tipo_desc
-                if isinstance(autor.autor_related, Parlamentar):
-                    parl = autor.autor_related
-                    tipo_nome = AppConfig.attr('assinatura_nome')
-                    nome_assinante = parl.nome_completo if tipo_nome == 'C' else parl.nome_parlamentar
-        except Exception:
-            pass
+        nome_assinante, cargo = _nome_e_cargo_do_assinante(request)
 
         data_assinatura = timezone.localtime(timezone.now())
         data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
         data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
 
+        # O lote passa pela MESMA rota do caminho individual: o microserviço compõe a
+        # página de autenticação e escolhe o bloco contando as assinaturas do próprio
+        # PDF. Até aqui o lote compunha a página por conta e mandava a coordenada do
+        # bloco junto com o número da página pelo `/sign/batch` — e bastou esse número
+        # estar errado uma vez para o autógrafo 77/2026 da Câmara de Franco da Rocha
+        # ser publicado com o carimbo por cima do Art. 14. Nenhum `signature_*` sai
+        # daqui, de propósito: quem não escolhe a página não erra a página.
         itens_api = []
-        codigos_map = {}  # pk → codigo_autenticacao
-
         for item in itens_para_assinar:
             pk = item['pk']
-            pdf_bytes = item['pdf_bytes']
+            materia = materias_map[pk]
             assinaturas_existentes = meta_map[pk]['assinaturas_existentes']
-            ja_tem = bool(assinaturas_existentes)
-
-            if not ja_tem:
-                # Composição local, documento por documento — é o que torna o
-                # /sign/batch utilizável: ele só carimba. Mesmo helper do caminho
-                # individual local, para não existir um terceiro compositor.
-                pdf_para_assinar, codigo = _compor_pagina_auth_localmente(
-                    pdf_bytes, request, 'materia', pk,
-                    [{
-                        'nome_assinante': nome_assinante,
-                        'cargo': cargo,
-                        'data_assinatura': data_simples,
-                    }],
-                )
-                codigos_map[pk] = codigo
-            else:
-                pdf_para_assinar = pdf_bytes
-
-            n_assinatura = len(assinaturas_existentes)
-            try:
-                temp_pdf = PdfFileReader(io.BytesIO(pdf_para_assinar))
-                auth_pg = temp_pdf.getPage(temp_pdf.getNumPages() - 1)
-                auth_w = float(auth_pg.mediaBox.getWidth())
-                auth_h = float(auth_pg.mediaBox.getHeight())
-                x1, y1, x2, y2 = _posicao_bloco_assinatura(n_assinatura, auth_w, auth_h)
-                sig_page = temp_pdf.getNumPages()
-                sig_left, sig_bottom = x1, y1
-                sig_width, sig_height = x2 - x1, y2 - y1
-            except Exception:
-                sig_page = sig_left = sig_bottom = sig_width = sig_height = None
 
             itens_api.append({
                 'id': pk,
-                'pdf_bytes': pdf_para_assinar,
-                'signature_page': sig_page,
-                'signature_left': sig_left,
-                'signature_bottom': sig_bottom,
-                'signature_width': sig_width,
-                'signature_height': sig_height,
+                'pdf_bytes': item['pdf_bytes'],
+                'verification_url_base': _construir_url_verificacao_base(
+                    request, 'materia', pk
+                ),
+                'assinaturas': [{
+                    'nome_assinante': nome_assinante,
+                    'cargo': cargo,
+                    'data_assinatura': data_simples,
+                }],
+                # Da 2ª assinatura em diante o código já está impresso na página: o
+                # PDF mudou ao ser assinado e o hash de agora não o reproduz.
+                'codigo_autenticacao': (
+                    materia.codigo_autenticacao or ''
+                ) if assinaturas_existentes else None,
             })
 
-        logger.info(f'[lote] Enviando {len(itens_api)} PDFs em paralelo para API externa...')
-        resultados_api = assinar_pdf_lote_via_api(
+        logger.info(f'[lote] Enviando {len(itens_api)} PDFs ao microservico, um a um...')
+        resultados_api = assinar_lote_com_pagina_autenticacao(
             itens_api,
             certificado_bytes=cert_bytes,
             senha=senha,
+            casa_legislativa=_obter_nome_casa_legislativa(),
+            signer_name=nome_assinante,
+            signer_role=cargo,
+            brasao_bytes=_ler_brasao(),
+            brasao_filename=os.path.basename(_encontrar_logo() or 'brasao.png'),
             reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-            location='Câmara Municipal',
+            location=_obter_nome_casa_legislativa(),
         )
 
         for res_api in resultados_api:
@@ -2419,15 +2388,15 @@ def materia_assinar_lote(request):
 
             filename = f"materia_{pk}_assinado_{int(timezone.now().timestamp())}.pdf"
             materia.pdf_assinado.save(filename, ContentFile(res_api['pdf_bytes']), save=False)
-            if pk in codigos_map:
-                materia.codigo_autenticacao = codigos_map[pk]
+            if res_api.get('codigo_autenticacao'):
+                materia.codigo_autenticacao = res_api['codigo_autenticacao']
             assinaturas_existentes.append(nova_assinatura)
             materia.assinatura_info = assinaturas_existentes
             materia.assinado_em = timezone.now()
             materia.assinado_por = request.user
             materia.save()
 
-            logger.info(f'[lote] Matéria {pk} assinada por {request.user.username} (api_externa/paralelo)')
+            logger.info(f'[lote] Matéria {pk} assinada por {request.user.username} (api_externa)')
             resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
             sucesso_count += 1
 
@@ -2640,88 +2609,55 @@ def docacessorio_assinar_lote(request):
         meta_map_doc[pk] = {'descricao': descricao, 'assinaturas_existentes': assinaturas_existentes}
         itens_para_assinar.append({'pk': pk, 'pdf_bytes': pdf_bytes})
 
-    # -- Assinatura: /sign/batch (API externa) ou sequencial (pyhanko) --
+    # -- Assinatura: API externa (um /sign por documento) ou local (pyhanko) --
     if _usar_api_externa() and itens_para_assinar:
-        from sapl.materia.assinatura_api_client import assinar_pdf_lote_via_api, AssinaturaAPIError as _APIError
-        from PyPDF4 import PdfFileReader, PdfFileWriter
+        from sapl.materia.assinatura_api_client import (
+            assinar_lote_com_pagina_autenticacao,
+        )
 
-        nome_assinante = request.user.get_full_name() or request.user.username
-        cargo = 'Usuário do Sistema'
-        try:
-            from sapl.base.models import Autor
-            from sapl.parlamentares.models import Parlamentar
-            autor = Autor.objects.filter(operadores=request.user).first()
-            if autor:
-                tipo_desc = autor.tipo.descricao if autor.tipo else ''
-                if tipo_desc == 'Parlamentar':
-                    cargo = 'Vereador(a)'
-                elif tipo_desc:
-                    cargo = tipo_desc
-                if isinstance(autor.autor_related, Parlamentar):
-                    parl = autor.autor_related
-                    tipo_nome = AppConfig.attr('assinatura_nome')
-                    nome_assinante = parl.nome_completo if tipo_nome == 'C' else parl.nome_parlamentar
-        except Exception:
-            pass
+        nome_assinante, cargo = _nome_e_cargo_do_assinante(request)
 
         data_assinatura = timezone.localtime(timezone.now())
         data_simples = data_assinatura.strftime('%d/%m/%Y %H:%M')
         data_formatada = data_assinatura.strftime('%d/%m/%Y %H:%M:%S')
 
+        # Mesma rota do lote de matéria e do caminho individual: o microserviço
+        # compõe a página e escolhe o bloco. Ver o comentário em
+        # `materia_assinar_lote` para o que motivou a troca.
         itens_api = []
-        codigos_map = {}
-
         for item in itens_para_assinar:
             pk = item['pk']
-            pdf_bytes = item['pdf_bytes']
+            doc = docs_map[pk]
             assinaturas_existentes = meta_map_doc[pk]['assinaturas_existentes']
-            ja_tem = bool(assinaturas_existentes)
-
-            if not ja_tem:
-                # Mesma composição local do lote de matéria e do caminho
-                # individual local — um compositor só (ver _compor_pagina_auth_localmente).
-                pdf_para_assinar, codigo = _compor_pagina_auth_localmente(
-                    pdf_bytes, request, 'docacessorio', pk,
-                    [{
-                        'nome_assinante': nome_assinante,
-                        'cargo': cargo,
-                        'data_assinatura': data_simples,
-                    }],
-                )
-                codigos_map[pk] = codigo
-            else:
-                pdf_para_assinar = pdf_bytes
-
-            n_assinatura = len(assinaturas_existentes)
-            try:
-                temp_pdf = PdfFileReader(io.BytesIO(pdf_para_assinar))
-                auth_pg = temp_pdf.getPage(temp_pdf.getNumPages() - 1)
-                auth_w = float(auth_pg.mediaBox.getWidth())
-                auth_h = float(auth_pg.mediaBox.getHeight())
-                x1, y1, x2, y2 = _posicao_bloco_assinatura(n_assinatura, auth_w, auth_h)
-                sig_page = temp_pdf.getNumPages()
-                sig_left, sig_bottom = x1, y1
-                sig_width, sig_height = x2 - x1, y2 - y1
-            except Exception:
-                sig_page = sig_left = sig_bottom = sig_width = sig_height = None
 
             itens_api.append({
                 'id': pk,
-                'pdf_bytes': pdf_para_assinar,
-                'signature_page': sig_page,
-                'signature_left': sig_left,
-                'signature_bottom': sig_bottom,
-                'signature_width': sig_width,
-                'signature_height': sig_height,
+                'pdf_bytes': item['pdf_bytes'],
+                'verification_url_base': _construir_url_verificacao_base(
+                    request, 'docacessorio', pk
+                ),
+                'assinaturas': [{
+                    'nome_assinante': nome_assinante,
+                    'cargo': cargo,
+                    'data_assinatura': data_simples,
+                }],
+                'codigo_autenticacao': (
+                    doc.codigo_autenticacao or ''
+                ) if assinaturas_existentes else None,
             })
 
-        logger.info(f'[lote-doc] Enviando {len(itens_api)} PDFs em batch para API externa...')
-        resultados_api = assinar_pdf_lote_via_api(
+        logger.info(f'[lote-doc] Enviando {len(itens_api)} PDFs ao microservico, um a um...')
+        resultados_api = assinar_lote_com_pagina_autenticacao(
             itens_api,
             certificado_bytes=cert_bytes,
             senha=senha,
+            casa_legislativa=_obter_nome_casa_legislativa(),
+            signer_name=nome_assinante,
+            signer_role=cargo,
+            brasao_bytes=_ler_brasao(),
+            brasao_filename=os.path.basename(_encontrar_logo() or 'brasao.png'),
             reason='Documento assinado digitalmente nos termos da MP 2.200-2/2001',
-            location='Câmara Municipal',
+            location=_obter_nome_casa_legislativa(),
         )
 
         for res_api in resultados_api:
@@ -2750,15 +2686,15 @@ def docacessorio_assinar_lote(request):
             }
             filename = f"docacessorio_{pk}_assinado_{int(timezone.now().timestamp())}.pdf"
             doc.pdf_assinado.save(filename, ContentFile(res_api['pdf_bytes']), save=False)
-            if pk in codigos_map:
-                doc.codigo_autenticacao = codigos_map[pk]
+            if res_api.get('codigo_autenticacao'):
+                doc.codigo_autenticacao = res_api['codigo_autenticacao']
             assinaturas_existentes.append(nova_assinatura)
             doc.assinatura_info = assinaturas_existentes
             doc.assinado_em = timezone.now()
             doc.assinado_por = request.user
             doc.save()
 
-            logger.info(f'[lote-doc] DocAcessorio {pk} assinado por {request.user.username} (api_externa/batch)')
+            logger.info(f'[lote-doc] DocAcessorio {pk} assinado por {request.user.username} (api_externa)')
             resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
             sucesso_count += 1
 
