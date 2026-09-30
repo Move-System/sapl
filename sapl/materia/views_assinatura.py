@@ -23,7 +23,8 @@ from django.views.decorators.http import require_http_methods
 
 from sapl.base.models import AppConfig, OperadorAutor
 from sapl.materia.models import DocumentoAcessorio, MateriaLegislativa
-from sapl.utils import build_onlyoffice_url
+from sapl.materia.tramitacao_automatica import tramitar_por_assinatura
+from sapl.utils import build_onlyoffice_url, get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -1907,9 +1908,17 @@ def docacessorio_assinar_a1(request, pk):
         f"(backend: {nova_assinatura.get('backend', '?')})"
     )
 
+    tramitacao, motivo_tramitacao = tramitar_por_assinatura(
+        docacessorio, user=request.user, ip=get_client_ip(request))
+
     return JsonResponse({
         'success': True,
         'message': 'PDF assinado com sucesso!',
+        'tramitacao_automatica': {
+            'criada': tramitacao is not None,
+            'motivo': motivo_tramitacao,
+            'status': str(tramitacao.status) if tramitacao else '',
+        },
         'backend': nova_assinatura.get('backend', ''),
         'certificado': {
             'nome': nova_assinatura.get('subject') or nova_assinatura.get('nome_assinante', ''),
@@ -2695,6 +2704,8 @@ def docacessorio_assinar_lote(request):
             doc.save()
 
             logger.info(f'[lote-doc] DocAcessorio {pk} assinado por {request.user.username} (api_externa)')
+            tramitar_por_assinatura(
+                doc, user=request.user, ip=get_client_ip(request))
             resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
             sucesso_count += 1
 
@@ -2735,6 +2746,8 @@ def docacessorio_assinar_lote(request):
                     f"[lote-doc] DocAcessorio {pk} assinado por {request.user.username} "
                     f"(backend: {nova_assinatura.get('backend', '?')})"
                 )
+                tramitar_por_assinatura(
+                    doc, user=request.user, ip=get_client_ip(request))
                 resultados.append({'pk': pk, 'success': True, 'descricao': descricao})
                 sucesso_count += 1
 
