@@ -27,6 +27,27 @@ from sapl.materia.tramitacao_automatica import (
     tramitar_por_assinatura)
 
 
+@pytest.fixture(autouse=True)
+def sem_email_de_acompanhamento():
+    """Desliga o e-mail de acompanhamento durante estes testes.
+
+    `sapl.base.receivers.handle_tramitacao_signal` descobre a URL base varrendo
+    `inspect.stack()` atrás de uma variável local chamada `request`. Sob pytest
+    ele encontra o `SubRequest` das fixtures, e o tratamento de erro do próprio
+    receiver estoura em `request.user.username`.
+
+    É ruído alheio ao que estes testes verificam — e vale como aviso: qualquer
+    teste que crie uma `Tramitacao` esbarra nisso.
+    """
+    from django.db.models.signals import post_save
+
+    from sapl.base.receivers import handle_tramitacao_signal
+
+    post_save.disconnect(handle_tramitacao_signal, sender=Tramitacao)
+    yield
+    post_save.connect(handle_tramitacao_signal, sender=Tramitacao)
+
+
 @pytest.fixture()
 def cenario(db):
     """Matéria já tramitada uma vez, com o gatilho configurado."""
