@@ -248,6 +248,47 @@ class AppConfig(models.Model):
             'de matérias e documentos acessórios para permitir edições.'
         )
     )
+    # Tramitação automática ao assinar documento acessório (AB#1575).
+    # Os três precisam estar preenchidos para o gatilho ligar; em branco,
+    # nada acontece e o fluxo manual segue como sempre foi.
+    tramitacao_automatica_tipo_documento = models.ForeignKey(
+        'materia.TipoDocumento',
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        default=None,
+        related_name='appconfig_gatilho_tramitacao',
+        verbose_name=_('Tipo de documento que dispara a tramitação'),
+        help_text=_(
+            'Ao assinar digitalmente um documento acessório deste tipo, a '
+            'matéria recebe uma nova tramitação automaticamente. Use, por '
+            'exemplo, o Parecer Jurídico. Em branco, nada é automatizado.'))
+
+    tramitacao_automatica_status = models.ForeignKey(
+        'materia.StatusTramitacao',
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        default=None,
+        related_name='appconfig_gatilho_tramitacao',
+        verbose_name=_('Status aplicado pela tramitação automática'),
+        help_text=_(
+            'Status que a matéria assume quando o documento acima é '
+            'assinado. Use, por exemplo, Aguardando inserção na sessão.'))
+
+    tramitacao_automatica_unidade_destino = models.ForeignKey(
+        'materia.UnidadeTramitacao',
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        default=None,
+        related_name='appconfig_gatilho_tramitacao',
+        verbose_name=_('Unidade de destino da tramitação automática'),
+        help_text=_(
+            'Para onde a matéria é encaminhada. A unidade de origem não é '
+            'configurável: é sempre o destino da última tramitação, para não '
+            'quebrar a corrente do histórico.'))
+
     # MÓDULO PAINEL
     cronometro_discurso = models.DurationField(
         verbose_name=_('Cronômetro do Discurso'),

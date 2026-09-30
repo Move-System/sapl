@@ -1083,6 +1083,9 @@ class ConfiguracoesAppForm(ModelForm):
                   'google_analytics_id_metrica',
                   'identificacao_de_documentos',
                   'assinatura_nome',
+                  'tramitacao_automatica_tipo_documento',
+                  'tramitacao_automatica_status',
+                  'tramitacao_automatica_unidade_destino',
                   ]
 
     def __init__(self, *args, **kwargs):
