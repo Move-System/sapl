@@ -19,7 +19,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path
 from django.views.generic.base import RedirectView, TemplateView
-from django.views.static import serve as view_static_server
+from sapl.base.midia_protegida import servir_midia
 
 import sapl.api.urls
 import sapl.audiencia.urls
@@ -86,6 +86,11 @@ urlpatterns += [
     # Monitoring
     path(r'', include('django_prometheus.urls')),
 
+    # Mídia passa pelo Django para ter o acesso verificado (AB#1583). Fica
+    # fora do bloco DEBUG abaixo de propósito: em produção era justamente a
+    # ausência desta rota que deixava o nginx entregar tudo por alias.
+    url(r'^media/(?P<path>.*)$', servir_midia, name='midia_protegida'),
+
 ]
 
 
@@ -102,11 +107,9 @@ if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL,
                           document_root=settings.STATIC_ROOT)
 
-    urlpatterns += [
-        url(r'^media/(?P<path>.*)$', view_static_server, {
-            'document_root': settings.MEDIA_ROOT,
-        }),
-    ]
+    # A rota de mídia não é recriada aqui: `servir_midia` já cai no serve do
+    # Django quando DEBUG está ligado. Duplicá-la reintroduziria um caminho
+    # sem verificação de acesso.
 
 
 # Make the rate limiter return 429 (Too Many Requests) instead of 403 (Forbidden Access)
