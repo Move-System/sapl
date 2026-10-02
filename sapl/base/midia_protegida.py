@@ -138,6 +138,47 @@ def pode_acessar(user, caminho):
     return False
 
 
+def materia_visivel_para(user, materia_id):
+    """A mesma regra da mídia, aplicada no nível da matéria.
+
+    Serve às views que montam pacotes de download (Todos em PDF, Todos em ZIP)
+    lendo os arquivos direto do disco: elas não passam por `/media/`, então o
+    controle de lá não as alcança.
+    """
+    if user and user.is_authenticated:
+        return True
+    return _materia_foi_a_plenario(materia_id)
+
+
+def exige_materia_visivel(view):
+    """Protege view de download que recebe a pk da matéria.
+
+    Sem isto, bastava conhecer a URL do pacote para baixar matéria e pareceres
+    de um processo que não foi a plenário — era por aqui que o vazamento
+    continuava mesmo depois de `/media/` ter sido fechado.
+    """
+    from functools import wraps
+
+    @wraps(view)
+    def _protegida(request, pk, *args, **kwargs):
+        if not materia_visivel_para(request.user, pk):
+            usuario = getattr(request.user, 'username', 'anonimo')
+            logger.info(
+                'Download do pacote da matéria %s negado para o usuário %s.',
+                pk, usuario)
+
+            if not request.user.is_authenticated:
+                from django.contrib.auth.views import redirect_to_login
+                return redirect_to_login(request.get_full_path())
+
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied()
+
+        return view(request, pk, *args, **kwargs)
+
+    return _protegida
+
+
 def _caminho_seguro(caminho):
     """Normaliza e recusa qualquer tentativa de sair de MEDIA_ROOT."""
     caminho = posixpath.normpath(caminho.replace('\\', '/')).lstrip('/')
