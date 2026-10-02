@@ -38,6 +38,8 @@ from django.utils.decorators import method_decorator
 
 import sapl
 from sapl.base.email_utils import do_envia_email_confirmacao
+from sapl.base.midia_protegida import (exige_materia_visivel,
+                                       materia_visivel_para)
 from sapl.base.models import Autor, CasaLegislativa, AppConfig as BaseAppConfig, OperadorAutor
 from sapl.comissoes.models import Participacao
 from sapl.compilacao.models import STATUS_TA_IMMUTABLE_RESTRICT, STATUS_TA_PRIVATE
@@ -3774,6 +3776,7 @@ def create_zip_docacessorios(materia):
     return external_name, _zipfile.getvalue()
 
 
+@exige_materia_visivel
 def get_zip_docacessorios(request, pk):
     logger = logging.getLogger(__name__)
     username = 'Usuário anônimo' if request.user.is_anonymous else request.user.username
@@ -3861,6 +3864,7 @@ def create_zip_completo(materia):
     return external_name, _zipfile.getvalue()
 
 
+@exige_materia_visivel
 def get_zip_completo(request, pk):
     logger = logging.getLogger(__name__)
     username = 'Usuário anônimo' if request.user.is_anonymous else request.user.username
@@ -3945,6 +3949,7 @@ def create_pdf_completo(materia):
     return external_name, data.getvalue()
 
 
+@exige_materia_visivel
 def get_pdf_completo(request, pk):
     logger = logging.getLogger(__name__)
     username = 'Usuário anônimo' if request.user.is_anonymous else request.user.username
@@ -4010,6 +4015,7 @@ def create_pdf_docacessorios(materia):
     return external_name, data.getvalue()
 
 
+@exige_materia_visivel
 def get_pdf_docacessorios(request, pk):
     materia = get_object_or_404(MateriaLegislativa, pk=pk)
     logger = logging.getLogger(__name__)
@@ -4094,6 +4100,16 @@ def get_pdf_multiplos(request):
         return JsonResponse({'error': 'Nenhum ID informado'}, status=400)
 
     ids = ids[:50]
+
+    # Anônimo só leva o que já foi a plenário. Filtrar aqui, e não recusar a
+    # chamada inteira, mantém a impressão em lote útil no portal público sem
+    # deixar uma matéria em tramitação sair escondida no meio do pacote.
+    if not request.user.is_authenticated:
+        ids = [i for i in ids if materia_visivel_para(request.user, i)]
+        if not ids:
+            return JsonResponse(
+                {'error': 'Nenhuma matéria disponível para consulta pública'},
+                status=403)
 
     MEDIA_ROOT_local = settings.MEDIA_ROOT
     materias = MateriaLegislativa.objects.filter(pk__in=ids).select_related('tipo')
