@@ -206,3 +206,63 @@ def test_path_traversal_nao_escapa_do_media_root(client, db):
 
     assert resposta.status_code in (301, 302, 404)
     assert 'X-Accel-Redirect' not in resposta
+
+
+# --- pacotes de download: o furo que sobrou depois de fechar /media/ --------
+
+def test_todos_em_pdf_e_negado_a_anonimo_antes_do_plenario(client, db):
+    """"Todos em PDF" lê os arquivos do disco e não passa por /media/.
+
+    Foi por aqui que o download continuou funcionando depois do primeiro
+    commit: fechar a mídia não alcançava estas views.
+    """
+    from django.urls import reverse
+
+    materia = baker.make(MateriaLegislativa)
+    resposta = client.get(
+        reverse('sapl.materia:pdf_completo_materia', kwargs={'pk': materia.pk}))
+
+    assert resposta.status_code == 302
+    assert '/login' in resposta.url
+
+
+def test_todos_em_zip_e_negado_a_anonimo_antes_do_plenario(client, db):
+    from django.urls import reverse
+
+    materia = baker.make(MateriaLegislativa)
+    resposta = client.get(
+        reverse('sapl.materia:zip_completo_materia', kwargs={'pk': materia.pk}))
+
+    assert resposta.status_code == 302
+    assert '/login' in resposta.url
+
+
+def test_pacote_de_materia_que_foi_a_plenario_nao_vai_ao_login(client, db):
+    """Depois do plenário a porta abre.
+
+    Sem arquivo no disco a view redireciona para o detalhe com aviso — o que
+    importa aqui é que o destino NÃO é a tela de login.
+    """
+    from django.urls import reverse
+
+    materia = baker.make(MateriaLegislativa)
+    _pauta(materia, ONTEM)
+
+    resposta = client.get(
+        reverse('sapl.materia:pdf_completo_materia', kwargs={'pk': materia.pk}))
+
+    assert '/login' not in getattr(resposta, 'url', '')
+
+
+def test_impressao_em_lote_filtra_o_que_anonimo_nao_pode_ver(client, db):
+    """O lote não pode deixar matéria em tramitação sair escondida no meio."""
+    from django.urls import reverse
+
+    publica = baker.make(MateriaLegislativa)
+    _pauta(publica, ONTEM)
+    restrita = baker.make(MateriaLegislativa)
+
+    url = reverse('sapl.materia:pdf_multiplos_materias')
+    resposta = client.get('{}?ids={}'.format(url, restrita.pk))
+
+    assert resposta.status_code == 403
