@@ -40,6 +40,7 @@ import sapl
 from sapl.base.email_utils import do_envia_email_confirmacao
 from sapl.base.midia_protegida import (exige_materia_visivel,
                                        materia_visivel_para)
+from sapl.materia.achatamento_carimbo import achatar_carimbos
 from sapl.base.models import Autor, CasaLegislativa, AppConfig as BaseAppConfig, OperadorAutor
 from sapl.comissoes.models import Participacao
 from sapl.compilacao.models import STATUS_TA_IMMUTABLE_RESTRICT, STATUS_TA_PRIVATE
@@ -3946,7 +3947,7 @@ def create_pdf_completo(materia):
 
     external_name = "mat_{}_{}_completo.pdf".format(
         materia.numero, materia.ano)
-    return external_name, data.getvalue()
+    return external_name, achatar_carimbos(data.getvalue())
 
 
 @exige_materia_visivel
@@ -4012,7 +4013,7 @@ def create_pdf_docacessorios(materia):
 
     external_name = "mat_{}_{}_docacessorios.pdf".format(
         materia.numero, materia.ano)
-    return external_name, data.getvalue()
+    return external_name, achatar_carimbos(data.getvalue())
 
 
 @exige_materia_visivel
@@ -4136,7 +4137,7 @@ def get_pdf_multiplos(request):
         data = BytesIO()
         merger.write(data)
         merger.close()
-        pdf_bytes = data.getvalue()
+        pdf_bytes = achatar_carimbos(data.getvalue())
     except Exception as e:
         logger_local.error("user={}. Erro ao gerar PDF multiplos: {}".format(username, str(e)))
         return JsonResponse({'error': 'Erro ao gerar PDF: ' + str(e)}, status=500)
