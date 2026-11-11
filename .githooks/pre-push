@@ -1,0 +1,35 @@
+#!/bin/sh
+# STUB — a logica vive em knowledge/scripts/hooks/ (repositorio docs-ia-projects).
+# Editar aqui nao adianta: o proximo instalar-hooks.sh sobrescreve. Edite la, por PR.
+#
+# Sem knowledge/ o stub nao tem regra para rodar — e entao BLOQUEIA (ADR-0012, emenda de
+# 2026-09-17). Ate essa emenda ele avisava e saia com 0, o que desligava o gate justamente
+# no clone que ele deveria barrar: o que esta sem o conhecimento. O escape nomeado de cada
+# hook continua valendo aqui, para quem precisa furar de proposito.
+nome=$(basename "$0")
+raiz=$(git rev-parse --show-toplevel) || exit 1
+real="$raiz/knowledge/scripts/hooks/$nome"
+
+if [ ! -x "$real" ]; then
+  case "$nome" in
+    pre-commit) escape=ALLOW_KNOWLEDGE_STALE; furo="${ALLOW_KNOWLEDGE_STALE:-}"; uso="git commit" ;;
+    commit-msg) escape=ALLOW_COMMIT_MSG;      furo="${ALLOW_COMMIT_MSG:-}";      uso="git commit" ;;
+    pre-push)   escape=ALLOW_DIRECT_PUSH;     furo="${ALLOW_DIRECT_PUSH:-}";     uso="git push" ;;
+    *)          escape=;                      furo=;                             uso= ;;
+  esac
+  [ "$furo" = "1" ] && exit 0
+
+  echo "" >&2
+  echo "✗ knowledge/ ausente ou desatualizado — '$nome' nao pode validar nada (ADR-0012)." >&2
+  echo "" >&2
+  echo "  Rode, uma vez neste clone:" >&2
+  echo "    git submodule update --init --remote knowledge" >&2
+  if [ -n "$escape" ]; then
+    echo "" >&2
+    echo "  Bypass consciente: $escape=1 $uso ..." >&2
+  fi
+  echo "" >&2
+  exit 1
+fi
+
+exec "$real" "$@"

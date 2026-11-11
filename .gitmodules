@@ -1,0 +1,3 @@
+[submodule "knowledge"]
+	path = knowledge
+	url = git@github.com:Move-System/docs-ia-projects.git
