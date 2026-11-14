@@ -337,13 +337,8 @@ ASSINATURA_API_URL = config('ASSINATURA_API_URL', default='')
 ASSINATURA_API_KEY = config('ASSINATURA_API_KEY', default='')
 ASSINATURA_API_TIMEOUT = config('ASSINATURA_API_TIMEOUT', cast=int, default=120)
 
-# Integração externa de matérias da sessão
-SESSAO_MATERIAS_API_URL = config('SESSAO_MATERIAS_API_URL', default='')
-SESSAO_MATERIAS_API_KEY = config('SESSAO_MATERIAS_API_KEY', default='')
-SESSAO_MATERIAS_API_USERNAME = config('SESSAO_MATERIAS_API_USERNAME', default='')
-SESSAO_MATERIAS_API_PASSWORD = config('SESSAO_MATERIAS_API_PASSWORD', default='')
-# lista separada por vírgula, ex: "ROLE_USER,ROLE_ADMIN"
-SESSAO_MATERIAS_API_AUTHORITIES = config('SESSAO_MATERIAS_API_AUTHORITIES', default='')
+# O envio da pauta a painel de votação externo é configurado pela tela
+# (Configurações da Aplicação), não mais por SESSAO_MATERIAS_API_*.
 
 # Feature Flag
 WAFFLE_FLAG_DEFAULT = False

@@ -2,115 +2,61 @@
 {% load i18n %}
 
 {% block extra_actions %}
-  <div class="actions btn-group btn-group-sm ml-2" role="group">
-    <button type="button" id="sync-painel-btn" class="btn btn-outline-primary">
-      {% trans "Sincronizar Painel" %}
-    </button>
-  </div>
-  <span id="sync-painel-feedback" class="ml-2 small text-muted"></span>
+  {% if painel_externo_ativo and perms.sessao.change_sessaoplenaria %}
+    <div class="actions btn-group btn-group-sm ml-2" role="group">
+      <button type="button" id="enviar-pauta-painel" class="btn btn-outline-primary"
+              data-url="/api/sessao/sessaoplenaria/{{ object.pk }}/materias/enviar/">
+        {% trans "Enviar pauta ao painel" %}
+      </button>
+    </div>
+    <span id="enviar-pauta-painel-retorno" class="ml-2 small text-muted"></span>
 
-  <script>
-    (function () {
-      const btn = document.getElementById('sync-painel-btn');
-      if (!btn) {
-        console.warn('Sincronizar Painel: botão não encontrado na página.');
-        return;
-      }
-      const feedback = document.getElementById('sync-painel-feedback');
-      const endpoint = window.location.origin + "/api/sessao/sessaoplenaria/{{ view.object.pk }}/materias/enviar/";
-      console.log('Sincronizar Painel: endpoint', endpoint);
+    <script>
+      (function () {
+        const botao = document.getElementById('enviar-pauta-painel');
+        const retorno = document.getElementById('enviar-pauta-painel-retorno');
 
-      function getCsrfToken() {
-        const name = 'csrftoken=';
-        const decodedCookie = decodeURIComponent(document.cookie || '');
-        const ca = decodedCookie.split(';');
-        for (let i = 0; i < ca.length; i++) {
-          let c = ca[i].trim();
-          if (c.indexOf(name) === 0) {
-            return c.substring(name.length, c.length);
+        function mostra(texto, erro) {
+          retorno.textContent = texto;
+          retorno.classList.toggle('text-danger', erro);
+          retorno.classList.toggle('text-muted', !erro);
+        }
+
+        function explica(resp, dados) {
+          const detalhe = dados.mensagem ? ' ' + dados.mensagem : '';
+          if (resp.ok) {
+            return ['{% trans "Pauta enviada ao painel." %}' + detalhe, false];
           }
+          if (resp.status === 403) {
+            return ['{% trans "Sem permissão para enviar a pauta." %}', true];
+          }
+          if (dados.status_remoto) {
+            return ['{% trans "O painel recusou a pauta" %} (HTTP ' + dados.status_remoto + ').' + detalhe, true];
+          }
+          return [dados.mensagem || '{% trans "Não foi possível enviar a pauta." %}', true];
         }
-        return '';
-      }
 
-      function setStatus(message, isError) {
-        feedback.textContent = message || '';
-        if (isError) {
-          feedback.classList.remove('text-muted');
-          feedback.classList.add('text-danger');
-        } else {
-          feedback.classList.remove('text-danger');
-          feedback.classList.add('text-muted');
-        }
-      }
-
-      btn.addEventListener('click', function () {
-        setStatus('{% trans "Enviando..." %}', false);
-        btn.disabled = true;
-        const body = {};
-        // Exibe no console o payload que será enviado
-        try {
-          console.log('Sincronizar Painel - payload:', JSON.stringify(body));
-        } catch (e) {
-          console.log('Sincronizar Painel - payload (obj):', body);
-        }
-        console.log('Sincronizar Painel: iniciando requisição');
-        const doRequest = () => {
-          return fetch(endpoint, {
+        botao.addEventListener('click', function () {
+          botao.disabled = true;
+          mostra('{% trans "Enviando..." %}', false);
+          fetch(botao.dataset.url, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRFToken': getCsrfToken(),
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify(body)
-          });
-        };
-
-        const handleResponse = async (resp) => {
-          const statusCode = resp.status;
-          let msg = resp.ok ? '{% trans "Sincronizado com sucesso." %}' : '{% trans "Sincronizado (mensagem da API)." %}';
-          let detail = '';
-
-          try {
-            const data = await resp.json();
-            if (data && data.remote_status_code) {
-              // se 400 mas com mensagem de atualizado, trata como sucesso
-              if (data.remote_status_code === 400 && data.remote_response && typeof data.remote_response === 'string') {
-                const xmlMatch = data.remote_response.match(/<localizedMessage>(.*?)<\/localizedMessage>/i);
-                if (xmlMatch && xmlMatch[1]) {
-                  detail = xmlMatch[1];
-                  msg = '{% trans "Sincronizado" %}';
-                } else {
-                  msg = '{% trans "Sincronizado" %}';
-                }
-              } else {
-                msg += ` (HTTP ${data.remote_status_code})`;
-              }
-            } else {
-              msg += ` (HTTP ${statusCode})`;
-            }
-          } catch (jsonErr) {
-            msg += ` (HTTP ${statusCode})`;
-          }
-
-          const finalMsg = detail ? `${msg} - ${detail}` : msg;
-          setStatus(finalMsg, false);
-        };
-
-        const handleError = (err) => {
-          setStatus('{% trans "Erro de rede ao sincronizar." %}', true);
-          console.error(err);
-        };
-
-        // usa fetch com credenciais; se falhar, loga o erro no console
-        doRequest()
-          .then(handleResponse)
-          .catch(handleError)
-          .finally(() => {
-            btn.disabled = false;
-          });
-      });
-    })();
-  </script>
+            headers: {'X-CSRFToken': '{{ csrf_token }}'},
+            credentials: 'same-origin'
+          })
+            .then(function (resp) {
+              return resp.json()
+                .catch(function () { return {}; })
+                .then(function (dados) { mostra.apply(null, explica(resp, dados)); });
+            })
+            .catch(function () {
+              mostra('{% trans "Erro de rede ao enviar a pauta." %}', true);
+            })
+            .finally(function () {
+              botao.disabled = false;
+            });
+        });
+      })();
+    </script>
+  {% endif %}
 {% endblock extra_actions %}
