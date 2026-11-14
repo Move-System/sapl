@@ -8,7 +8,7 @@ from image_cropping.utils import get_backend
 from rest_framework import serializers
 from rest_framework.fields import SerializerMethodField
 
-from sapl.base.models import Autor, CasaLegislativa, Metadata
+from sapl.base.models import AppConfig, Autor, CasaLegislativa, Metadata
 from sapl.parlamentares.models import Parlamentar, Mandato, Legislatura
 from sapl.sessao.models import OrdemDia, SessaoPlenaria
 
@@ -69,6 +69,14 @@ class AutorSerializer(SaplSerializerMixin):
     class Meta:
         model = Autor
         fields = '__all__'
+
+
+class AppConfigSerializer(SaplSerializerMixin):
+
+    class Meta:
+        model = AppConfig
+        # a chave do painel externo só é escrita pela tela de configuração
+        exclude = ['painel_externo_api_key']
 
 
 class CasaLegislativaSerializer(SaplSerializerMixin):
